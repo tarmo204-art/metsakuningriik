@@ -1,4 +1,4 @@
-<!doctype html><html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:dark;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Metsakuningriik</title>
+<!doctype html><html lang="et"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Metsakuningriik – rahulik metsakuningriigi mäng kalapüügiga"><style>:root{color-scheme:dark;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Metsakuningriik</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -315,7 +315,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 <div id="start" class="start">
   <canvas id="startBg" aria-hidden="true"></canvas>
   <div class="start-card">
-    <div class="eyebrow">Rahulik metsamäng · versioon 1.1</div>
+    <div class="eyebrow">Rahulik metsamäng</div>
     <h1>Metsakuningriik</h1>
     <p class="lead">Sul on väike maalapp keset suurt metsa. Istuta puid, ehita hooneid, sõbrune loomadega, avasta uusi alasid ja kasvata sellest kuningriik.</p>
     <div class="cont" id="contBox" hidden>
@@ -373,6 +373,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 
 <div id="modal" class="modal" hidden><div class="modal-card" id="modalCard" role="dialog" aria-modal="true"></div></div>
 <div id="toasts" aria-live="polite"></div>
+
+<script src="vendor/supabase.js"></script>
 <script>
 'use strict';
 /* ================= DATA ================= */
@@ -520,6 +522,7 @@ const ACH = [
   { id: 'a17', n: 'Täiuslikkus', d: 'Täienda hoone 5. tasemele', ok: s => s.st.maxBldLvl >= 5, fame: 10 },
   { id: 'a18', n: 'Hundipeletaja', d: 'Peleta 10 öist hunti', ok: s => s.st.scared >= 10, fame: 8 },
 ];
+
 /* ================= EXPANSION DATA ================= */
 Object.assign(BUILD, {
   mesila: { n: 'Mesila', d: 'Mesitarud lillede keskel. Mesilased toovad mett (toitu) ja vaha müügiks (kulda).', cost: { wood: 150, berries: 100, gold: 120 }, time: 40, lvl: 9, prod: { food: 5, gold: 3 }, use: {}, upkeep: 0, fame: 0.3, max: 10 },
@@ -634,8 +637,9 @@ ACH.push(
   { id: 'a23', n: 'Tark valitseja', d: 'Täienda kõik nõukogu uuendused maksimumini', ok: s => UPG_ORDER.every(k => (s.upg || {})[k] >= UPG[k].max), fame: 50 },
   { id: 'a24', n: 'Legendide valitseja', d: 'Saavuta 20. tase', ok: s => s.level >= 20, fame: 40 },
 );
+
 /* ================= ENGINE ================= */
-const SAVE_KEY = 'metsakuningriik.v1';
+let SAVE_KEY = 'metsakuningriik.v1';
 let S = null, RATES = null, SILENT = false, silentLog = [];
 let storageOk = true, lastSaved = 0;
 
@@ -1172,6 +1176,7 @@ function save() {
 }
 function loadSave() { try { const j = localStorage.getItem(SAVE_KEY); return j ? JSON.parse(j) : null } catch (e) { storageOk = false; return null } }
 function wipeSave() { try { localStorage.removeItem(SAVE_KEY) } catch (e) { } }
+
 /* ================= RENDER ================= */
 const cv = document.getElementById('map'), cx = cv.getContext('2d');
 let TS = 40, DPR = 1, groundCv = null, groundKey = '';
@@ -1993,6 +1998,7 @@ function startFrame(ts) {
   c.globalCompositeOperation = 'source-over';
   requestAnimationFrame(startFrame);
 }
+
 /* ================= UI ================= */
 const $ = s => document.querySelector(s);
 const UI = { tool: 'kogu', placing: null, tab: 'ehita', lastPanel: '', panelBusy: false, modalView: null, lastModal: '', modalBusy: false, lastTabs: '' };
@@ -2441,7 +2447,7 @@ function showStart() {
   if (sv) { $('#btnContinue').textContent = 'Jätka: ' + sv.kingdom; $('#contInfo').textContent = `Valitseja ${sv.name} · tase ${sv.level} · päev ${Math.floor(sv.time / DAY) + 1}` }
 }
 function enterGame() {
-  ensureAdventure(); ensureFish(); setTimeout(() => { if (typeof pushScore === 'function') pushScore(true) }, 1500);
+  ensureAdventure(); if (typeof ensureFish === 'function') ensureFish(); setTimeout(() => { if (typeof pushScore === 'function') pushScore(true) }, 1500);
   $('#start').hidden = true; $('#game').hidden = false;
   RATES = computeRates();
   buildHUD(); renderRegionTabs(); UI.tab = 'ehita'; UI.tool = 'kogu'; UI.placing = null; UI.lastPanel = ''; renderTabs(true); renderPanel(true); $('#tabBody').scrollTop = 0;
@@ -2489,6 +2495,7 @@ showStart();
 fitTitle();
 requestAnimationFrame(frame);
 requestAnimationFrame(startFrame);
+
 /* ================= ADVENTURES: CAVE & TREASURE HUNT ================= */
 const CW = 9, CH = 9;
 ICON.map = '<svg viewBox="0 0 20 20"><path d="M3 4 L8 2.5 L12 4 L17 2.5 V16 L12 17.5 L8 16 L3 17.5Z" fill="#e8d3a2"/><path d="M8 2.5 V16 M12 4 V17.5" stroke="#b99a62" stroke-width="1"/><path d="M5 12 Q7 9 9 10 T13 7" stroke="#8a5a34" stroke-width="1.2" fill="none" stroke-dasharray="1.5 1.3"/><path d="M13 6 l2 2 M15 6 l-2 2" stroke="#c8473a" stroke-width="1.5"/></svg>';
@@ -2742,482 +2749,963 @@ ACH.push(
   { id: 'a26', n: 'Varanduste isand', d: 'Leia 10 peidetud aaret', ok: s => (s.st.treasures || 0) >= 10, fame: 30 },
   { id: 'a27', n: 'Kuldne labidas', d: 'Leia aare juba esimese kaevamisega', ok: s => (s.st.firstDig || 0) >= 1, fame: 15 },
 );
-/* ================= SHARED LEADERBOARD ================= */
-const LB = { db: null, uid: null, rows: [], state: 'loading', canWrite: null, readOnly: false, lastSig: '', writing: false, err: '' };
-async function initLeaderboard() {
-  try {
-    if (!window.claude || !window.claude.use) { LB.state = 'off'; return }
-    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
-    if (!db) { LB.state = 'off'; return }
-    LB.db = db;
-    if (user) { LB.uid = await user.id(); LB.canWrite = await user.can('data.write') }
-    const timer = setTimeout(() => { if (LB.state === 'loading') LB.state = 'slow' }, 10000);
-    db.collection('leaderboard').orderBy('score', 'desc').limit(50).onSnapshot(snap => {
-      clearTimeout(timer);
-      LB.rows = snap.docs.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
-      LB.state = 'ok';
-    }, e => { clearTimeout(timer); LB.state = 'error'; LB.err = (e && e.code) || '' });
-    pushScore(true);
-  } catch (e) { LB.state = 'off' }
-}
-const lbScore = () => S.level * 100000 + Math.floor(S.fame);
-async function pushScore(force) {
-  if (!S || !LB.db || !LB.uid || LB.canWrite === false || LB.readOnly || LB.writing) return;
-  const ref = LB.db.doc('leaderboard/' + LB.uid);
-  if (S.lbHidden) {
-    if (LB.lastSig === 'hidden') return;
-    LB.writing = true; try { await ref.delete(); LB.lastSig = 'hidden' } catch (e) { } finally { LB.writing = false } return;
-  }
-  const d = { kingdom: String(S.kingdom).slice(0, 24), ruler: String(S.name).slice(0, 20), level: S.level, fame: Math.floor(S.fame), regions: Object.keys(S.regions).length, buildings: S.buildings.length, tamed: S.st.tamedTotal, treasures: S.st.treasures || 0, deepest: S.st.deepest || 0, day: dayNum(), score: lbScore(), updated: Date.now() };
-  const sig = [d.kingdom, d.ruler, d.level, d.fame, d.regions, d.buildings, d.tamed, d.treasures, d.deepest].join('|');
-  if (sig === LB.lastSig && !force) return;
-  LB.writing = true;
-  try { await ref.set(d); LB.lastSig = sig }
-  catch (e) { if (e && (e.code === 'invalid_argument' || e.code === 'permission_denied' || e.code === 'not_granted')) LB.readOnly = true }
-  finally { LB.writing = false }
-}
-setInterval(() => { if (S && running) pushScore(false) }, 45000);
 
-TABS.edetabel = { n: 'Edetabel', r: renderLbTab };
-{ const o = {}; for (const k in TABS) { if (k === 'kuningriik') o.edetabel = TABS.edetabel; if (k !== 'edetabel') o[k] = TABS[k] } for (const k in TABS) delete TABS[k]; Object.assign(TABS, o) }
-function renderLbTab() {
-  let h = `<h2>Edetabel</h2><p class="lead">Kõik, kes mängivad sama lingi kaudu, näevad siin üksteise kuningriike. Järjestus on taseme ja seejärel kuulsuse järgi.</p>`;
-  h += renderLiveSection();
-  h += `<div class="sec-h">Kõigi aegade tabel</div>`;
-  if (LB.state === 'off') return h + `<div class="card"><p class="lead">Edetabel töötab, kui mäng on avatud claude.ai lingi kaudu ja oled sisse logitud. Mäng ise töötab ka ilma selleta.</p></div>`;
-  if (LB.state === 'loading' || LB.state === 'slow') return h + `<div class="card"><p class="lead">${LB.state === 'slow' ? 'Edetabel laadib aeglaselt. Proovi hiljem uuesti.' : 'Laadin edetabelit…'}</p></div>`;
-  if (LB.state === 'error') return h + `<div class="card"><p class="lead">Edetabelit ei õnnestunud laadida${LB.err ? ' (' + esc(LB.err) + ')' : ''}. Mäng töötab edasi tavapäraselt.</p></div>`;
-  if (LB.readOnly || LB.canWrite === false) h += `<div class="card qcard done"><div><h3>Sinu tulemust ei saa veel tabelisse lisada</h3><div class="rew">Sinu kuningriik on näha nimekirjas „Praegu mängimas“, kui mäng on lahti. Püsivasse tabelisse lisamiseks on vaja õigust „Contributor“ (kaastöötaja).</div></div></div>`;
-  if (!LB.rows.length) h += `<div class="card"><p class="lead">Edetabel on veel tühi. Sinu kuningriik ilmub siia peagi.</p></div>`;
-  else {
-    h += `<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th title="Piirkondi">Alad</th><th title="Leitud aardeid">Aardeid</th></tr></thead><tbody>`;
-    LB.rows.forEach((r, i) => {
-      const me = r.id === LB.uid;
-      h += `<tr class="${me ? 'me' : ''}"><td class="rk">${i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : i + 1}</td><td><b>${esc(r.kingdom || 'Nimetu riik')}</b><small>${esc(r.ruler || '')}${me ? ' · sina' : ''}</small></td><td class="num">${r.level | 0}</td><td class="num">${fmt(r.fame || 0)}</td><td class="num">${r.regions | 0}</td><td class="num">${r.treasures | 0}</td></tr>`;
-    });
-    h += `</tbody></table></div>`;
-  }
-  if (LIVE.on || (LB.uid && !LB.readOnly && LB.canWrite !== false)) h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-act="lbToggle">${S.lbHidden ? 'Näita mind edetabelis' : 'Peida mind edetabelist'}</button><span class="lead" style="font-size:12.5px">${S.lbHidden ? 'Sinu kuningriik on edetabelist peidetud.' : 'Tabelis näidatakse sinu kuningriigi ja valitseja nime.'}</span></div>`;
-  return h;
-}
-ACT.lbToggle = () => { S.lbHidden = !S.lbHidden; LB.lastSig = ''; save(); pushScore(true); setLivePresence(true) };
-initLeaderboard();
-
-/* ---------- live "now playing" via room presence ---------- */
-const LIVE = { room: null, peers: [], sig: '', on: false };
-async function initLive() {
-  try {
-    if (!window.claude || !window.claude.use) return;
-    const room = await window.claude.use('room'); if (!room) return;
-    LIVE.room = room; LIVE.on = true;
-    room.onPeers(ch => { LIVE.peers = ch.peers || [] }, () => { });
-    setLivePresence(true);
-  } catch (e) { }
-}
-function setLivePresence(force) {
-  if (!LIVE.room || !S || !running) return;
-  const p = S.lbHidden ? { k: null, r: null, l: null, f: null, g: null, t: null, v: null } :
-    { k: String(S.kingdom).slice(0, 24), r: String(S.name).slice(0, 20), l: S.level, f: Math.floor(S.fame), g: Object.keys(S.regions).length, t: S.st.treasures || 0, v: REGIONS[S.view].n };
-  const sig = JSON.stringify(p); if (sig === LIVE.sig && !force) return;
-  LIVE.sig = sig; LIVE.room.presence(p).catch(() => { });
-}
-setInterval(() => setLivePresence(false), 4000);
-function livePlayers() {
-  const out = [], seenMe = new Set();
-  for (const pe of LIVE.peers) {
-    if (pe.kind !== 'viewer') continue;
-    const p = pe.presence || {}; if (!p.k) continue;
-    if (pe.isMe) { if (seenMe.size) continue; seenMe.add(1) }
-    out.push({ me: pe.isMe, guest: pe.guest, k: String(p.k).slice(0, 24), r: String(p.r || '').slice(0, 20), l: Math.max(0, p.l | 0), f: Math.max(0, +p.f || 0), g: Math.max(0, p.g | 0), t: Math.max(0, p.t | 0), v: String(p.v || '').slice(0, 30) });
-  }
-  return out.sort((a, b) => b.l - a.l || b.f - a.f);
-}
-function renderLiveSection() {
-  if (!LIVE.on) return '';
-  const ps = livePlayers();
-  let h = `<div class="sec-h">Praegu mängimas <small>${ps.length} ${ps.length === 1 ? 'mängija' : 'mängijat'}</small></div>`;
-  if (!ps.length) return h + `<p class="lead">Kui sõbrad avavad mängu samal ajal, ilmuvad nad siia kohe.</p>`;
-  h += `<div class="lbwrap"><table class="lb"><thead><tr><th></th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th></tr></thead><tbody>`;
-  ps.forEach(p => { h += `<tr class="${p.me ? 'me' : ''}"><td class="rk"><span class="livedot"></span></td><td><b>${esc(p.k)}</b><small>${esc(p.r)}${p.me ? ' · sina' : ''}${p.v ? ' · ' + esc(p.v) : ''}</small></td><td class="num">${p.l}</td><td class="num">${fmt(p.f)}</td><td class="num">${p.g}</td></tr>` });
-  return h + `</tbody></table></div>`;
-}
-initLive();
-/* ================= FISHING ================= */
-TOOL_ICON.pyua = '<svg viewBox="0 0 20 20"><path d="M3 18 L15 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3 Q18 9 16 15" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="16" cy="15.5" r="1.8" fill="currentColor"/></svg>';
+/* ================= KALAPÜÜK (serveri kontrollitud) ================= */
 ICON.fish = '<svg viewBox="0 0 20 20"><path d="M2 10 C5 4.5, 12 4.5, 15 10 C12 15.5, 5 15.5, 2 10Z" fill="#7fbcd2"/><path d="M14 10 L19 6 L18 10 L19 14Z" fill="#5a9ab4"/><circle cx="5.5" cy="9" r="1" fill="#1a1a1a"/><path d="M8 7 Q9.5 10 8 13" stroke="#4f8aa4" stroke-width="1" fill="none"/></svg>';
-const FRESH = ['kodu', 'jarv', 'maed', 'org', 'iidne', 'raba', 'pohjala', 'haldja', 'pime'];
-/* r: 1 tavaline, 2 haruldasem, 3 haruldane, 4 legendaarne, 0 leid */
-const FISH = {
-  ahven: { n: 'Ahven', r: 1, reg: FRESH, w: [.1, .7], v: 6, shape: 'n', c: ['#9fb04a', '#4a6a2a', '#e8e0b0', '#e2563a'], stripes: 6 },
-  sarg: { n: 'Särg', r: 1, reg: FRESH, w: [.1, .5], v: 5, shape: 'n', c: ['#c9d2d6', '#5f7680', '#f2f4f2', '#d9503a'] },
-  latikas: { n: 'Latikas', r: 1, reg: ['jarv', 'raba', 'haldja', 'kodu'], w: [.5, 3.5], v: 8, shape: 'd', c: ['#b9a26a', '#6a5a3a', '#e6dcbf', '#7a6a4a'] },
-  linask: { n: 'Linask', r: 2, reg: ['raba', 'kodu', 'org'], w: [.4, 2.2], v: 14, shape: 'n', c: ['#8a9a3a', '#4a5a1a', '#d8c870', '#5a6a2a'] },
-  haug: { n: 'Haug', r: 2, reg: ['kodu', 'jarv', 'raba', 'iidne', 'pime', 'haldja'], w: [1, 9], v: 18, shape: 'l', c: ['#7a9a5a', '#3a5a2a', '#e6e8c8', '#9a7a3a'], spots: 1 },
-  koha: { n: 'Koha', r: 2, reg: ['jarv', 'haldja'], w: [1, 7], v: 20, shape: 'l', c: ['#a9b49a', '#4a5a4a', '#eef0e2', '#7a8a6a'], stripes: 7 },
-  vikerforell: { n: 'Vikerforell', r: 2, reg: ['maed', 'iidne'], w: [.5, 3.5], v: 22, shape: 'n', c: ['#9ab4a4', '#4a6a5a', '#f2e8e0', '#d97aa0'], band: '#e86a8a', spots: 1 },
-  siig: { n: 'Siig', r: 2, reg: ['pohjala', 'jarv'], w: [.5, 2.8], v: 18, shape: 'n', c: ['#d0d8de', '#7a8a94', '#f6f8f8', '#9aa8b0'] },
-  rAim: { n: 'Räim', r: 1, reg: ['meri'], w: [.05, .25], v: 4, shape: 'n', c: ['#c8d8e2', '#3a5a7a', '#f6fafc', '#9ab4c8'] },
-  lest: { n: 'Lest', r: 1, reg: ['meri'], w: [.2, 1.6], v: 10, shape: 'f', c: ['#a08a6a', '#6a5a42', '#e8dcc0', '#8a7a5a'], spots: 1 },
-  tursk: { n: 'Tursk', r: 2, reg: ['meri'], w: [1, 9], v: 20, shape: 'n', c: ['#a9a07a', '#6a6a4a', '#eee8d8', '#8a8a6a'], spots: 1 },
-  angerjas: { n: 'Angerjas', r: 3, reg: FRESH.concat(['meri']), night: true, w: [.5, 3], v: 35, shape: 'e', c: ['#5a5a3a', '#2a2a1a', '#c8b88a', '#4a4a2a'] },
-  luts: { n: 'Luts', r: 3, reg: FRESH, winter: true, w: [.5, 4], v: 30, shape: 'e', c: ['#7a6a4a', '#3a2e1e', '#d8c8a0', '#5a4a32'], spots: 1 },
-  lohe: { n: 'Lõhe', r: 3, reg: ['meri', 'maed'], w: [2, 14], v: 45, shape: 'l', c: ['#c0ccd4', '#4a5a6a', '#f6f2ee', '#8a9aaa'], spots: 1 },
-  saga: { n: 'Säga', r: 3, reg: ['jarv', 'raba'], w: [5, 45], v: 50, shape: 'l', c: ['#5a5a4a', '#2a2a22', '#b8b09a', '#3a3a30'], whisk: 1 },
-  kuuangerjas: { n: 'Kuu-angerjas', r: 4, reg: ['org', 'haldja'], night: true, w: [1, 4], v: 120, shape: 'e', c: ['#4a7ad8', '#1a2a6a', '#c8e0ff', '#7ab0ff'], glow: '#8ab8ff' },
-  haldjakala: { n: 'Haldjakala', r: 4, reg: ['haldja'], w: [.3, 1.5], v: 150, shape: 'd', c: ['#d8a8f0', '#7a5ab0', '#f8eaff', '#9ae8f0'], glow: '#e6b8ff', band: '#9ae8f0' },
-  jaakala: { n: 'Jääkala', r: 4, reg: ['pohjala'], w: [.5, 3], v: 130, shape: 'n', c: ['#e0f2fa', '#8ab8cc', '#ffffff', '#b8e4f2'], glow: '#d8f6ff' },
-  kuldkala: { n: 'Kuldkala', r: 4, reg: FRESH.concat(['meri']), rare: .25, w: [.2, .6], v: 0, shape: 'n', c: ['#ffc23a', '#e07a10', '#ffe8a0', '#ffa020'], glow: '#ffd060', wish: true },
-};
-const JUNK = {
-  saabas: { n: 'Vana saabas', r: 0, w: [.6, 1.2], txt: 'Keegi on siin kunagi märjaks saanud. Vähemalt naljakas leid.' },
-  pudel: { n: 'Pudelipost', r: 0, w: [.3, .5], txt: 'Pudelis on rullitud aardekaart!' },
-  laegas: { n: 'Uppunud laegas', r: 0, w: [4, 9], txt: 'Mudane laegas, täis vana kulda!' },
-};
-const FISH_ORDER = Object.keys(FISH);
-const RAR = { 0: ['Leid', '#c3d3a4'], 1: ['Tavaline', '#c3d3a4'], 2: ['Haruldasem', '#86cde0'], 3: ['Haruldane', '#e6a6ff'], 4: ['Legendaarne', '#ffd286'] };
-const RODS = [null, { n: 'Vitsaõng', cap: 4 }, { n: 'Bambusõng', cap: 10, cost: { gold: 300, wood: 100 } }, { n: 'Meistriõng', cap: 25, cost: { gold: 1200, stone: 300 } }, { n: 'Haldjaõng', cap: 65, cost: { gold: 4000, berries: 500 }, fame: 1000 }];
-const LINES = [null, { n: 'Tavaline tamiil', cap: 3 }, { n: 'Tugev tamiil', cap: 8, cost: { gold: 150 } }, { n: 'Meistri tamiil', cap: 20, cost: { gold: 600, wood: 100 } }, { n: 'Punutud nöör', cap: 65, cost: { gold: 2500, berries: 300 } }];
-const gearCap = () => Math.min(RODS[S.fish.rod].cap, LINES[S.fish.line].cap);
-const gearText = () => `${RODS[S.fish.rod].n} (${RODS[S.fish.rod].cap} kg) · ${LINES[S.fish.line].n} (${LINES[S.fish.line].cap} kg)`;
-const repairCost = () => S.fish.rod === 1 ? { wood: 20 } : scaleCost(RODS[S.fish.rod].cost, .3);
-function repairRod() { const c = repairCost(); if (!canAfford(c)) { toast('Parandamiseks jääb puudu.', 'bad'); return } pay(c); S.fish.broken = false; toast(`${RODS[S.fish.rod].n} on parandatud!`, 'good', 'fish') }
-const lineNext = () => S.fish.line < 4 ? LINES[S.fish.line + 1] : null;
-function buyLine() { const n = lineNext(); if (!n) return; if (!canAfford(n.cost)) { toast('Tamiili ostmiseks jääb puudu.', 'bad'); return } pay(n.cost); S.fish.line++; S.st.linesBought = (S.st.linesBought || 0) + 1; toast(`Uus varustus: ${n.n}, kannab ${n.cap} kg.`, 'gold', 'fish') }
-function showRepair() {
-  showModal(() => `<h2>Õng on katki</h2><p>${RODS[S.fish.rod].n} murdus liiga raske kala all. Enne järgmist püüki tuleb see parandada.</p><dl class="kv"><dt>Parandus</dt><dd>${costHTML(repairCost())}</dd></dl><div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Hiljem</button><button class="btn" type="button" data-act="repairRod" ${canAfford(repairCost()) ? '' : 'disabled'}>Paranda õng</button></div>`);
-}
-const BOOK_MS = [
-  { n: 3, rew: { gold: 200, xp: 100 } }, { n: 6, rew: { gold: 300, map: 1, xp: 200 } }, { n: 10, rew: { gold: 800, fame: 30, xp: 300 }, rod: true },
-  { n: 15, rew: { gold: 1500, fame: 50, map: 2, xp: 500 } }, { n: FISH_ORDER.length, rew: { gold: 5000, fame: 200, xp: 1500 }, title: true },
-];
-function ensureFish() {
-  if (!S.fish) S.fish = { rod: 1, book: {}, ms: {}, luck: 0, catches: 0, released: 0, bottles: 0, biggest: 0 };
-  if (!S.fish.line) S.fish.line = 1; if (S.fish.broken === undefined) S.fish.broken = false;
-}
-const fishWater = rk => rk === 'meri' ? 'meri' : rk === 'pohjala' ? 'jaa' : 'mage';
+TOOL_ICON.pyua = '<svg viewBox="0 0 20 20"><path d="M3 18 L15 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3 Q18 9 16 15" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="16" cy="15.5" r="1.8" fill="currentColor"/></svg>';
+const RAR2 = { 1: ['Tavaline', '#c3d3a4'], 2: ['Ebatavaline', '#8fd17a'], 3: ['Haruldane', '#6cb8ff'], 4: ['Eepiline', '#c58cff'], 5: ['Legendaarne', '#ffb347'], 6: ['Müütiline', '#ff6b9a'] };
+const JUNK2 = { saabas: ['Vana saabas', 'Keegi on siin kunagi märjaks saanud.'], purk: ['Plekkpurk', 'Purgi põhjas kõlises 3 kuldmünti.'], kepp: ['Triivpuu', 'Lihtsalt üks märg oks. Vähemalt said harjutada.'], pudel: ['Pudelipost', 'Pudelis oli aardekaart! See saadeti sinu kuningriiki.'] };
+const WTH2 = { paike: ['Päike', 'kalad võtavad aeglasemalt'], pilves: ['Pilves', 'tavaline püügiilm'], vihm: ['Vihm', 'kalad võtavad kiiremini, haruldasi rohkem'], udu: ['Udu', 'haruldasi kalu veidi rohkem'], torm: ['Torm', 'palju haruldasi kalu, aga õng murdub kergemini'] };
+const FD = { loaded: false, spots: [], species: [], rods: [], baits: [], achs: [], sp: {}, rod: {}, bait: {}, spot: {} };
+let FS = null;
+const FV = { open: false, tab: 'puuk', spot: null, phase: 'idle', msg: '', cast: null, hook: null, result: null, sel: new Set(), market: null, comps: null, orders: null, busy: false, odds: null, oddsKey: '' };
+function ensureFish() { }
 
-function pickCatch(rk) {
-  const night = skyState().dark > .45, winter = season().k === 'talv', rain = S.weather.t === 'vihm';
-  const luck = 1 + .15 * (S.fish.rod - 1) + .25 * S.fish.luck + (rain ? .2 : 0);
-  const pool = [];
-  for (const k of FISH_ORDER) {
-    const f = FISH[k]; if (!f.reg.includes(rk)) continue;
-    if (f.night && !night) continue; if (f.winter && !(winter || rk === 'pohjala')) continue;
-    let w = { 1: 60, 2: 26, 3: 9, 4: 2.2 }[f.r] * (f.r >= 3 ? luck : 1) * (f.rare || 1);
-    if (k === 'saga' && night) w *= 2;
-    pool.push([k, w]);
-  }
-  pool.push(['saabas', 3], ['pudel', 2], ['laegas', 1.2]);
-  let tot = pool.reduce((a, p) => a + p[1], 0), r = Math.random() * tot;
-  for (const [k, w] of pool) { r -= w; if (r <= 0) return k }
-  return pool[0][0];
-}
-const fishDef = k => FISH[k] || JUNK[k];
+/* ---------- stiilid ---------- */
+document.head.insertAdjacentHTML('beforeend', `<style>
+.fv{position:fixed;inset:0;z-index:20;overflow-y:auto;background:radial-gradient(120% 60% at 50% 0%,#17394a 0%,var(--spruce) 60%);padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+.fv-in{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:12px;padding-block:12px}
+.fv-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fv-top h1{font-family:var(--f-display);font-weight:400;font-size:clamp(24px,5vw,34px);color:#eaf6fa;margin-right:auto}
+.fv-lvl{display:flex;align-items:center;gap:10px;min-width:0}
+.fv-badge{width:52px;height:56px;display:grid;place-items:center;align-content:center;border-radius:12px 12px 24px 24px;background:radial-gradient(circle at 50% 30%,#2f6a84,#173a4a);border:2px solid #86cde0;line-height:1;flex:none}
+.fv-badge b{font-family:var(--f-head);font-size:21px;color:#d8f4ff}.fv-badge small{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#9cc8d8}
+.fv-xp{width:170px;height:8px;border-radius:9px;background:rgba(0,0,0,.4);overflow:hidden}.fv-xp i{display:block;height:100%;background:linear-gradient(90deg,#5ac8e8,#c8f2ff);border-radius:9px;transition:width .4s}
+.fv-purse{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid rgba(242,181,82,.4);font-weight:800}
+.fv-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.fv-stat{padding:9px 11px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(134,205,224,.15);min-width:0}
+.fv-stat small{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8fb4c2}
+.fv-stat b{font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fv-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:5px;border-radius:14px;background:rgba(0,0,0,.3)}
+.fv-tabs button{position:relative;border:0;background:transparent;color:#a8c4ce;border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px}
+.fv-tabs button.on{background:#2a5a6c;color:#fff}
+.fv-tabs .dot{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--berry);color:#fff;font-size:10px;line-height:16px;text-align:center}
+.fv-body{display:grid;gap:12px}
+.fv-card{background:rgba(14,32,40,.75);border:1px solid rgba(134,205,224,.16);border-radius:16px;padding:14px;display:grid;gap:10px;min-width:0}
+.fv-card h2{font-family:var(--f-head);font-size:20px;color:#eaf6fa}
+.fv-card h3{font-size:15.5px}
+.spots{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.spot{border:1px solid rgba(134,205,224,.2);background:rgba(0,0,0,.25);color:inherit;border-radius:12px;padding:9px 10px;text-align:left;display:grid;gap:2px;min-width:0}
+.spot b{font-size:14px}.spot small{font-size:12px;color:#9cb8c4}
+.spot.on{border-color:#86cde0;background:rgba(134,205,224,.16);box-shadow:0 0 0 1px #86cde0 inset}
+.spot.locked{opacity:.5}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.3);font-size:12.5px;font-weight:700;color:#cfe6ee}
+.odds{display:flex;height:12px;border-radius:9px;overflow:hidden;background:rgba(0,0,0,.4)}
+.odds i{display:block;height:100%}
+.oddleg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#a8c4ce}
+.oddleg span{display:inline-flex;align-items:center;gap:5px}.oddleg em{width:9px;height:9px;border-radius:3px;display:inline-block}
+#fvScene{display:block;width:100%;border-radius:14px;cursor:pointer;touch-action:manipulation;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.fvmsg{min-height:44px;font-size:15px;font-weight:700;color:#eaf6fa;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:12px}
+.bigbtn{width:100%;padding:16px;font-size:19px;border-radius:14px}
+.bigbtn.pull{background:#ff7a4a;color:#2a0e05;box-shadow:0 3px 0 #b84a22,0 0 30px rgba(255,140,80,.5);animation:pulse .5s infinite alternate}
+@keyframes pulse{to{transform:scale(1.02)}}
+.ctrl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.ctrl select{width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--birch)}
+.result{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:14px;background:rgba(0,0,0,.28);border:1px solid var(--rc,#86cde0);box-shadow:0 0 30px -10px var(--rc,#86cde0)}
+.result canvas{width:170px;height:110px;border-radius:12px}
+.result h3{font-size:22px;font-family:var(--f-head)}
+.result .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.rpill{justify-self:start;display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:800;background:rgba(0,0,0,.35)}
+.inv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.fcell{position:relative;display:grid;gap:3px;padding:8px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(134,205,224,.12);min-width:0;cursor:pointer}
+.fcell.sel{border-color:#86cde0;background:rgba(134,205,224,.14)}
+.fcell canvas{width:100%;height:62px;border-radius:8px}
+.fcell b{font-size:13.5px}.fcell small{font-size:12px;color:#9cb8c4}
+.fcell .tro{position:absolute;top:6px;right:6px;font-size:11px;background:#f2b552;color:#2a1a05;border-radius:6px;padding:1px 6px;font-weight:800}
+.shop{display:grid;gap:8px}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22)}
+.srow.locked{opacity:.55}
+.srow small{display:block;color:#9cb8c4;font-size:12.5px}
+.book{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.bcell{display:grid;gap:2px;padding:8px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid transparent;min-width:0}
+.bcell canvas{width:100%;height:56px;border-radius:8px}
+.bcell b{font-size:13.5px}.bcell small{font-size:11.5px;color:#9cb8c4}
+.achl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.achc{padding:9px;border-radius:12px;background:rgba(0,0,0,.22);display:grid;gap:2px;border:1px solid transparent}
+.achc.got{border-color:rgba(242,181,82,.5);background:linear-gradient(135deg,rgba(242,181,82,.14),rgba(0,0,0,.2))}
+.achc b{font-size:13.5px}.achc small{font-size:12px;color:#9cb8c4}
+.ctable{width:100%;border-collapse:collapse;font-size:13px}
+.ctable td,.ctable th{padding:6px 5px;border-top:1px solid rgba(134,205,224,.1);text-align:left}
+.ctable th{color:#8fb4c2;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-top:0}
+.ctable td.n{text-align:right;font-variant-numeric:tabular-nums}
+.ctable tr.me td{background:rgba(242,181,82,.12)}
+.comps{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+@media (max-width:560px){.result{grid-template-columns:110px minmax(0,1fr)}.result canvas{width:110px;height:76px}.fv-xp{width:120px}.ctrl{grid-template-columns:1fr}}
+</style>`);
+document.body.insertAdjacentHTML('beforeend', '<section class="fv" id="fishView" hidden aria-label="Kalapüük"><div class="fv-in" id="fvIn"></div></section>');
+const sceneCv = document.createElement('canvas'); sceneCv.id = 'fvScene'; sceneCv.setAttribute('aria-label', 'Püügikoht');
 
-/* ---------- drawing ---------- */
-function drawFish(c, x, y, L, k, t = 0, dir = 1) {
-  const f = fishDef(k); if (!f) return;
-  c.save(); c.translate(x, y); c.scale(dir, 1);
-  if (JUNK[k]) {
-    if (k === 'saabas') { poly(c, [-L * .3, -L * .35, -L * .05, -L * .35, -L * .05, L * .05, L * .35, L * .1, L * .35, L * .25, -L * .3, L * .25], '#5a3e2a'); rect(c, -L * .3, L * .18, L * .65, L * .07, '#2a1a10') }
-    else if (k === 'pudel') { ell(c, 0, 0, L * .3, L * .12, 'rgba(140,200,170,.75)'); rect(c, L * .26, -L * .05, L * .14, L * .1, 'rgba(140,200,170,.75)'); rect(c, L * .38, -L * .055, L * .05, L * .11, '#8a5a34'); rect(c, -L * .15, -L * .06, L * .3, L * .12, '#e8d3a2') }
-    else { rect(c, -L * .35, -L * .15, L * .7, L * .35, '#5a3e22'); poly(c, [-L * .35, -L * .15, -L * .3, -L * .3, L * .3, -L * .3, L * .35, -L * .15], '#6a4a2a'); rect(c, -L * .35, -L * .16, L * .7, L * .05, '#b98a3a'); rect(c, -L * .04, -L * .17, L * .08, L * .12, '#ffd060'); for (let i = 0; i < 3; i++) ell(c, -L * .2 + i * L * .18, L * .22, L * .05, L * .03, 'rgba(90,110,60,.8)') }
-    c.restore(); return;
-  }
-  const [body, back, belly, fin] = f.c;
-  const hh = { n: .2, l: .15, e: .08, d: .3, f: .26 }[f.shape] * L, wig = Math.sin(t * 6) * L * .04;
-  if (f.glow) { const g = c.createRadialGradient(0, 0, 0, 0, 0, L * .7); g.addColorStop(0, f.glow + '88'); g.addColorStop(1, f.glow + '00'); c.fillStyle = g; c.fillRect(-L, -L, L * 2, L * 2) }
-  // tail
-  if (f.shape === 'e') { c.beginPath(); c.moveTo(L * .3, 0); c.quadraticCurveTo(L * .45, -hh + wig, L * .55, wig); c.quadraticCurveTo(L * .45, hh + wig, L * .3, 0); c.fillStyle = fin; c.fill() }
-  else poly(c, [L * .38, 0, L * .55, -hh * 1.1 + wig, L * .5, wig, L * .55, hh * 1.1 + wig], fin);
-  // dorsal + belly fins
-  poly(c, [-L * .05, -hh * .85, L * .12, -hh * 1.45, L * .22, -hh * .75], fin);
-  poly(c, [L * .05, hh * .8, L * .15, hh * 1.25, L * .22, hh * .7], fin);
-  // body
-  c.beginPath(); c.moveTo(-L * .45, 0); c.bezierCurveTo(-L * .35, -hh * 1.3, L * .25, -hh * 1.2, L * .4, 0); c.bezierCurveTo(L * .25, hh * 1.2, -L * .35, hh * 1.3, -L * .45, 0); c.closePath();
-  const g = c.createLinearGradient(0, -hh, 0, hh); g.addColorStop(0, back); g.addColorStop(.45, body); g.addColorStop(1, belly);
-  c.fillStyle = g; c.fill();
-  c.save(); c.clip();
-  if (f.stripes) for (let i = 0; i < f.stripes; i++) rect(c, -L * .3 + i * L * .1, -hh * 1.2, L * .035, hh * 1.4, 'rgba(30,40,20,.35)');
-  if (f.band) rect(c, -L * .4, -hh * .15, L * .8, hh * .3, f.band + 'aa');
-  if (f.spots) for (let i = 0; i < 9; i++) circ(c, -L * .3 + th(i, 1, L) * L * .6, -hh * .8 + th(i, 2, L) * hh * 1.2, L * .018, 'rgba(30,30,20,.4)');
-  c.restore();
-  if (f.shape === 'f') ell(c, -L * .25, -hh * .35, L * .03, L * .03, '#1a1a1a');
-  circ(c, -L * .32, -hh * .2, Math.max(1, L * .035), '#f6f2e8'); circ(c, -L * .325, -hh * .2, Math.max(.8, L * .02), '#111');
-  c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = Math.max(1, L * .012); c.beginPath(); c.moveTo(-L * .22, -hh * .7); c.quadraticCurveTo(-L * .16, 0, -L * .22, hh * .7); c.stroke();
-  if (f.whisk) { c.beginPath(); c.moveTo(-L * .43, 0); c.quadraticCurveTo(-L * .55, hh * .4, -L * .6, hh * .9); c.moveTo(-L * .43, -hh * .05); c.quadraticCurveTo(-L * .56, -hh * .2, -L * .62, -hh * .1); c.stroke() }
-  c.restore();
+/* ---------- andmed ---------- */
+async function loadFD() {
+  if (FD.loaded) return;
+  const q = async t => { const { data, error } = await CL.sb.from(t).select('*').order('sort'); if (error) throw new Error(etError(error)); return data };
+  const [spots, species, rods, baits, achs] = await Promise.all([q('fish_spots'), q('fish_species'), q('fish_rods'), q('fish_baits'), q('fish_achievements')]);
+  Object.assign(FD, { spots, species, rods, baits, achs, loaded: true });
+  spots.forEach(x => FD.spot[x.id] = x); species.forEach(x => { x.min_w = +x.min_w; x.max_w = +x.max_w; FD.sp[x.id] = x }); rods.forEach(x => FD.rod[x.id] = x); baits.forEach(x => FD.bait[x.id] = x);
 }
-function paintFishThumbs(root) {
-  root.querySelectorAll('canvas[data-fish]').forEach(cv2 => {
-    const w = cv2.clientWidth || 70, h = cv2.clientHeight || 46, d = 2; cv2.width = w * d; cv2.height = h * d;
-    const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
-    const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2e6a84'); g.addColorStop(1, '#18405a'); c.fillStyle = g; c.fillRect(0, 0, w, h);
-    const k = cv2.dataset.fish;
-    if (cv2.dataset.unknown === '1') { c.globalAlpha = .9; c.filter = 'brightness(0)'; drawFish(c, w / 2, h / 2, w * .78, k, 0, 1); c.filter = 'none'; c.globalAlpha = 1 }
-    else drawFish(c, w / 2, h / 2, w * .78, k, 0, 1);
-  });
+async function refreshFS() {
+  FS = await rpc('fish_state');
+  if (S) S.fishCache = { level: FS.level, total: FS.total };
+  if (!FV.spot || (FD.spot[FV.spot] && FD.spot[FV.spot].min_level > FS.level)) FV.spot = 'metsajarv';
+  if (FS.inbox > 0) claimInbox();
+  return FS;
 }
-{ const orig = paintThumbs; paintThumbs = function (root) { orig(root); paintFishThumbs(root) } }
+async function loadOdds() {
+  const key = FV.spot + '|' + FS.bait + '|' + FS.rod + '|' + FS.level + '|' + FS.weather + '|' + FS.is_night + '|' + FS.luck;
+  if (key === FV.oddsKey) return; FV.oddsKey = key;
+  try { FV.odds = (await rpc('fish_odds', { p_spot: FV.spot, p_bait: FS.bait })).map(Number) } catch (e) { FV.odds = null }
+}
 
-/* ---------- minigame ---------- */
-let F = null;
-function startFishing(x, y) {
-  ensureFish();
-  const t = S.regions[S.view].tiles[y * W + x];
-  if (t.t !== 'water') { info('Õnge saab visata ainult vette. Klõpsa veel.'); return }
-  if (S.fish.broken) { showRepair(); return }
-  const freeBait = hasActive('kalurionn');
-  if (!freeBait && S.res.berries < 1) { info('Söödaks on vaja 1 marja. Kalurionn annab sööta tasuta.'); toast('Söödaks on vaja 1 marja.', 'bad'); return }
-  if (!freeBait) S.res.berries -= 1;
-  ripple(x + .5, y + .5); UI.lastFishTile = y * W + x;
-  const k = pickCatch(S.view), f = fishDef(k), r = f.r;
-  const diff = { 0: [.26, 1.0, 2], 1: [.24, 1.15, 2], 2: [.19, 1.45, 3], 3: [.15, 1.8, 3], 4: [.11, 2.2, 4] }[r];
-  const wgt = Math.round(rnd(f.w[0], f.w[1]) * (Math.random() < .08 ? 1.35 : 1) * 100) / 100;
-  F = { k, weight: wgt, est: Math.max(.1, Math.round(wgt * rnd(.85, 1.15) * 10) / 10), region: S.view, phase: 'wait', t: 0, wait: rnd(1.3, 3.6) * (S.weather.t === 'vihm' ? .7 : 1), bite: 0, hits: 0, need: diff[2], misses: 0, maxMiss: 2 + Math.floor(S.fish.rod / 2), zone: { c: rnd(.25, .75), w: diff[0] + .03 * (S.fish.rod - 1) }, speed: diff[1], needle: 0, msg: 'Ujuk hõljub. Oota, kuni kala võtab...', flash: 0, freeBait };
-  showModal(fishView, 'fishing');
-  requestAnimationFrame(fishLoop);
-}
-function fishView() {
-  return `<div class="mhead"><span class="ic lg" style="width:40px;height:40px">${ICON.fish}</span><div><h2>Kalapüük</h2><p class="lead">${REGIONS[F.region].n}${F.freeBait ? ' · sööt kalurionnist' : ' · sööt: 1 mari'}</p><p class="lead" style="font-size:12.5px">${gearText()}</p></div></div>
-    <canvas id="fishCv" aria-label="Püügikoht"></canvas>
-    <p class="fishmsg" id="fishMsg" aria-live="polite">${F.msg}</p>
-    <button class="btn wide fishbtn" type="button" id="fishBtn">${F.phase === 'lost' ? 'Viska uuesti' : 'Haagi! <small>(tühik)</small>'}</button>
-    <div class="mbtns"><button class="btn ghost sm" type="button" id="fishCut" ${F.phase === 'reel' ? '' : 'hidden'}>Lase kala lahti</button><button class="btn ghost sm" type="button" data-act="fishStop">Lõpeta püük</button></div>`;
-}
-function fishMsg(m) { F.msg = m; const el = document.getElementById('fishMsg'); if (el) el.textContent = m }
-function fishLoop(ts) {
-  if (!F || F.phase === 'done' || !UI.modalView || UI.modalView !== fishView) { if (F && F.phase !== 'done' && UI.modalView !== fishView) F = null; return }
-  const now = ts / 1000, dt = Math.min(.05, F.last ? now - F.last : 0); F.last = now; F.t += dt;
-  if (F.phase === 'wait' && F.t >= F.wait) { F.phase = 'bite'; F.bite = 0; fishMsg('Võtab! Haagi kohe!') }
-  else if (F.phase === 'bite') { F.bite += dt; if (F.bite > .95) { F.phase = 'lost'; fishMsg('Kala sõi sööda ära ja ujus minema. Proovi uuesti.'); fishFail() } }
-  else if (F.phase === 'reel') { F.needle = (Math.sin(F.t * F.speed * Math.PI) + 1) / 2 }
-  if (F.flash > 0) F.flash -= dt;
-  drawFishScene(now);
-  if (F && F.phase !== 'lost' && F.phase !== 'done') requestAnimationFrame(fishLoop);
-}
-function drawFishScene(t) {
-  const cvs = document.getElementById('fishCv'); if (!cvs) return;
-  const w = cvs.clientWidth || 400, h = Math.round(w * .5), d = Math.min(2, devicePixelRatio || 1);
-  if (cvs.width !== w * d) { cvs.width = w * d; cvs.height = h * d; cvs.style.height = h + 'px' }
-  const c = cvs.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
-  const wt = fishWater(F.region), sky = skyState();
-  const sg = c.createLinearGradient(0, 0, 0, h * .3); sg.addColorStop(0, sky.dark > .5 ? '#0e1a3a' : '#9ccfe8'); sg.addColorStop(1, sky.dark > .5 ? '#22305a' : '#d8ecf2');
-  c.fillStyle = sg; c.fillRect(0, 0, w, h * .3);
-  rect(c, 0, h * .24, w, h * .08, wt === 'meri' ? '#c8b884' : wt === 'jaa' ? '#e8f2f6' : '#3f7a3a');
-  const wg = c.createLinearGradient(0, h * .3, 0, h); wg.addColorStop(0, wt === 'meri' ? '#2a6a8a' : wt === 'jaa' ? '#3a6a80' : '#3a7a94'); wg.addColorStop(1, wt === 'meri' ? '#0e2e44' : '#163848');
-  c.fillStyle = wg; c.fillRect(0, h * .3, w, h * .7);
-  if (wt === 'jaa') { c.fillStyle = '#eef6fa'; c.fillRect(0, h * .3, w, h * .7); c.beginPath(); c.ellipse(w * .6, h * .55, w * .2, h * .16, 0, 0, 6.29); c.fillStyle = '#244e62'; c.fill() }
-  for (let i = 0; i < 6; i++) { const yy = h * (.38 + i * .1) + Math.sin(t * 1.3 + i) * 2, xx = ((t * 18 * (i % 2 ? 1 : -1) + i * 90) % (w + 80)) - 40; c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + 40, yy); c.stroke() }
-  if (sky.dark > .1) { c.fillStyle = `rgba(8,16,44,${sky.dark * .45})`; c.fillRect(0, 0, w, h) }
-  // rod + line + bobber
-  const bx = w * .6, by = h * .5;
-  let bob = Math.sin(t * 2.2) * 2;
-  if (F.phase === 'bite') bob = 8 + Math.sin(t * 30) * 4;
-  if (F.phase === 'reel') bob = 3 + Math.sin(t * 12) * 3;
-  c.strokeStyle = '#6b4528'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .95); c.lineTo(w * .3, h * .08); c.stroke();
-  c.strokeStyle = 'rgba(240,240,240,.8)'; c.lineWidth = 1; c.beginPath(); c.moveTo(w * .3, h * .08); c.quadraticCurveTo(w * .5, h * .2, bx, by + bob - 6); c.stroke();
-  if (F.phase === 'bite' || F.phase === 'reel') for (let i = 0; i < 2; i++) { c.strokeStyle = `rgba(255,255,255,${.5 - i * .2})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 24), 4 + ((t * 10 + i * 4) % 8), 0, 0, 6.29); c.stroke() }
-  circ(c, bx, by + bob, 6, '#e8412e'); c.beginPath(); c.arc(bx, by + bob, 6, Math.PI, 0); c.fillStyle = '#ffffff'; c.fill(); rect(c, bx - 1, by + bob - 13, 2, 7, '#3a2a1a');
-  if (F.phase === 'reel') {
-    // shadow of fish under water
-    const fx = bx + Math.sin(t * 2.4) * w * .12, L = Math.min(w * .32, 40 + (fishDef(F.k).w[1] * 6));
-    c.globalAlpha = .35; c.filter = 'brightness(0)'; drawFish(c, fx, h * .78, L, F.k, t, Math.cos(t * 2.4) > 0 ? -1 : 1); c.filter = 'none'; c.globalAlpha = 1;
-    // tension bar
-    const bx0 = w * .06, bw = w * .88, byy = h * .9, bh = 14;
-    rect(c, bx0 - 2, byy - 2, bw + 4, bh + 4, 'rgba(0,0,0,.55)');
-    rect(c, bx0, byy, bw, bh, '#24343a');
-    rect(c, bx0 + (F.zone.c - F.zone.w / 2) * bw, byy, F.zone.w * bw, bh, F.flash > 0 ? '#d8ff9a' : '#7fd16a');
-    rect(c, bx0 + F.needle * bw - 2, byy - 5, 4, bh + 10, '#fff4d8');
-    for (let i = 0; i < F.need; i++) circ(c, w - 18 - i * 16, 16, 6, i < F.hits ? '#ffd286' : 'rgba(255,255,255,.25)');
-    const over = F.est > gearCap();
-    c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center';
-    const txt = `~${fmt1(F.est)} kg  /  varustus ${gearCap()} kg`, tw = c.measureText(txt).width + 18;
-    rect(c, w / 2 - tw / 2, h * .82 - 22, tw, 20, over ? 'rgba(160,30,20,.85)' : 'rgba(0,0,0,.5)');
-    c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, h * .82 - 7);
-    for (let i = 0; i < F.maxMiss; i++) circ(c, 18 + i * 16, 16, 5, i < F.misses ? '#ff8a78' : 'rgba(255,255,255,.18)');
-  }
-}
-function fishHook() {
-  if (!F) return;
-  if (F.phase === 'wait') { F.phase = 'lost'; fishMsg('Liiga vara! Kala ehmus ära. Oota, kuni ujuk tõmbub vee alla.'); fishFail(); return }
-  if (F.phase === 'bite') {
-    F.phase = 'reel'; F.t = 0; const cut = document.getElementById('fishCut'); if (cut) cut.hidden = false;
-    const load = F.est / gearCap();
-    fishMsg(load > 1.5 ? `Hiiglane! Umbes ${fmt1(F.est)} kg, aga su varustus kannab ${gearCap()} kg. See läheb peaaegu kindlasti katki. Lase lahti või riski!` : load > 1 ? `Raske kala, umbes ${fmt1(F.est)} kg! Varustus kannab ${gearCap()} kg, võib katki minna.` : `Kala on konksus (umbes ${fmt1(F.est)} kg)! Vajuta, kui valge joon on rohelisel alal (${F.need} korda).`);
+/* ---------- avamine ---------- */
+async function openFishView(tab) {
+  if (!CL.user) {
+    showModal(() => `<h2>Kalapüük vajab kontot</h2><p>Kalapüüki hoiab ja kontrollib server, seepärast pead olema sisse logitud.</p><div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Sulge</button><button class="btn" type="button" data-act="fvLogin">Logi sisse</button></div>`);
     return;
   }
-  if (F.phase !== 'reel') return;
-  const lo = F.zone.c - F.zone.w / 2, hi = F.zone.c + F.zone.w / 2;
-  if (F.needle >= lo && F.needle <= hi) {
-    const load = F.weight / gearCap();
-    if (load > 1 && Math.random() < (load > 1.5 ? 1 : (load - 1) * 1.6)) { breakGear(); return }
-    F.hits++; F.flash = .25;
-    if (F.hits >= F.need) { landFish(); return }
-    F.zone = { c: rnd(.18, .82), w: Math.max(.08, F.zone.w * .92) }; F.speed *= 1.08;
-    fishMsg(['Hea! Kala väsib.', 'Veel natuke!', 'Tõmba!'][F.hits % 3]);
-  } else {
-    F.misses++;
-    if (F.misses >= F.maxMiss) { F.phase = 'lost'; fishMsg('Nöör läks lõdvaks ja kala rebis end lahti. Proovi uuesti!'); fishFail(); return }
-    fishMsg('Mööda! Nöör pingul, ole ettevaatlik.');
-  }
+  FV.open = true; if (tab) FV.tab = tab;
+  $('#fishView').hidden = false; document.body.style.overflow = 'hidden';
+  $('#fvIn').innerHTML = '<div class="fv-card"><p class="lead">Laadin kalapüüki…</p></div>';
+  try { await loadFD(); await refreshFS(); await loadOdds(); FV.market = await rpc('fish_market').catch(() => null); FV.comps = null; FV.orders = null; loadSide() } catch (e) { $('#fvIn').innerHTML = `<div class="fv-card"><h2>Kalapüüki ei saanud avada</h2><p class="lead">${esc(e.message)}</p><div><button class="btn" type="button" data-fa="close">Tagasi kuningriiki</button></div></div>`; return }
+  renderFV(true);
+  requestAnimationFrame(sceneLoop);
 }
-function breakGear() {
-  S.st.gearBroken = (S.st.gearBroken || 0) + 1; F.phase = 'lost';
-  if (LINES[S.fish.line].cap <= RODS[S.fish.rod].cap) {
-    const was = LINES[S.fish.line].n; S.fish.line = 1;
-    fishMsg(`Plõks! ${was} katkes ${fmt1(F.weight)} kg kala all ja kala ujus minema. ${was === LINES[1].n ? 'Seo uus tavaline tamiil ja proovi tugevamaga.' : 'Said varutamiili, aga osta tugevam uuesti.'}`);
-  } else {
-    S.fish.broken = true;
-    fishMsg(`Krõks! ${RODS[S.fish.rod].n} murdus ${fmt1(F.weight)} kg kala all! Paranda õng, enne kui uuesti püüad.`);
-  }
-  toast(S.fish.broken ? 'Õng murdus! Paranda see vahekaardil „Seiklused“.' : 'Tamiil katkes! Tugevama saad osta vahekaardil „Seiklused“.', 'bad', 'fish');
-  fishFail();
+function closeFishView() {
+  if (['casting', 'waiting', 'bite', 'hooking', 'reel', 'landing'].includes(FV.phase) && FV.cast) rpc('fish_lose', { p_cast: FV.cast.cast_id }).catch(() => { });
+  FV.open = false; FV.phase = 'idle'; FV.cast = null; $('#fishView').hidden = true; document.body.style.overflow = '';
+  if (S) { hudUpdate(); renderPanel(true) }
 }
-function fishFail() {
-  const btn = document.getElementById('fishBtn');
-  if (btn) { btn.textContent = 'Viska uuesti'; btn.dataset.again = '1' }
+async function loadSide() {
+  try { FV.orders = await rpc('fish_orders_today') } catch (e) { }
+  try { FV.comps = await rpc('fish_competitions') } catch (e) { }
+  if (FV.open) renderFV();
 }
-function landFish() {
-  const k = F.k, f = fishDef(k);
-  const wgt = F.weight || Math.round(rnd(f.w[0], f.w[1]) * 100) / 100;
-  F.phase = 'done'; F.weight = wgt;
-  S.fish.catches++; S.st.fishCaught = (S.st.fishCaught || 0) + 1;
-  addXP(5 + 5 * (f.r || 1));
-  let extra = '';
-  if (JUNK[k]) {
-    if (k === 'pudel') { give({ map: 1 }); S.fish.bottles++; extra = 'Said aardekaardi!' }
-    else if (k === 'laegas') { const rew = { gold: 150 + S.level * 20, stone: 60 + S.level * 4 }; give(rew); extra = rewardText(rew) }
-    else { give({ xp: 20 }); extra = '+20 kogemust naeru eest' }
-    F.result = { k, junk: true, extra }; showModal(fishResultView, 'fishing'); return;
-  }
-  const b = S.fish.book[k] || { n: 0, max: 0 }, isNew = b.n === 0, rec = wgt > b.max;
-  b.n++; b.max = Math.max(b.max, wgt); S.fish.book[k] = b; S.fish.biggest = Math.max(S.fish.biggest, wgt);
-  const kinds = FISH_ORDER.filter(x => S.fish.book[x]).length;
-  for (const m of BOOK_MS) if (kinds >= m.n && !S.fish.ms[m.n]) {
-    S.fish.ms[m.n] = 1; give(m.rew);
-    if (m.rod && S.fish.rod < 4) S.fish.rod++;
-    toast(`Kalade raamat: ${m.n} liiki! ${rewardText(m.rew)}${m.rod ? ', tasuta õnge täiendus' : ''}${m.title ? '. Sinu tiitel on nüüd Kalakuningas!' : ''}`, 'gold', 'fish');
-  }
-  F.result = { k, wgt, isNew, rec };
-  showModal(fishResultView, 'fishing');
-}
-const fishVal = (k, wgt) => { const f = FISH[k], avg = (f.w[0] + f.w[1]) / 2; return { food: Math.max(2, Math.round(wgt * 6 + f.r * 3)), gold: Math.max(3, Math.round(f.v * (.6 + .4 * wgt / avg) * (1 + S.level * .03))), fame: Math.max(1, Math.round(f.v / 8 + f.r * 3)) } };
-function fishResultView() {
-  const r = F && F.result; if (!r) return null;
-  const f = fishDef(r.k), [rn, rc] = RAR[f.r];
-  let h = `<div class="catch"><canvas class="catchcv" data-fish="${r.k}"></canvas><div><span class="pill" style="color:${rc}">${rn}</span><h2>${f.n}</h2>`;
-  if (r.junk) return h + `<p>${f.txt}</p><p class="lead">${esc(r.extra)}</p></div></div>${fishAgainBtns()}`;
-  h += `<p class="lead">${fmt1(r.wgt)} kg${r.isNew ? ' · <b style="color:var(--amber-2)">Uus liik raamatus!</b>' : r.rec ? ' · <b style="color:var(--ok)">Uus isiklik rekord!</b>' : ''}</p></div></div>`;
-  if (f.wish) return h + `<p>Kuldkala räägib: „Lase mind vabaks ja ma täidan ühe su soovi!“</p><div class="wishes">
-    <button class="btn" type="button" data-act="fishWish" data-arg="rikkus">Rikkus<small>+${fmt(2000 + S.level * 100)} kulda</small></button>
-    <button class="btn" type="button" data-act="fishWish" data-arg="tarkus">Tarkus<small>+${fmt(800 + S.level * 60)} kogemust</small></button>
-    <button class="btn" type="button" data-act="fishWish" data-arg="onn">Kaluriõnn<small>püsivalt rohkem haruldasi kalu</small></button>
-    <button class="btn" type="button" data-act="fishWish" data-arg="kuulsus">Kuulsus<small>+${300 + S.level * 5} kuulsust</small></button></div>`;
-  const v = fishVal(r.k, r.wgt);
-  return h + `<p>Mida kalaga teed?</p><div class="wishes">
-    <button class="btn" type="button" data-act="fishUse" data-arg="food">Toiduks<small>+${v.food} toitu</small></button>
-    <button class="btn" type="button" data-act="fishUse" data-arg="gold">Müü<small>+${v.gold} kulda</small></button>
-    <button class="btn ghost" type="button" data-act="fishUse" data-arg="free">Lase vabaks<small>+${v.fame} kuulsust</small></button></div>`;
-}
-function fishAgainBtns() { return `<div class="mbtns"><button class="btn ghost" type="button" data-act="fishStop">Lõpeta</button><button class="btn" type="button" data-act="fishAgain">Viska uuesti</button></div>` }
-function fishDone(msg) {
-  const r = F.result; r.used = true;
-  showModal(() => `<div class="catch"><canvas class="catchcv" data-fish="${r.k}"></canvas><div><h2>${fishDef(r.k).n}</h2><p>${msg}</p></div></div>${fishAgainBtns()}`, 'fishing');
-}
-function fishAgain() {
-  const reg = F ? F.region : S.view; F = null;
-  if (S.fish.broken) { showRepair(); return }
-  if (S.view !== reg) setView(reg);
-  const T = S.regions[S.view].tiles, opts = []; T.forEach((t, i) => { if (t.t === 'water') opts.push(i) });
-  if (!opts.length) { closeModal(); return }
-  const i = UI.lastFishTile != null && T[UI.lastFishTile] && T[UI.lastFishTile].t === 'water' ? UI.lastFishTile : pick(opts);
-  startFishing(i % W, Math.floor(i / W));
-}
-const rodNext = () => S.fish.rod < 4 ? RODS[S.fish.rod + 1] : null;
-function buyRod() {
-  const n = rodNext(); if (!n) return;
-  if (!canAfford(n.cost) || (n.fame && S.fame < n.fame)) { toast('Õnge täiendamiseks jääb puudu.', 'bad'); return }
-  pay(n.cost); S.fish.rod++; toast(`Uus õng: ${n.n}! Haruldased kalad tulevad sagedamini ja püük on kergem.`, 'gold', 'fish');
-}
-function openFishBook() {
-  showModal(() => {
-    const kinds = FISH_ORDER.filter(x => S.fish.book[x]).length;
-    return `<h2>Kalade raamat</h2><p class="lead">Püütud ${kinds} / ${FISH_ORDER.length} liiki · kokku ${S.fish.catches} saaki · suurim ${fmt1(S.fish.biggest)} kg</p>
-      <div class="msrow">${BOOK_MS.map(m => `<span class="pill ${S.fish.ms[m.n] ? 'ok' : ''}">${m.n} liiki: ${rewardText(m.rew)}${m.rod ? ', õng' : ''}</span>`).join('')}</div>
-      <div class="fishgrid">${FISH_ORDER.map(k => { const f = FISH[k], b = S.fish.book[k], [rn, rc] = RAR[f.r]; const where = f.reg.length >= 9 ? 'magevesi' : f.reg.map(r => REGIONS[r].n).join(', ');
-        return `<div class="fcard ${b ? '' : 'unk'}"><canvas data-fish="${k}" data-unknown="${b ? 0 : 1}"></canvas><b>${b ? f.n : '???'}</b><small style="color:${rc}">${rn}</small><small>${b ? `${b.n}× · rekord ${fmt1(b.max)} kg` : `${fmt1(f.w[0])}–${fmt1(f.w[1])} kg · ${where}${f.night ? ' · öösel' : ''}${f.winter ? ' · talvel' : ''}`}</small></div>` }).join('')}</div>
-      <div class="mbtns"><button class="btn" type="button" data-act="closeModal">Sulge</button></div>`;
-  }, 'fishbook');
-}
-function renderFishCard() {
-  ensureFish();
-  const kinds = FISH_ORDER.filter(x => S.fish.book[x]).length, n = rodNext();
-  let h = `<div class="card adv"><div class="advhead"><span class="ic lg">${ICON.fish}</span><div><h3>Kalapüük</h3><p class="lead">Vali tööriist „Püüa“ ja klõpsa veel. Oota, kuni ujuk vee alla tõmbub, haagi kohe ja vajuta siis, kui joon on rohelisel alal. Igas piirkonnas on oma kalad, mõni ujub ainult öösel või talvel. Kuldkala täidab soovi!</p></div></div>
-    <dl class="stats"><dt>Õng</dt><dd>${RODS[S.fish.rod].n} · ${RODS[S.fish.rod].cap} kg${S.fish.broken ? ' · <span style="color:var(--bad)">katki</span>' : ''}</dd><dt>Tamiil</dt><dd>${LINES[S.fish.line].n} · ${LINES[S.fish.line].cap} kg</dd><dt>Liike raamatus</dt><dd>${kinds} / ${FISH_ORDER.length}</dd><dt>Saake kokku</dt><dd>${S.fish.catches}</dd></dl>
-    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" type="button" data-act="fishTool">Võta õng kätte</button><button class="btn sm ghost" type="button" data-act="fishBook">Kalade raamat</button></div>`;
-  h += `<p class="lead" style="font-size:12.5px">Varustus kannab nii palju, kui jaksab nõrgem osa: praegu ${gearCap()} kg. Liiga raske kala all katkeb tamiil või murdub õng.</p>`;
-  if (S.fish.broken) h += `<div class="act" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">${costHTML(repairCost())}<button class="btn sm" type="button" data-act="repairRod" ${canAfford(repairCost()) ? '' : 'disabled'}>Paranda õng</button></div>`;
-  if (n) h += `<div class="act" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">${costHTML(n.cost, n.fame ? `<span class="${S.fame < n.fame ? 'lack' : ''}">${ic('fame')}${n.fame} vaja</span>` : '')}<button class="btn sm ghost" type="button" data-act="buyRod" ${canAfford(n.cost) && (!n.fame || S.fame >= n.fame) ? '' : 'disabled'}>Osta ${n.n} (${n.cap} kg)</button></div>`;
-  const ln = lineNext();
-  if (ln) h += `<div class="act" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">${costHTML(ln.cost)}<button class="btn sm ghost" type="button" data-act="buyLine" ${canAfford(ln.cost) ? '' : 'disabled'}>Osta ${ln.n} (${ln.cap} kg)</button></div>`;
-  return h + '</div>';
-}
-{ const base = TABS.seiklused.r; TABS.seiklused.r = () => { const h = base(); return h.replace(/<\/div>$/, '') + renderFishCard() + '</div>' } }
 
-Object.assign(ACT, {
-  fishTool: () => { setTool('pyua'); if (isMobile()) $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'center' }) },
-  fishBook: () => { ensureFish(); openFishBook() },
-  buyRod: () => { buyRod(); if (S.fish.broken) S.fish.broken = false },
-  buyLine: () => buyLine(),
-  repairRod: () => { repairRod(); closeModal() },
-  fishStop: () => { F = null; closeModal() },
-  fishAgain: () => fishAgain(),
-  fishUse: a => {
-    const r = F && F.result; if (!r || r.used) return; const v = fishVal(r.k, r.wgt);
-    if (a === 'food') { give({ food: v.food }); S.st.gathered.food += v.food; fishDone(`Kala läks pajasse: +${v.food} toitu.`) }
-    else if (a === 'gold') { give({ gold: v.gold }); fishDone(`Kalakaupmees maksis ${v.gold} kulda.`) }
-    else { give({ fame: v.fame }); S.fish.released++; fishDone(`Lasid kala vabaks. Rahvas räägib su heast südamest: +${v.fame} kuulsust.`) }
-  },
-  fishWish: a => {
-    const r = F && F.result; if (!r || r.used) return; S.st.goldfish = (S.st.goldfish || 0) + 1; S.fish.released++;
-    if (a === 'rikkus') { give({ gold: 2000 + S.level * 100 }); fishDone('Kuldkala sulpsas vette ja su varakamber täitus kullaga!') }
-    else if (a === 'tarkus') { give({ xp: 800 + S.level * 60 }); fishDone('Kuldkala sosistas sulle iidseid tarkusi.') }
-    else if (a === 'onn') { S.fish.luck++; fishDone(`Kuldkala õnnistas su õnge. Haruldasi kalu tuleb nüüd rohkem (õnn ${S.fish.luck}).`) }
-    else { give({ fame: 300 + S.level * 5 }); fishDone('Kogu kuningriik räägib, kuidas sa kuldkalaga kohtusid!') }
-  },
+/* ---------- joonistamine ---------- */
+function drawLook(c, x, y, L, look, t = 0, dir = 1, junk) {
+  c.save(); c.translate(x, y); c.scale(dir, 1);
+  if (junk) {
+    if (junk === 'saabas') { poly(c, [-L * .3, -L * .35, -L * .05, -L * .35, -L * .05, L * .05, L * .35, L * .1, L * .35, L * .25, -L * .3, L * .25], '#5a3e2a'); rect(c, -L * .3, L * .18, L * .65, L * .07, '#2a1a10') }
+    else if (junk === 'pudel') { ell(c, 0, 0, L * .3, L * .12, 'rgba(140,200,170,.75)'); rect(c, L * .26, -L * .05, L * .14, L * .1, 'rgba(140,200,170,.75)'); rect(c, L * .38, -L * .055, L * .05, L * .11, '#8a5a34'); rect(c, -L * .15, -L * .06, L * .3, L * .12, '#e8d3a2') }
+    else if (junk === 'purk') { rect(c, -L * .15, -L * .25, L * .3, L * .45, '#a9b1b3'); ell(c, 0, -L * .25, L * .15, L * .05, '#d0d6d8'); rect(c, -L * .15, -L * .1, L * .3, L * .12, '#c8473a') }
+    else if (junk === 'kepp') { c.strokeStyle = '#6b4528'; c.lineWidth = L * .07; c.lineCap = 'round'; c.beginPath(); c.moveTo(-L * .4, L * .1); c.lineTo(L * .4, -L * .08); c.moveTo(0, 0); c.lineTo(L * .12, -L * .2); c.stroke() }
+    else { rect(c, -L * .35, -L * .15, L * .7, L * .35, '#5a3e22'); poly(c, [-L * .35, -L * .15, -L * .3, -L * .3, L * .3, -L * .3, L * .35, -L * .15], '#6a4a2a'); rect(c, -L * .35, -L * .16, L * .7, L * .05, '#e0a83a'); rect(c, -L * .04, -L * .17, L * .08, L * .12, '#ffd060') }
+    c.restore(); return;
+  }
+  look = look || {}; const [body, back, belly, fin] = look.c || ['#9fb4bc', '#4a6a7a', '#eef4f6', '#7a9aaa'];
+  const hh = ({ n: .2, l: .15, e: .08, d: .3, f: .26 }[look.s] || .2) * L, wig = Math.sin(t * 6) * L * .04;
+  if (look.g) { const g = c.createRadialGradient(0, 0, 0, 0, 0, L * .7); g.addColorStop(0, look.g + '88'); g.addColorStop(1, look.g + '00'); c.fillStyle = g; c.fillRect(-L, -L, L * 2, L * 2) }
+  if (look.s === 'e') { c.beginPath(); c.moveTo(L * .3, 0); c.quadraticCurveTo(L * .45, -hh + wig, L * .55, wig); c.quadraticCurveTo(L * .45, hh + wig, L * .3, 0); c.fillStyle = fin; c.fill() }
+  else poly(c, [L * .38, 0, L * .55, -hh * 1.1 + wig, L * .5, wig, L * .55, hh * 1.1 + wig], fin);
+  poly(c, [-L * .05, -hh * .85, L * .12, -hh * 1.45, L * .22, -hh * .75], fin);
+  poly(c, [L * .05, hh * .8, L * .15, hh * 1.25, L * .22, hh * .7], fin);
+  c.beginPath(); c.moveTo(-L * .45, 0); c.bezierCurveTo(-L * .35, -hh * 1.3, L * .25, -hh * 1.2, L * .4, 0); c.bezierCurveTo(L * .25, hh * 1.2, -L * .35, hh * 1.3, -L * .45, 0); c.closePath();
+  const g = c.createLinearGradient(0, -hh, 0, hh); g.addColorStop(0, back); g.addColorStop(.45, body); g.addColorStop(1, belly); c.fillStyle = g; c.fill();
+  c.save(); c.clip();
+  if (look.st) for (let i = 0; i < look.st; i++) rect(c, -L * .3 + i * L * .1, -hh * 1.2, L * .035, hh * 1.4, 'rgba(30,40,20,.35)');
+  if (look.b) rect(c, -L * .4, -hh * .15, L * .8, hh * .3, look.b + 'aa');
+  if (look.sp) for (let i = 0; i < 9; i++) circ(c, -L * .3 + th(i, 1, L) * L * .6, -hh * .8 + th(i, 2, L) * hh * 1.2, L * .018, 'rgba(30,30,20,.4)');
+  c.restore();
+  circ(c, -L * .32, -hh * .2, Math.max(1, L * .035), '#f6f2e8'); circ(c, -L * .325, -hh * .2, Math.max(.8, L * .02), '#111');
+  c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = Math.max(1, L * .012); c.beginPath(); c.moveTo(-L * .22, -hh * .7); c.quadraticCurveTo(-L * .16, 0, -L * .22, hh * .7); c.stroke();
+  if (look.w) { c.beginPath(); c.moveTo(-L * .43, 0); c.quadraticCurveTo(-L * .55, hh * .4, -L * .6, hh * .9); c.moveTo(-L * .43, -hh * .05); c.quadraticCurveTo(-L * .56, -hh * .2, -L * .62, -hh * .1); c.stroke() }
+  c.restore();
+}
+function paintFishCanvases(root) {
+  root.querySelectorAll('canvas[data-fl]').forEach(cv2 => {
+    const w = cv2.clientWidth || 140, h = cv2.clientHeight || 60, d = 2; cv2.width = w * d; cv2.height = h * d;
+    const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+    const r = +cv2.dataset.r || 1, col = (RAR2[r] || RAR2[1])[1];
+    const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+    const rg = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w * .6); rg.addColorStop(0, col + '40'); rg.addColorStop(1, col + '00'); c.fillStyle = rg; c.fillRect(0, 0, w, h);
+    const sp = FD.sp[cv2.dataset.fl], junk = cv2.dataset.junk;
+    const L = Math.min(w * .8, h * 2.2);
+    if (cv2.dataset.unk === '1') { c.filter = 'brightness(0)'; c.globalAlpha = .85 }
+    drawLook(c, w / 2, h / 2, L, sp && sp.look, 0, 1, junk);
+    c.filter = 'none'; c.globalAlpha = 1;
+  });
+}
+
+/* ---------- vaate kujundus ---------- */
+function fvHeader() {
+  const need = FS.xp_need || 1, pct = FS.level >= 50 ? 100 : Math.min(100, FS.xp / need * 100);
+  const big = FS.biggest_species && FD.sp[FS.biggest_species] ? `${FD.sp[FS.biggest_species].name} ${fmt1(+FS.biggest)} kg` : '—';
+  const rod = FD.rod[FS.rod], bait = FD.bait[FS.bait];
+  const baitCnt = bait && bait.consumable ? ` (${(FS.baits || {})[bait.id] || 0})` : '';
+  const rare = [3, 4, 5, 6].reduce((a, r) => a + ((FS.by_rarity || {})[r] || 0), 0);
+  return `<div class="fv-top"><button class="btn ghost sm" type="button" data-fa="close">← Kuningriik</button><h1>Kalapüük</h1>
+      <div class="fv-purse" title="Kalurikassa: kuld, mille teenid kalapüügiga">${ic('gold')}<span class="num">${fmt(FS.gold)}</span></div></div>
+    <div class="fv-top" style="gap:14px"><div class="fv-lvl"><div class="fv-badge"><b>${FS.level}</b><small>tase</small></div><div style="display:grid;gap:3px;min-width:0">
+      <b style="font-size:15px">${FS.title ? esc(FS.title) : 'Kalur'}</b><div class="fv-xp"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <small class="num" style="color:#9cb8c4">${FS.level >= 50 ? 'Maksimaalne tase!' : `${fmt(FS.xp)} / ${fmt(need)} kogemust · järgmise tasemeni ${fmt(need - FS.xp)}`}</small></div></div>
+      <div class="chips" style="margin-left:auto">${weatherChips()}</div></div>
+    <div class="fv-stats">
+      <div class="fv-stat"><small>Püütud kalu</small><b class="num">${fmt(FS.total)}</b></div>
+      <div class="fv-stat"><small>Suurim kala</small><b>${big}</b></div>
+      <div class="fv-stat"><small>Haruldasi kalu</small><b class="num">${fmt(rare)}</b></div>
+      <div class="fv-stat"><small>Õngeritv</small><b>${rod ? rod.name : ''} ${FS.rod_broken ? '<span style="color:var(--bad)">· katki</span>' : ''}</b></div>
+      <div class="fv-stat"><small>Sööt</small><b>${bait ? bait.name + baitCnt : ''}</b></div></div>`;
+}
+function weatherChips() {
+  const w = WTH2[FS.weather] || ['', ''];
+  return `<span class="chip" title="${w[1]}">${w[0]}</span>${FS.is_night ? '<span class="chip" title="Öised kalad on väljas">🌙 Öö</span>' : '<span class="chip">☀️ Päev</span>'}${FS.is_winter ? '<span class="chip" title="Talvised kalad on väljas">❄️ Talv</span>' : ''}${FS.luck ? `<span class="chip" title="Kuldkala õnnistus">🍀 Õnn ${FS.luck}</span>` : ''}`;
+}
+const FTABS = { puuk: 'Püük', saak: 'Saak', pood: 'Pood', raamat: 'Kalaraamat', voistlus: 'Võistlused', tellimus: 'Tellimused' };
+function fvBadges() {
+  const b = {};
+  b.saak = (FS.inventory || []).filter(x => !x.trophy).length || 0;
+  if (FV.orders) b.tellimus = FV.orders.filter(o => !o.done && o.have >= o.qty).length;
+  if (FV.comps) b.voistlus = ['big', 'rare', 'most'].filter(k => { const c = FV.comps[k]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) }).length;
+  return b;
+}
+function renderFV(force) {
+  if (!FV.open || !FS) return;
+  if (!force && FV.busyUI) return;
+  const b = fvBadges();
+  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabTellimus }[FV.tab]()}</div>`;
+  const root = $('#fvIn'), st = $('#fishView').scrollTop;
+  root.innerHTML = html;
+  const slot = root.querySelector('#fvSceneSlot'); if (slot) slot.replaceWith(sceneCv);
+  paintFishCanvases(root);
+  $('#fishView').scrollTop = st;
+}
+
+/* ---------- Püük ---------- */
+function tabPuuk() {
+  const spot = FD.spot[FV.spot];
+  const owned = FD.baits.filter(b => b.price === 0 || (b.consumable ? ((FS.baits || {})[b.id] || 0) > 0 : (FS.baits || {})[b.id] !== undefined) || b.id === FS.bait);
+  const odds = FV.odds;
+  const active = !['idle', 'result', 'lost'].includes(FV.phase);
+  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const lock = FS.level < s.min_level; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : ''}${s.name}</b><small>${lock ? `Avaneb ${s.min_level}. tasemel` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
+    <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
+  h += `<div class="fv-card"><div id="fvSceneSlot"></div>
+    <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
+    ${mainButton()}
+    ${FV.phase === 'result' && FV.result ? resultCard() : ''}
+    <div class="ctrl"><div class="field"><label for="fvBait">Sööt või peibutis</label><select id="fvBait" data-fa="bait" ${active ? 'disabled' : ''}>${owned.map(b => `<option value="${b.id}" ${b.id === FS.bait ? 'selected' : ''}>${b.name}${b.consumable ? ` (${(FS.baits || {})[b.id] || 0} tk)` : b.price ? ' (peibutis)' : ''}</option>`).join('')}</select></div>
+      <button class="btn ghost sm" type="button" data-fa="tab" data-arg="pood">Osta sööta</button></div>
+    ${odds ? `<div><div class="lead" style="font-size:12.5px;margin-bottom:5px">Võimalused selles kohas praeguse õnge, sööda, ilma ja kellaajaga (kokku 100%):</div><div class="odds">${odds.map((p, i) => p > 0 ? `<i style="width:${p}%;background:${RAR2[i + 1][1]}" title="${RAR2[i + 1][0]} ${fmt1(p)}%"></i>` : '').join('')}</div>
+      <div class="oddleg">${odds.map((p, i) => `<span><em style="background:${RAR2[i + 1][1]}"></em>${RAR2[i + 1][0]} ${p >= 10 ? Math.round(p) : (Math.round(p * 10) / 10).toString().replace('.', ',')}%</span>`).join('')}</div>
+      <p class="lead" style="font-size:12px">Lisaks võib õnge otsa sattuda naljakaid esemeid (5%) või veealune aardekirst (1,5%).</p></div>` : ''}
+  </div>`;
+  return h;
+}
+function phaseMsg() {
+  switch (FV.phase) {
+    case 'idle': return FS.rod_broken ? 'Sinu õng on katki. Paranda see poes.' : 'Vali püügikoht ja sööt ning vajuta „Viska õng“.';
+    case 'casting': return 'Viskad õnge…';
+    case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
+    case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
+    case 'hooking': return 'Haagid…';
+    case 'reel': return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.';
+    case 'landing': return 'Tood kala välja…';
+    default: return '';
+  }
+}
+function mainButton() {
+  if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="repair">Paranda õng (${repairCost2()} kulda)</button>`;
+  if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast" ${FV.busy ? 'disabled' : ''}>Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
+  if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
+  if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut">Lase lahti</button></div>`;
+  return `<button class="btn bigbtn" type="button" disabled>…</button>`;
+}
+function repairCost2() { const r = FD.rod[FS.rod]; return Math.max(10, Math.round((r ? r.price : 0) * 0.2)) }
+function setMsg(m) { FV.msg = m; const el = $('#fvMsg'); if (el) el.textContent = m }
+function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; renderFV(true) }
+
+/* põhitegevused */
+async function doCast() {
+  if (FV.busy || !['idle', 'result', 'lost'].includes(FV.phase)) return;
+  if (FS.level < FD.spot[FV.spot].min_level) { toast('See koht on veel lukus.', 'bad'); return }
+  FV.busy = true; FV.result = null; setPhase('casting');
+  try {
+    const r = await rpc('fish_cast', { p_spot: FV.spot, p_bait: FS.bait });
+    FV.cast = r; FV.castAt = performance.now(); FV.biteAt = FV.castAt + r.wait_ms;
+    const b = FD.bait[FS.bait]; if (b && b.consumable) FS.baits[b.id] = Math.max(0, ((FS.baits || {})[b.id] || 1) - 1);
+    setPhase('waiting');
+  } catch (e) { toast(e.message, 'bad'); setPhase('idle') }
+  FV.busy = false;
+}
+async function doPull() {
+  if (FV.phase === 'reel') { reelHit(); return }
+  if (FV.phase !== 'waiting' && FV.phase !== 'bite' || FV.busy) return;
+  FV.busy = true; const early = FV.phase === 'waiting'; setPhase('hooking');
+  try {
+    const r = await rpc('fish_hook', { p_cast: FV.cast.cast_id });
+    if (!r.ok) {
+      FS.lost++;
+      setPhase('lost', r.reason === 'early' || early ? 'Liiga vara! Kala ehmus ära. Oota, kuni ujuk vee alla tõmbub.' : 'Liiga hilja! Kala jõudis minema ujuda.');
+    } else {
+      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 2 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.25, .75), zw: +r.zone, sp: +r.speed, t0: performance.now(), flash: 0 };
+      const over = +r.est > +r.strength;
+      setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: tõmba või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Vajuta ${r.need} korda, kui valge joon on rohelisel alal.`);
+    }
+  } catch (e) { toast(e.message, 'bad'); setPhase('idle') }
+  FV.busy = false;
+}
+function reelHit() {
+  const h = FV.hook; if (!h || FV.busy) return;
+  const lo = h.zc - h.zw / 2, hi = h.zc + h.zw / 2, nd = h.needle || 0;
+  if (nd >= lo && nd <= hi) {
+    h.hits++; h.flash = .25;
+    if (h.hits >= h.need) { doLand(); return }
+    h.zc = rnd(.18, .82); h.zw = Math.max(.07, h.zw * .93); h.sp *= 1.07;
+    setMsg(['Hea! Kala väsib.', 'Veel natuke!', 'Tõmba, tõmba!'][h.hits % 3]);
+  } else {
+    h.misses++;
+    if (h.misses >= h.maxMiss) { doLose('Nöör läks lõdvaks ja kala rebis end lahti.'); return }
+    setMsg(`Mööda! Nöör on pingul. Vigu veel lubatud: ${h.maxMiss - h.misses}.`);
+  }
+}
+async function doLose(msg) {
+  const c = FV.cast; FV.hook = null; FS.lost++;
+  setPhase('lost', msg);
+  if (c) rpc('fish_lose', { p_cast: c.cast_id }).catch(() => { });
+}
+async function doLand() {
+  FV.busy = true; const h = FV.hook;
+  const minT = Math.max(.6, h.need * .45 - .3) * 1000 + 300, el = performance.now() - h.at;
+  setPhase('landing');
+  if (el < minT) await new Promise(r => setTimeout(r, minT - el));
+  try {
+    const r = await rpc('fish_land', { p_cast: FV.cast.cast_id });
+    FV.hook = null;
+    if (!r.ok) {
+      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} (${fmt1(+r.weight)} kg) oli liiga raske ja õng murdus. Paranda õng või osta tugevam.`); sparkleScene('#ff8a78'); }
+      else if (r.reason === 'escaped') setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`);
+      else setPhase('lost', 'Kala pääses minema.');
+      await refreshFS(); afterAch(r.ach); renderFV(true);
+    } else {
+      FV.result = r; sparkleScene(r.kind === 'fish' ? RAR2[r.rarity][1] : '#ffd065');
+      await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); FV.oddsKey = ''; loadOdds().then(() => FV.phase === 'result' && renderFV());
+      setPhase('result', resultMsg(r));
+      afterLevels(r.levels); afterAch(r.ach);
+      FV.orders = null; loadSide();
+    }
+  } catch (e) { toast(e.message, 'bad'); setPhase('idle') }
+  FV.busy = false;
+}
+function resultMsg(r) {
+  if (r.kind === 'junk') return `Õnge otsas oli ${JUNK2[r.junk][0].toLowerCase()}! ${JUNK2[r.junk][1]}`;
+  if (r.kind === 'chest') return `Veealune aardekirst! Said ${r.gold} kulda${r.map ? ' ja aardekaardi (saadeti kuningriiki)' : ''}.`;
+  return `${r.giant ? 'REKORDILISELT SUUR! ' : ''}Püüdsid: ${r.name}, ${fmt1(+r.weight)} kg!${r.new_species ? ' Uus liik kalaraamatus!' : r.record ? ' Uus isiklik rekord!' : ''}`;
+}
+function estPrice(id) {
+  const c = (FS.inventory || []).find(x => x.id === id); if (!c) return 0;
+  const s = FD.sp[c.species], m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
+  const avg = (s.min_w + s.max_w) / 2;
+  return Math.max(1, Math.round(s.price * m.mult * Math.min(2, .6 + .4 * c.weight / avg) / (1 + m.sold / 15)));
+}
+function resultCard() {
+  const r = FV.result;
+  if (r.kind !== 'fish') return `<div class="result" style="--rc:#ffd065"><canvas data-fl="" data-junk="${r.kind === 'chest' ? 'chest' : r.junk}" data-r="1"></canvas><div><span class="rpill" style="color:#ffd065">${r.kind === 'chest' ? 'Aare' : 'Leid'}</span><h3>${r.kind === 'chest' ? 'Veealune aardekirst' : JUNK2[r.junk][0]}</h3><p class="lead">+${r.xp} kogemust${r.gold ? ` · +${r.gold} kulda` : ''}</p></div></div>`;
+  const [rn, rc] = RAR2[r.rarity], inInv = (FS.inventory || []).some(x => x.id === r.catch_id), sp = FD.sp[r.species];
+  return `<div class="result" style="--rc:${rc}"><canvas data-fl="${r.species}" data-r="${r.rarity}"></canvas><div style="display:grid;gap:4px"><span class="rpill" style="color:${rc}">${rn}</span><h3>${esc(r.name)}</h3>
+    <p class="lead">${fmt1(+r.weight)} kg · +${r.xp} kogemust${r.giant ? ' · <b style="color:var(--amber-2)">rekordsuurus!</b>' : ''}${r.new_species ? ' · <b style="color:var(--ok)">uus liik!</b>' : r.record ? ' · <b style="color:var(--ok)">isiklik rekord!</b>' : ''}</p>
+    <p class="lead" style="font-size:12.5px">${esc(sp ? sp.descr : '')}</p></div>
+    ${inInv ? `<div class="acts"><button class="btn sm" type="button" data-fa="use" data-arg="sell:${r.catch_id}">Müü (~${estPrice(r.catch_id)} kulda)</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="cook:${r.catch_id}">Toiduks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="release:${r.catch_id}">Lase vabaks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="trophy:${r.catch_id}">Trofeeriiulile</button>${r.rarity >= 4 ? `<button class="btn sm ghost" type="button" data-fa="exch" data-arg="${r.catch_id}">${r.species === 'kuldkala' ? 'Soovi midagi' : 'Vaheta preemia vastu'}</button>` : ''}<span class="lead" style="font-size:12px;align-self:center">või jäta saagi hulka</span></div>` : '<div class="acts"><span class="lead">Kala on kasutatud.</span></div>'}</div>`;
+}
+
+/* ---------- stseen ---------- */
+const SCN = { metsajarv: ['#3f7a3a', '#3a7a94', '#163848'], jogi: ['#4a7a3a', '#4a8aa4', '#1a4050'], kuninglik: ['#3a6a3a', '#2f6a8a', '#0e2e44'], meri: ['#c8b884', '#2a6a8a', '#0e2e44'], jaa: ['#e8f2f6', '#2a5a70', '#0e2a38'], salajane: ['#3a4a5a', '#4a3a7a', '#140e2a'] };
+let sparks = [];
+function sparkleScene(col) { for (let i = 0; i < 40; i++) sparks.push({ x: .6, y: .5, vx: rnd(-.4, .4), vy: rnd(-.6, .1), life: rnd(.6, 1.2), col }) }
+let lastSc = 0;
+function sceneLoop(ts) {
+  if (!FV.open) return;
+  requestAnimationFrame(sceneLoop);
+  const dt = Math.min(.05, (ts - lastSc) / 1000 || 0); lastSc = ts; const t = ts / 1000;
+  // ajastused
+  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); renderFV(true) }
+  if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1150 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
+  if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
+  if (!sceneCv.isConnected) return;
+  const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
+  if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
+  const c = sceneCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  const [shore, wTop, wBot] = SCN[FV.spot] || SCN.metsajarv, night = FS && FS.is_night, h = hgt;
+  const sg = c.createLinearGradient(0, 0, 0, h * .32); sg.addColorStop(0, night ? '#0b1530' : FV.spot === 'salajane' ? '#5a4a8a' : '#8fc8e4'); sg.addColorStop(1, night ? '#1e2c58' : FV.spot === 'salajane' ? '#a898c8' : '#d6ecf2');
+  c.fillStyle = sg; c.fillRect(0, 0, w, h * .32);
+  if (night) for (let i = 0; i < 40; i++) circ(c, th(i, 1, 3) * w, th(i, 2, 3) * h * .28, th(i, 3, 3) * 1.3 + .3, `rgba(255,255,240,${.4 + .4 * Math.abs(Math.sin(t + i))})`);
+  if (night) circ(c, w * .82, h * .1, 12, '#f2ecd0');
+  // kallas ja taust
+  if (FV.spot === 'kuninglik') { c.fillStyle = night ? '#1a2238' : '#6a7a8a'; c.fillRect(w * .62, h * .12, w * .2, h * .16); for (let i = 0; i < 4; i++) c.fillRect(w * .62 + i * w * .055, h * .09, w * .03, h * .04); c.fillRect(w * .66, h * .02, w * .04, h * .12); poly(c, [w * .655, h * .02, w * .68, -h * .04, w * .705, h * .02], '#3a5f8c') }
+  if (FV.spot === 'jogi' || FV.spot === 'metsajarv' || FV.spot === 'salajane') for (let i = 0; i < 18; i++) { const x = i / 18 * w + th(i, 4, 1) * 20, hh = h * (.1 + th(i, 5, 1) * .08); poly(c, [x - 14, h * .3, x + 14, h * .3, x, h * .3 - hh], night ? '#0e2018' : FV.spot === 'salajane' ? '#3a3a5a' : '#2b5a3a') }
+  if (FV.spot === 'jaa') for (let i = 0; i < 6; i++) poly(c, [i * w / 5 - 40, h * .3, i * w / 5 + 60, h * .3, i * w / 5 + 10, h * .12], '#c8dae2');
+  rect(c, 0, h * .26, w, h * .07, shore);
+  const wg = c.createLinearGradient(0, h * .32, 0, h); wg.addColorStop(0, wTop); wg.addColorStop(1, wBot); c.fillStyle = wg; c.fillRect(0, h * .32, w, h * .68);
+  if (FV.spot === 'jaa') { c.fillStyle = '#e8f4f8'; c.fillRect(0, h * .32, w, h * .68); c.beginPath(); c.ellipse(w * .6, h * .56, w * .17, h * .13, 0, 0, 6.29); c.fillStyle = '#1f4e62'; c.fill(); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.stroke() }
+  const flow = FV.spot === 'jogi' ? 70 : FV.spot === 'meri' ? 30 : 14;
+  for (let i = 0; i < 9; i++) { const yy = h * (.38 + i * .07) + Math.sin(t * 1.3 + i) * 2, xx = ((t * flow * (i % 2 ? 1 : .6) + i * 97) % (w + 80)) - 40; c.strokeStyle = 'rgba(255,255,255,.13)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + 40, yy); c.stroke() }
+  if (FV.spot === 'salajane') for (let i = 0; i < 3; i++) { const fx = ((t * 12 * (i + 1) + i * 200) % (w + 300)) - 150, g = c.createRadialGradient(fx, h * .5, 0, fx, h * .5, 160); g.addColorStop(0, 'rgba(220,200,255,.22)'); g.addColorStop(1, 'rgba(220,200,255,0)'); c.fillStyle = g; c.fillRect(fx - 160, h * .5 - 160, 320, 320) }
+  // ilm
+  if (FS && (FS.weather === 'vihm' || FS.weather === 'torm')) { c.strokeStyle = 'rgba(210,230,255,.45)'; c.lineWidth = 1; for (let i = 0; i < (FS.weather === 'torm' ? 120 : 70); i++) { const x = (th(i, 7, 1) * w + t * 60) % w, y = (th(i, 8, 1) * h + t * 400 * (.8 + th(i, 9, 1) * .4)) % h; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 4, y + 12); c.stroke() } }
+  if (FS && FS.weather === 'udu') { c.fillStyle = 'rgba(230,236,234,.22)'; c.fillRect(0, 0, w, h) }
+  if (night) { c.fillStyle = 'rgba(8,16,44,.35)'; c.fillRect(0, 0, w, h) }
+  // õng, nöör, ujuk
+  const bx = w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
+  const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
+  if (FV.phase === 'bite') bob = 9 + Math.sin(t * 32) * 5;
+  if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
+  c.strokeStyle = '#6b4528'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke();
+  if (!casting || FV.phase === 'casting') {
+    c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(w * .32, h * .07); c.quadraticCurveTo(w * .5, h * .2, bx, by + bob - 6); c.stroke();
+    if (FV.phase === 'bite' || FV.phase === 'reel') for (let i = 0; i < 3; i++) { c.strokeStyle = `rgba(255,255,255,${.55 - i * .15})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 28), 4 + ((t * 10 + i * 4) % 9), 0, 0, 6.29); c.stroke() }
+    circ(c, bx, by + bob, 7, '#e8412e'); c.beginPath(); c.arc(bx, by + bob, 7, Math.PI, 0); c.fillStyle = '#fff'; c.fill(); rect(c, bx - 1, by + bob - 15, 2, 8, '#3a2a1a');
+  }
+  if (FV.phase === 'bite') {
+    c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
+    const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
+    c.lineWidth = 6; c.strokeStyle = 'rgba(40,10,0,.8)'; c.strokeText('KALA NÄKKAS!', 0, 0); c.fillStyle = '#ffd286'; c.fillText('KALA NÄKKAS!', 0, 0); c.restore();
+  }
+  if (FV.phase === 'reel' && FV.hook) {
+    const hk = FV.hook, fx = bx + Math.sin(t * 2.4) * w * .12, L = Math.min(w * .3, 50 + (+hk.est) * 3);
+    c.globalAlpha = .35; c.filter = 'brightness(0)'; drawLook(c, fx, h * .8, L, {}, t, Math.cos(t * 2.4) > 0 ? -1 : 1); c.filter = 'none'; c.globalAlpha = 1;
+    const x0 = w * .06, bw = w * .88, yb = h * .9, bh = 16;
+    rect(c, x0 - 2, yb - 2, bw + 4, bh + 4, 'rgba(0,0,0,.6)'); rect(c, x0, yb, bw, bh, '#24343a');
+    rect(c, x0 + (hk.zc - hk.zw / 2) * bw, yb, hk.zw * bw, bh, hk.flash > 0 ? '#d8ff9a' : '#7fd16a');
+    rect(c, x0 + (hk.needle || 0) * bw - 2, yb - 6, 4, bh + 12, '#fff4d8');
+    for (let i = 0; i < hk.need; i++) circ(c, w - 18 - i * 18, 18, 7, i < hk.hits ? '#ffd286' : 'rgba(255,255,255,.25)');
+    for (let i = 0; i < hk.maxMiss; i++) circ(c, 18 + i * 16, 18, 5, i < hk.misses ? '#ff8a78' : 'rgba(255,255,255,.2)');
+    const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
+    c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
+    rect(c, w / 2 - tw / 2, yb - 30, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, yb - 15);
+  }
+  for (const p of sparks) { p.life -= dt; p.vy += dt * .5; p.x += p.vx * dt; p.y += p.vy * dt; c.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5)); circ(c, p.x * w, p.y * h, 3, p.col); c.globalAlpha = 1 }
+  sparks = sparks.filter(p => p.life > 0);
+}
+
+/* ---------- Saak ---------- */
+function tabSaak() {
+  const inv = FS.inventory || [], kept = inv.filter(x => !x.trophy), tro = inv.filter(x => x.trophy);
+  FV.sel = new Set([...FV.sel].filter(id => kept.some(x => x.id === id)));
+  const selN = FV.sel.size;
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fmt1(+x.weight)} kg${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small></div>` };
+  let h = `<div class="fv-card"><h2>Saak</h2><p class="lead">Klõpsa kaladel, et neid valida. Müümisel saad kulda kalurikassasse. Toit ja kuulsus lähevad sinu kuningriiki. Turuhinnad muutuvad iga päev ja kui müüd ühel päeval palju sama kala, langeb selle hind.</p>
+    <div class="chips"><span class="chip">${kept.length} kala saagis</span><span class="chip">Valitud: ${selN}</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn sm" type="button" data-fa="bulk" data-arg="sell" ${selN ? '' : 'disabled'}>Müü valitud</button>
+      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="cook" ${selN ? '' : 'disabled'}>Valitud toiduks</button>
+      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="release" ${selN ? '' : 'disabled'}>Lase valitud vabaks</button>
+      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="trophy" ${selN === 1 ? '' : 'disabled'}>Trofeeriiulile</button>
+      <button class="btn sm ghost" type="button" data-fa="exchSel" ${selN === 1 && kept.find(x => FV.sel.has(x.id) && x.rarity >= 4) ? '' : 'disabled'}>Vaheta preemia vastu</button>
+      <button class="btn sm ghost" type="button" data-fa="selnone" ${selN ? '' : 'disabled'}>Tühista valik</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="1" ${kept.some(x => x.rarity === 1) ? '' : 'disabled'}>Müü kõik tavalised</button><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="2" ${kept.some(x => x.rarity <= 2) ? '' : 'disabled'}>Müü kõik tavalised ja ebatavalised</button></div>
+    ${kept.length ? `<div class="inv">${kept.slice(0, 150).map(cell).join('')}</div>${kept.length > 150 ? `<p class="lead">Näidatakse 150 väärtuslikumat kala, kokku on ${kept.length}.</p>` : ''}` : '<p class="lead">Saak on tühi. Mine püüki!</p>'}</div>`;
+  h += `<div class="fv-card"><h2>Trofeeriiul <small class="lead">${tro.length} / 12</small></h2><p class="lead">Trofeed jäävad sinu kollektsiooni igaveseks ja neid ei müüda kogemata maha. Klõpsa trofeel, et see riiulilt tagasi võtta.</p>${tro.length ? `<div class="inv">${tro.map(cell).join('')}</div>` : '<p class="lead">Riiul on veel tühi. Pane siia oma uhkeim saak.</p>'}</div>`;
+  h += `<div class="fv-card"><h2>Kalurikassa</h2><p class="lead">Kalapüügiga teenitud kuld on kalurikassas: <b>${fmt(FS.gold)} kulda</b>. Selle eest saad osta õngi ja sööta. Kulda saad saata ka oma kuningriigi varakambrisse, aga tagasi kalurikassasse seda tuua ei saa.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${[100, 500, 2000].map(n => `<button class="btn sm ghost" type="button" data-fa="transfer" data-arg="${n}" ${FS.gold >= n ? '' : 'disabled'}>Saada ${n} kuningriiki</button>`).join('')}<button class="btn sm ghost" type="button" data-fa="transfer" data-arg="${FS.gold}" ${FS.gold > 0 ? '' : 'disabled'}>Saada kõik (${fmt(FS.gold)})</button></div></div>`;
+  return h;
+}
+
+/* ---------- Pood ---------- */
+function tabPood() {
+  let h = '';
+  if (FS.rod_broken) h += `<div class="fv-card" style="border-color:var(--bad)"><h2>Õng on katki</h2><p class="lead">${FD.rod[FS.rod].name} murdus. Parandus maksab ${repairCost2()} kulda. Võid ka mõne teise oma õnge kasutusele võtta.</p><div><button class="btn" type="button" data-fa="repair" ${FS.gold >= repairCost2() ? '' : 'disabled'}>Paranda õng</button></div></div>`;
+  h += `<div class="fv-card"><h2>Õngeridvad</h2><p class="lead">Tugevus näitab, kui raske kala õng välja kannab. Püügiboonus suurendab haruldaste kalade võimalust ja väljatoomise boonus teeb rohelise ala laiemaks.</p><div class="shop">${FD.rods.map(r => {
+    const own = (FS.rods || []).includes(r.id), on = FS.rod === r.id, lock = FS.level < r.min_level;
+    return `<div class="srow ${lock && !own ? 'locked' : ''}"><div><b>${r.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : own ? ' <span class="pill">Sinu oma</span>' : ''}<small>Tugevus ${fmt1(+r.strength)} kg · püügiboonus +${Math.round(r.catch_bonus * 100)}% · väljatoomine +${Math.round(r.reel_bonus * 100)}%</small><small>${own ? '' : lock ? `🔒 Avaneb kalapüügi ${r.min_level}. tasemel · ` : ''}${own ? '' : `Hind ${fmt(r.price)} kulda`}</small></div>
+      ${on ? '' : own ? `<button class="btn sm ghost" type="button" data-fa="rod" data-arg="${r.id}">Võta kasutusele</button>` : `<button class="btn sm" type="button" data-fa="rod" data-arg="${r.id}" ${!lock && FS.gold >= r.price ? '' : 'disabled'}>Osta</button>`}</div>`;
+  }).join('')}</div></div>`;
+  h += `<div class="fv-card"><h2>Söödad ja peibutised</h2><p class="lead">Sööt kulub iga viskega. Peibutis ostetakse üks kord ja see ei kulu kunagi. Parem sööt toob kala kiiremini ja suurendab haruldaste kalade võimalust.</p><div class="shop">${FD.baits.map(b => {
+    const lock = FS.level < b.min_level, cnt = (FS.baits || {})[b.id] || 0, ownLure = !b.consumable && (b.price === 0 || (FS.baits || {})[b.id] !== undefined), on = FS.bait === b.id;
+    return `<div class="srow ${lock ? 'locked' : ''}"><div><b>${b.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : ''}<small>${esc(b.descr)}</small><small>Ootamine ${Math.round((1 - b.wait_mult) * 100)}% kiirem · haruldased +${Math.round(b.rarity_bonus * 100)}%${b.consumable ? ` · sul on ${cnt} tk · ${b.price} kulda tükk` : b.price ? (ownLure ? ' · sinu oma' : ` · ${fmt(b.price)} kulda`) : ' · tasuta'}</small>${lock ? `<small>🔒 Avaneb ${b.min_level}. tasemel</small>` : ''}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${lock ? '' : b.consumable ? `<button class="btn sm" type="button" data-fa="bait10" data-arg="${b.id}" ${FS.gold >= b.price * 10 ? '' : 'disabled'}>10 tk (${b.price * 10})</button><button class="btn sm ghost" type="button" data-fa="bait50" data-arg="${b.id}" ${FS.gold >= b.price * 50 ? '' : 'disabled'}>50 tk (${b.price * 50})</button>${cnt && !on ? `<button class="btn sm ghost" type="button" data-fa="baitUse" data-arg="${b.id}">Kasuta</button>` : ''}` : ownLure ? (on ? '' : `<button class="btn sm ghost" type="button" data-fa="baitUse" data-arg="${b.id}">Kasuta</button>`) : `<button class="btn sm" type="button" data-fa="lure" data-arg="${b.id}" ${FS.gold >= b.price ? '' : 'disabled'}>Osta</button>`}</div></div>`;
+  }).join('')}</div></div>`;
+  return h;
+}
+
+/* ---------- Kalaraamat ---------- */
+function tabRaamat() {
+  const book = FS.book || {}, caught = FD.species.filter(s => book[s.id]).length;
+  let h = `<div class="fv-card"><h2>Kalaraamat</h2><p class="lead">Püütud ${caught} / ${FD.species.length} liiki. Kõigi kalade leidmine annab tiitli „Kalakuningas“ ja suure preemia.</p><div class="bar green"><i style="width:${(caught / FD.species.length * 100).toFixed(1)}%"></i></div>`;
+  for (let r = 1; r <= 6; r++) {
+    const list = FD.species.filter(s => s.rarity === r), [rn, rc] = RAR2[r];
+    h += `<div class="sec-h" style="color:${rc}">${rn} <small>${list.filter(s => book[s.id]).length} / ${list.length}</small></div><div class="book">${list.map(s => {
+      const b = book[s.id]; const where = s.spots.map(x => FD.spot[x] ? FD.spot[x].name : x).join(', ');
+      return `<div class="bcell" style="border-color:${b ? rc + '66' : 'transparent'}"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${b ? 0 : 1}"></canvas><b>${b ? esc(s.name) : '???'}</b><small>${b ? `Püütud ${b.n}× · rekord ${fmt1(+b.max)} kg` : `${fmt1(s.min_w)}–${fmt1(s.max_w)} kg`}</small><small>${esc(where)}${s.night_only ? ' · öösel' : ''}${s.winter_only ? ' · talvel' : ''}${s.min_level > FS.level ? ` · tase ${s.min_level}` : ''}</small></div>`;
+    }).join('')}</div>`;
+  }
+  h += '</div>';
+  const got = FS.ach || {};
+  h += `<div class="fv-card"><h2>Saavutused ja tiitlid</h2><p class="lead">Avatud ${Object.keys(got).length} / ${FD.achs.length}. Mõned saavutused annavad tiitli, mida näevad ka teised mängijad.</p>
+    <div class="ctrl"><div class="field"><label for="fvTitle">Sinu tiitel</label><select id="fvTitle" data-fa="title"><option value="">Ilma tiitlita</option>${(FS.titles || []).map(t => `<option ${t === FS.title ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div></div>
+    <div class="achl">${FD.achs.map(a => `<div class="achc ${got[a.id] ? 'got' : ''}"><b>${got[a.id] ? '★ ' : ''}${esc(a.name)}</b><small>${esc(a.descr)}</small><small>${a.reward_gold ? `+${a.reward_gold} kulda ` : ''}${a.reward_xp ? `+${a.reward_xp} kogemust` : ''}${a.title ? ` · tiitel „${esc(a.title)}“` : ''}</small></div>`).join('')}</div></div>`;
+  const br = FS.by_rarity || {};
+  h += `<div class="fv-card"><h2>Statistika</h2><dl class="stats">${[1, 2, 3, 4, 5, 6].map(r => `<dt>${RAR2[r][0]} kalu</dt><dd>${br[r] || 0}</dd>`).join('')}
+    <dt>Öösel püütud</dt><dd>${FS.night}</dd><dt>Naljakaid leide</dt><dd>${FS.junk}</dd><dt>Aardekirste</dt><dd>${FS.chests}</dd><dt>Pääsenud kalu</dt><dd>${FS.lost}</dd><dt>Murtud õngi</dt><dd>${FS.broken}</dd><dt>Täidetud tellimusi</dt><dd>${FS.orders_done}</dd><dt>Võistlusvõite</dt><dd>${FS.comp_wins}</dd></dl></div>`;
+  return h;
+}
+
+/* ---------- Võistlused ---------- */
+const COMPN = { big: ['Päeva suurim kala', 'Kes püüab täna kõige raskema kala?', 'Päeva hiidkala püüdja'], rare: ['Nädala haruldaseim kala', 'Kõige haruldasem kala sel nädalal. Võrdsuse korral loeb kaal.', 'Haruldaste jahtija'], most: ['Nädala usinaim kalur', 'Kes püüab sel nädalal kõige rohkem kalu?', 'Nädala kalur'] };
+function tabVoistlus() {
+  const C = FV.comps;
+  if (!C) return '<div class="fv-card"><p class="lead">Laadin võistlusi…</p></div>';
+  const unclaimed = ['big', 'rare', 'most'].some(k => !C[k].claimed && (C[k].last || []).some(r => r.me && r.place <= 3));
+  let h = `<div class="fv-card"><h2>Võistlused</h2><p class="lead">Tulemused tulevad serverist. Kolm parimat saavad kulda ja kogemust, võitja ka tiitli. Preemia saad võtta pärast võistluse lõppu.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ${unclaimed ? '' : 'ghost'}" type="button" data-fa="claim">${unclaimed ? 'Võta võidupreemiad!' : 'Kontrolli võidupreemiaid'}</button><button class="btn ghost sm" type="button" data-fa="reloadComp">Värskenda</button></div></div><div class="comps">`;
+  for (const k of ['big', 'rare', 'most']) {
+    const c = C[k], [nm, ds] = COMPN[k], ends = new Date(new Date(c.ends).getTime() - 60000);
+    const val = r => k === 'most' ? `${r.cnt} kala` : `${esc(FD.sp[r.species] ? FD.sp[r.species].name : r.species)} ${fmt1(+r.weight)} kg`;
+    h += `<div class="fv-card"><h3>${nm}</h3><p class="lead" style="font-size:12.5px">${ds} Lõpeb ${k === 'big' ? 'täna' : ends.toLocaleDateString('et-EE', { weekday: 'long', timeZone: 'Europe/Tallinn' })} kell 23:59.</p>
+      ${c.top.length ? `<table class="ctable"><thead><tr><th>#</th><th>Kalur</th><th>${k === 'most' ? 'Kalu' : 'Kala'}</th></tr></thead><tbody>${c.top.map(r => `<tr class="${r.me ? 'me' : ''}"><td>${r.place}</td><td><b>${esc(r.name)}</b>${r.title ? `<br><small class="lead">${esc(r.title)}</small>` : ''}</td><td class="n" style="color:${k === 'most' ? '' : RAR2[r.rarity][1]}">${val(r)}</td></tr>`).join('')}</tbody></table>` : '<p class="lead">Keegi pole veel osalenud. Ole esimene!</p>'}
+      ${c.mine ? `<p class="lead">Sinu koht: <b>${c.mine.place}.</b> (${val(c.mine)})</p>` : ''}
+      ${c.last.length ? `<p class="lead" style="font-size:12.5px">Eelmine kord: ${c.last.map(r => `${r.place}. ${esc(r.name)}${r.me ? ' (sina)' : ''}`).join(', ')}</p>` : ''}</div>`;
+  }
+  h += `</div><div class="fv-card"><h2>Kuningriigi kalapüügi edetabel</h2>${C.leaderboard.length ? `<table class="ctable"><thead><tr><th>#</th><th>Kalur</th><th>Tase</th><th>Kalu</th><th>Suurim</th></tr></thead><tbody>${C.leaderboard.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td>${i + 1}</td><td><b>${esc(r.name)}</b>${r.title ? `<br><small class="lead">${esc(r.title)}</small>` : ''}</td><td class="n">${r.level}</td><td class="n">${fmt(r.total)}</td><td class="n">${fmt1(+r.biggest)} kg</td></tr>`).join('')}</tbody></table>` : '<p class="lead">Edetabel on veel tühi.</p>'}</div>`;
+  return h;
+}
+
+/* ---------- Tellimused ---------- */
+function tabTellimus() {
+  const O = FV.orders;
+  let h = `<div class="fv-card"><h2>Kuningliku köögi tellimused</h2><p class="lead">Lossi kokk vajab iga päev värsket kala. Täidetud tellimus toob kulda kalurikassasse ning kuulsust ja toitu sinu kuningriiki. Rohkem tellimusi avaneb kalapüügi 5., 12. ja 20. tasemel. Uued tellimused tulevad iga päev kesköösel.</p>`;
+  if (!O) return h + '<p class="lead">Laadin tellimusi…</p></div>';
+  if (!O.length) return h + '<p class="lead">Täna tellimusi pole.</p></div>';
+  h += `<div class="shop">${O.map(o => { const s = FD.sp[o.species], [rn, rc] = RAR2[s.rarity]; return `<div class="srow" style="${o.done ? 'opacity:.6' : ''}"><div style="display:grid;grid-template-columns:90px minmax(0,1fr);gap:10px;align-items:center"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${FS.book[s.id] ? 0 : 1}" style="width:90px;height:50px;border-radius:8px"></canvas><div><b>${o.qty} × ${esc(s.name)}</b> <span class="rpill" style="color:${rc}">${rn}</span><small>Saagis: ${Math.min(o.have, o.qty)} / ${o.qty} · ${esc(s.spots.map(x => FD.spot[x].name).join(', '))}</small><small>Preemia: ${o.gold} kulda, ${o.xp} kogemust, ${o.fame} kuulsust ja ${o.qty * 4} toitu kuningriiki</small></div></div>
+    ${o.done ? '<span class="pill ok">Täidetud</span>' : `<button class="btn sm" type="button" data-fa="deliver" data-arg="${o.idx}" ${o.have >= o.qty ? '' : 'disabled'}>Anna kokale</button>`}</div>` }).join('')}</div></div>`;
+  return h;
+}
+
+/* ---------- preemiad ja tasemed ---------- */
+function afterAch(list) { (list || []).forEach(a => toast(`Kalapüügi saavutus: ${a.name}${a.title ? ` · uus tiitel „${a.title}“` : ''}${a.gold ? ` · +${a.gold} kulda` : ''}`, 'gold', 'fame')) }
+function afterLevels(lv) {
+  if (!lv || !lv.length) return;
+  const to = Math.max(...lv), from = Math.min(...lv);
+  const u = [];
+  FD.spots.filter(s => s.min_level >= from && s.min_level <= to).forEach(s => u.push(['Püügikoht', s.name]));
+  FD.rods.filter(s => s.min_level >= from && s.min_level <= to).forEach(s => u.push(['Õng', s.name]));
+  FD.baits.filter(s => s.min_level >= from && s.min_level <= to).forEach(s => u.push([s.consumable ? 'Sööt' : 'Peibutis', s.name]));
+  FD.species.filter(s => s.min_level >= from && s.min_level <= to && s.min_level > 1).forEach(s => u.push(['Uus kala', '???']));
+  [5, 12, 20].filter(l => l >= from && l <= to).forEach(() => u.push(['Eriülesanne', 'Uus köögitellimus']));
+  showModal(() => `<div class="rays"></div>${Array.from({ length: 8 }, (_, i) => `<i class="mote" style="left:${10 + i * 11}%;top:${30 + (i * 37) % 50}%;animation-delay:${(i * .37) % 3}s"></i>`).join('')}
+    <div class="ribbon">Kalapüügi tase tõusis</div><div class="emblem"><div class="emblem-in"><b>${to}</b><small>kalur</small></div></div>
+    <h2>Osav kalur!</h2><p class="sub">Järvede vaimud on sinu oskusi märganud.</p>
+    ${u.length ? `<div class="ulabel">Avanes</div><div class="unlock-list">${u.map(x => `<span>${x[0]}: ${esc(x[1])}</span>`).join('')}</div>` : '<p class="nextl">Jätka püüki, et avada uusi kohti ja õngi.</p>'}
+    <button class="btn" type="button" data-act="closeModal">Edasi püüki</button>`, 'lvlup');
+}
+
+/* ---------- tegevused ---------- */
+async function fUse(action, ids, choice) {
+  if (FV.busy) return; FV.busy = true;
+  try {
+    const r = await rpc('fish_use', { p_ids: ids, p_action: action, p_choice: choice || null });
+    const parts = [];
+    if (r.gold) parts.push(`+${r.gold} kulda kalurikassasse`); if (r.food) parts.push(`+${r.food} toitu kuningriiki`); if (r.fame) parts.push(`+${r.fame} kuulsust kuningriiki`);
+    if (r.map) parts.push(`+${r.map} aardekaart kuningriiki`); if (r.xp) parts.push(`+${r.xp} kogemust`); if (r.luck) parts.push('kaluriõnn +1'); if (r.kingdom_gold) parts.push(`+${r.kingdom_gold} kulda kuningriiki`); if (r.bait) parts.push(`+${r.qty} ${FD.bait[r.bait].name.toLowerCase()}`);
+    toast({ sell: 'Müüdud', cook: 'Valmistasid kalarooga', release: 'Lasid vabaks', trophy: 'Trofeeriiulil', untrophy: 'Võetud riiulilt', exchange: 'Vahetatud' }[action] + (parts.length ? ': ' + parts.join(', ') : '.'), 'good', 'fish');
+    ids.forEach(id => FV.sel.delete(id));
+    await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market);
+    afterLevels(r.levels); afterAch(r.ach);
+  } catch (e) { toast(e.message, 'bad') }
+  FV.busy = false; closeModalIfExch(); renderFV(true);
+}
+function closeModalIfExch() { if (UI.modalView && UI.modalView.exch) closeModal() }
+function showExchange(id) {
+  const c = (FS.inventory || []).find(x => x.id === id); if (!c) return;
+  const s = FD.sp[c.species], gold = s.id === 'kuldkala';
+  const v = () => (gold ? `<h2>Kuldkala räägib!</h2><p>„Lase mind vabaks ja ma täidan ühe su soovi!“</p><div class="wishes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:rikkus">Rikkus<br><small>+${fmt(3000 + FS.level * 100)} kulda kalurikassasse</small></button>
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:kuningriik">Kuningriigile<br><small>+${fmt(4000 + FS.level * 100)} kulda varakambrisse</small></button>
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:tarkus">Tarkus<br><small>+${fmt(1500 + FS.level * 100)} kogemust</small></button>
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:onn" ${FS.luck >= 5 ? 'disabled' : ''}>Kaluriõnn<br><small>püsivalt rohkem haruldasi (${FS.luck}/5)</small></button></div>`
+    : `<h2>Vaheta: ${esc(s.name)}</h2><p>Kuninglik kollektsionäär pakub selle ${RAR2[s.rarity][0].toLowerCase()} kala eest:</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:kaart">${s.rarity - 3} aardekaart${s.rarity - 3 > 1 ? 'i' : ''}<br><small>saadetakse kuningriiki</small></button>
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:kuulsus">Kuulsus<br><small>+${s.rarity * s.rarity * 12} kuningriigile</small></button>
+      <button class="btn" type="button" data-fa="exDo" data-arg="${id}:sööt">Söödapakk<br><small>${s.rarity * 6} tk parimat sööta</small></button></div>`) + `<div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Loobu</button></div>`;
+  v.exch = true; showModal(v);
+}
+async function fShop(kind, id, qty) {
+  if (FV.busy) return; FV.busy = true;
+  try {
+    const r = await rpc('fish_shop', { p_kind: kind, p_id: id, p_qty: qty || 1 });
+    if (r.bought) toast(`Ostsid: ${(FD.rod[r.bought] || FD.bait[r.bought]).name}${r.qty ? ' × ' + r.qty : ''} (−${fmt(r.cost)} kulda)`, 'good', 'fish');
+    else if (r.equipped) toast(`Kasutusel: ${(FD.rod[r.equipped] || FD.bait[r.equipped]).name}`, 'info', 'fish');
+    else if (r.repaired) toast(`Õng on parandatud (−${r.cost} kulda).`, 'good', 'fish');
+    else if (r.transferred) { toast(`${fmt(r.transferred)} kulda saadeti kuningriigi varakambrisse.`, 'good', 'gold'); claimInbox() }
+    await refreshFS(); FV.oddsKey = ''; await loadOdds();
+  } catch (e) { toast(e.message, 'bad') }
+  FV.busy = false; renderFV(true);
+}
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-fa]'); if (!el || el.disabled) return;
+  if (el.tagName === 'SELECT') return;
+  const a = el.dataset.fa, arg = el.dataset.arg;
+  switch (a) {
+    case 'close': closeFishView(); break;
+    case 'tab': FV.tab = arg; renderFV(true); if (arg === 'voistlus' || arg === 'tellimus') loadSide(); break;
+    case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
+    case 'cast': doCast(); break;
+    case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
+    case 'cut': if (FV.phase === 'reel') doLose('Lasid kala lahti. Õng jäi terveks.'); break;
+    case 'repair': fShop('repair', null); break;
+    case 'use': { const [act, id] = arg.split(':'); fUse(act, [+id]); break }
+    case 'exch': showExchange(+arg); break;
+    case 'exSel': case 'exchSel': { const id = [...FV.sel][0]; if (id) showExchange(id); break }
+    case 'exDo': { const [id, ch] = arg.split(':'); fUse('exchange', [+id], ch); break }
+    case 'pick': { const id = +arg; FV.sel.has(id) ? FV.sel.delete(id) : FV.sel.add(id); renderFV(true); break }
+    case 'untro': fUse('untrophy', [+arg]); break;
+    case 'selnone': FV.sel.clear(); renderFV(true); break;
+    case 'bulk': if (FV.sel.size) fUse(arg, [...FV.sel]); break;
+    case 'sellall': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_sell_all', { p_max_rarity: +arg }); toast(`Müüsid ${r.n} kala ja said ${r.gold} kulda.`, 'good', 'gold'); FV.sel.clear(); await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'transfer': fShop('transfer', null, +arg); break;
+    case 'rod': fShop('rod', arg); break;
+    case 'bait10': fShop('bait', arg, 10); break;
+    case 'bait50': fShop('bait', arg, 50); break;
+    case 'lure': fShop('bait', arg); break;
+    case 'baitUse': fShop('equip_bait', arg); break;
+    case 'deliver': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_order_deliver', { p_idx: +arg }); toast(`Kokk on õnnelik! +${r.gold} kulda, +${r.xp} kogemust, +${r.fame} kuulsust ja +${r.food} toitu kuningriiki.`, 'gold', 'fish'); await refreshFS(); FV.orders = await rpc('fish_orders_today'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'claim': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_claim_prizes'); if (!r.prizes.length) toast('Uusi võidupreemiaid pole. Ole parim ja proovi uuesti!', 'info'); r.prizes.forEach(p => toast(`${COMPN[p.comp][0]}: ${p.place}. koht! +${p.gold} kulda, +${p.xp} kogemust${p.title ? `, tiitel „${p.title}“` : ''}`, 'gold', 'fame')); await refreshFS(); FV.comps = await rpc('fish_competitions'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'reloadComp': FV.comps = null; renderFV(true); loadSide(); break;
+  }
 });
-$('#modalCard').addEventListener('pointerdown', e => {
-  if (!F) return;
-  if (e.target.closest('#fishCut')) { if (F.phase === 'reel') { F.phase = 'lost'; fishMsg('Lasid kala lahti. Varustus jäi terveks.'); e.target.closest('#fishCut').hidden = true; fishFail() } return }
-  const t = e.target.closest('#fishBtn, #fishCv'); if (!t) return;
-  e.preventDefault();
-  const btn = document.getElementById('fishBtn');
-  if (F.phase === 'lost') { fishAgain(); return }
-  fishHook();
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.id === 'fvBait') fShop('equip_bait', el.value);
+  if (el.id === 'fvTitle') fShop('title', el.value || null);
 });
 document.addEventListener('keydown', e => {
-  if (!F || UI.modalView !== fishView || (e.key !== ' ' && e.key !== 'Enter')) return;
-  e.preventDefault(); const btn = document.getElementById('fishBtn');
-  if (F.phase === 'lost') fishAgain(); else fishHook();
+  if (!FV.open || UI.modalView) return;
+  if (e.key === 'Escape') { closeFishView(); return }
+  if (e.key !== ' ' || FV.tab !== 'puuk' || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  e.preventDefault();
+  if (['idle', 'result', 'lost'].includes(FV.phase)) { if (!FS.rod_broken) doCast() } else doPull();
+});
+sceneCv.addEventListener('pointerdown', e => { if (['waiting', 'bite', 'reel'].includes(FV.phase)) { e.preventDefault(); doPull() } });
+document.addEventListener('pointerdown', e => { const b = e.target.closest('#fvPull'); if (b && FV.phase === 'reel') { e.preventDefault(); FV.pdAt = Date.now(); reelHit() } }, true);
+setInterval(() => { if (FV.open && !['waiting', 'bite', 'reel', 'landing', 'hooking', 'casting'].includes(FV.phase)) { const nowNight = (() => { const h = +new Date().toLocaleString('en-GB', { timeZone: 'Europe/Tallinn', hour: '2-digit', hour12: false }); return h >= 21 || h < 5 })(); if (FS && nowNight !== FS.is_night) refreshFS().then(() => { FV.oddsKey = ''; return loadOdds() }).then(() => renderFV()) } }, 60000);
+
+/* ---------- ühendus kuningriigiga ---------- */
+ACT.fvLogin = () => { closeModal(); running = false; save(); S = null; showStart() };
+{
+  const baseTool = ACT.tool;
+  ACT.tool = a => { if (a === 'pyua') openFishView('puuk'); else baseTool(a) };
+}
+function startFishing() { openFishView('puuk') }
+{
+  const base = TABS.seiklused.r;
+  TABS.seiklused.r = () => {
+    const h = base();
+    const c = `<div class="card adv"><div class="advhead"><span class="ic lg">${ICON.fish}</span><div><h3>Kalapüük</h3><p class="lead">Kuus püügikohta, ${FD.loaded ? FD.species.length : '40+'} kalaliiki, õngeridvad, söödad, kalaraamat ja võistlused teiste mängijatega. Kalapüügil on oma tase 1–50.</p></div></div>
+      ${S && S.fishCache ? `<dl class="stats"><dt>Kalapüügi tase</dt><dd>${S.fishCache.level}</dd><dt>Püütud kalu</dt><dd>${S.fishCache.total}</dd></dl>` : ''}
+      <div><button class="btn sm" type="button" data-act="openFish">Ava kalapüük</button></div></div>`;
+    return h.replace(/<\/div>$/, '') + c + '</div>';
+  };
+}
+ACT.openFish = () => openFishView();
+QUESTS.push(
+  Q('q90', 'Saavuta kalapüügi 5. tase', 5, s => (s.fishCache && s.fishCache.level) || 0, { gold: 300, xp: 150 }),
+  Q('q91', 'Püüa kokku 50 kala', 50, s => (s.fishCache && s.fishCache.total) || 0, { food: 150, xp: 250 }),
+  Q('q92', 'Saavuta kalapüügi 15. tase', 15, s => (s.fishCache && s.fishCache.level) || 0, { gold: 1500, fame: 40, xp: 600 }),
+  Q('q93', 'Saavuta kalapüügi 30. tase', 30, s => (s.fishCache && s.fishCache.level) || 0, { gold: 5000, fame: 100, xp: 1500 }),
+);
+
+/* ================= CLOUD: KONTOD, PILVESALVESTUS, EDETABEL ================= */
+const SUPA_URL = window.MK_SUPA_URL || 'https://marevpuolbeblrpwclms.supabase.co';
+const SUPA_KEY = window.MK_SUPA_KEY || 'sb_publishable_4ZpBQe3T4AccPQGgnJqgxw_rWqF3q29';
+const GUEST_KEY = 'metsakuningriik.v1';
+const CL = { sb: null, user: null, guest: false, mode: 'login', busy: false, msg: '', msgKind: '', lastCloud: 0, saving: false, pending: false, presence: null, peers: [], lb: null, lbAt: 0, recovery: false };
+
+try { CL.sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) } catch (e) { CL.sb = null }
+
+const ERR_ET = [
+  [/invalid login credentials/i, 'Vale e-post või parool.'],
+  [/user already registered|already been registered/i, 'Selle e-postiga konto on juba olemas. Logi sisse.'],
+  [/password should be at least|password.*(short|length)/i, 'Parool peab olema vähemalt 6 tähemärki pikk.'],
+  [/email not confirmed/i, 'Kinnita esmalt oma e-post. Vaata postkasti (ka rämpsposti kausta).'],
+  [/rate limit|too many/i, 'Liiga palju katseid järjest. Oota natuke ja proovi uuesti.'],
+  [/invalid.*email|email.*invalid|unable to validate email/i, 'E-posti aadress ei sobi. Kontrolli, kas see on õigesti kirjutatud.'],
+  [/failed to fetch|network/i, 'Serveriga ei saanud ühendust. Kontrolli internetiühendust.'],
+  [/jwt|not authenticated|logi sisse/i, 'Sessioon aegus. Palun logi uuesti sisse.'],
+];
+function etError(e) { const m = (e && (e.message || e.error_description || e.msg)) || String(e || ''); for (const [re, t] of ERR_ET) if (re.test(m)) return t; return m || 'Midagi läks valesti.' }
+async function rpc(fn, args) {
+  if (!CL.sb || !CL.user) throw new Error('Palun logi sisse');
+  const { data, error } = await CL.sb.rpc(fn, args || {});
+  if (error) throw new Error(etError(error));
+  return data;
+}
+
+/* ---------- stiilid ---------- */
+document.head.insertAdjacentHTML('beforeend', `<style>
+.auth{display:grid;gap:10px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(0,0,0,.28)}
+.auth-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px;font-weight:700}
+.auth-tabs button.on{background:var(--fern);color:var(--birch)}
+.auth form{display:grid;gap:10px;margin:0}
+.authmsg{font-size:13.5px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.25)}
+.authmsg.bad{color:var(--bad)} .authmsg.good{color:var(--ok)}
+.linkbtn{border:0;background:none;color:var(--lichen);text-decoration:underline;padding:2px;font-size:13px;justify-self:start}
+.who-box{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--lichen);padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
+.who-box b{color:var(--birch);word-break:break-all}
+.importbox{width:100%;min-height:110px;font:12px ui-monospace,monospace;background:rgba(0,0,0,.3);color:var(--birch);border:1px solid var(--line);border-radius:10px;padding:8px}
+.cloudstate{font-size:12px;color:var(--faint)}
+</style>`);
+
+/* ---------- avaleht ---------- */
+$('#contBox').insertAdjacentHTML('beforebegin', '<div class="auth" id="authBox"></div>');
+function renderAuth() {
+  const box = $('#authBox');
+  const msg = CL.msg ? `<div class="authmsg ${CL.msgKind}">${esc(CL.msg)}</div>` : '';
+  if (!CL.sb) { box.innerHTML = '<div class="authmsg bad">Serveriga ühendamine ei õnnestunud. Saad mängida ilma kontota.</div>'; return }
+  if (CL.user) {
+    box.innerHTML = `<div class="who-box"><span>Sisse logitud: <b>${esc(CL.user.email || '')}</b></span><button class="linkbtn" type="button" data-cl="logout">Logi välja</button></div>${msg}
+      <button class="linkbtn" type="button" data-cl="import">Too kuningriik claude.ai mängust</button>`;
+    return;
+  }
+  if (CL.guest) {
+    box.innerHTML = `<div class="who-box"><span>Mängid ilma kontota. Areng salvestub ainult selles brauseris ja kalapüük pole saadaval.</span><button class="linkbtn" type="button" data-cl="toLogin">Logi sisse</button></div>${msg}`;
+    return;
+  }
+  const reg = CL.mode === 'register', forgot = CL.mode === 'forgot';
+  box.innerHTML = `${forgot ? '' : `<div class="auth-tabs"><button type="button" class="${reg ? '' : 'on'}" data-cl="mode" data-arg="login">Logi sisse</button><button type="button" class="${reg ? 'on' : ''}" data-cl="mode" data-arg="register">Loo konto</button></div>`}
+    <form id="authForm" autocomplete="on">
+      <div class="field"><label for="authEmail">E-post</label><input id="authEmail" type="email" autocomplete="email" required></div>
+      ${forgot ? '' : `<div class="field"><label for="authPass">Parool</label><input id="authPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required></div>`}
+      ${reg ? `<div class="field"><label for="authName">Valitseja nimi</label><input id="authName" maxlength="20" placeholder="nt Metsaema Liis" required></div>
+        <div class="field"><label for="authKingdom">Kuningriigi nimi</label><input id="authKingdom" maxlength="24" placeholder="nt Sõnajalgade kuningriik"></div>` : ''}
+      <button class="btn wide" type="submit" ${CL.busy ? 'disabled' : ''}>${CL.busy ? 'Oota…' : forgot ? 'Saada parooli taastamise link' : reg ? 'Loo konto ja alusta' : 'Logi sisse'}</button>
+    </form>${msg}
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      ${forgot ? '<button class="linkbtn" type="button" data-cl="mode" data-arg="login">Tagasi sisselogimisse</button>' : '<button class="linkbtn" type="button" data-cl="mode" data-arg="forgot">Unustasid parooli?</button>'}
+      <button class="linkbtn" type="button" data-cl="guest">Mängi ilma kontota</button></div>`;
+  $('#authForm').addEventListener('submit', onAuthSubmit);
+}
+const _showStart = showStart;
+showStart = function () {
+  _showStart();
+  renderAuth();
+  const allow = !!CL.user || CL.guest || !CL.sb;
+  if (!allow) { $('#contBox').hidden = true; $('#newDivider').hidden = true; $('#newForm').hidden = true }
+  else $('#newForm').hidden = false;
+};
+async function onAuthSubmit(e) {
+  e.preventDefault(); if (CL.busy) return;
+  const email = $('#authEmail').value.trim(), pass = $('#authPass') ? $('#authPass').value : '';
+  const regName = $('#authName') ? $('#authName').value.trim() : '', regKingdom = $('#authKingdom') ? $('#authKingdom').value.trim() : '';
+  CL.busy = true; CL.msg = ''; renderAuth(); $('#authEmail').value = email;
+  try {
+    if (CL.mode === 'forgot') {
+      const { error } = await CL.sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      if (error) throw error;
+      CL.msg = 'Saatsime sulle e-kirja parooli taastamise lingiga.'; CL.msgKind = 'good'; CL.mode = 'login';
+    } else if (CL.mode === 'register') {
+      const name = regName || 'Valitseja', kingdom = regKingdom || name + ' kuningriik';
+      const { data, error } = await CL.sb.auth.signUp({ email, password: pass, options: { data: { name, kingdom }, emailRedirectTo: location.origin + location.pathname } });
+      if (error) throw error;
+      CL.pendingNew = { name, kingdom };
+      if (!data.session) { CL.msg = 'Konto on loodud! Kinnita see e-kirjas oleva lingiga ja logi siis sisse.'; CL.msgKind = 'good'; CL.mode = 'login' }
+    } else {
+      const { error } = await CL.sb.auth.signInWithPassword({ email, password: pass });
+      if (error) throw error;
+    }
+  } catch (err) { CL.msg = etError(err); CL.msgKind = 'bad' }
+  CL.busy = false;
+  if (!CL.user) { renderAuth(); if ($('#authEmail')) $('#authEmail').value = email }
+}
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-cl]'); if (!el) return;
+  const a = el.dataset.cl;
+  if (a === 'mode') { CL.mode = el.dataset.arg; CL.msg = ''; renderAuth() }
+  else if (a === 'guest') { CL.guest = true; CL.msg = ''; SAVE_KEY = GUEST_KEY; showStart() }
+  else if (a === 'toLogin') { CL.guest = false; CL.mode = 'login'; showStart() }
+  else if (a === 'logout') { await cloudSave(true); await CL.sb.auth.signOut(); }
+  else if (a === 'import') showImport();
+  else if (a === 'doImport') doImport();
+  else if (a === 'setPass') setNewPassword();
 });
 
-QUESTS.push(
-  Q('q79', 'Püüa oma esimene kala', 1, s => (s.fish && s.fish.catches) || 0, { berries: 50, xp: 60 }),
-  Q('q80', 'Püüa 5 erinevat kalaliiki', 5, s => s.fish ? FISH_ORDER.filter(x => s.fish.book[x]).length : 0, { gold: 400, xp: 200 }),
-  Q('q81', 'Püüa haug', 1, s => (s.fish && s.fish.book.haug && s.fish.book.haug.n) || 0, { gold: 300, xp: 150 }),
-  Q('q82', 'Osta parem õng', 2, s => (s.fish && s.fish.rod) || 1, { gold: 300, xp: 150 }),
-  Q('q87', 'Osta tugevam tamiil', 1, s => s.st.linesBought || 0, { gold: 150, xp: 80 }),
-  Q('q83', 'Leia pudelipost', 1, s => (s.fish && s.fish.bottles) || 0, { xp: 200, fame: 20 }),
-  Q('q84', 'Püüa 50 saaki', 50, s => (s.fish && s.fish.catches) || 0, { gold: 1500, fame: 40, xp: 500 }),
-  Q('q85', 'Püüa legendaarne kala', 1, s => s.fish ? FISH_ORDER.filter(x => FISH[x].r === 4 && s.fish.book[x]).length : 0, { gold: 2000, fame: 80, xp: 800 }),
-  Q('q86', 'Täida kalade raamat', FISH_ORDER.length, s => s.fish ? FISH_ORDER.filter(x => s.fish.book[x]).length : 0, { gold: 6000, fame: 150, xp: 2000 }),
-);
-ACH.push(
-  { id: 'a28', n: 'Kalakuningas', d: 'Püüa kõik kalaliigid', ok: s => !!(s.fish && FISH_ORDER.every(x => s.fish.book[x])), fame: 50 },
-  { id: 'a29', n: 'Kolm soovi', d: 'Kohtu kuldkalaga', ok: s => (s.st.goldfish || 0) >= 1, fame: 20 },
-  { id: 'a30', n: 'Suur saak', d: 'Püüa vähemalt 20 kg kala', ok: s => !!(s.fish && s.fish.biggest >= 20), fame: 15 },
-  { id: 'a31', n: 'Hea süda', d: 'Lase vabaks 20 kala', ok: s => !!(s.fish && s.fish.released >= 20), fame: 15 },
-);
+/* ---------- sessioon ---------- */
+async function onSignedIn(user) {
+  const first = !CL.user || CL.user.id !== user.id;
+  CL.user = user; CL.guest = false; CL.msg = '';
+  if (!first) return;
+  SAVE_KEY = 'metsakuningriik.v1.u.' + user.id;
+  await pullCloud();
+  const meta = user.user_metadata || {};
+  if (CL.pendingNew || (!loadSave() && meta.name)) {
+    const pn = CL.pendingNew || { name: meta.name, kingdom: meta.kingdom || meta.name + ' kuningriik' };
+    CL.pendingNew = null;
+    if (!loadSave()) { $('#playerName').value = pn.name; $('#kingdomName').value = pn.kingdom }
+  }
+  if (!S) showStart();
+  startPresence();
+}
+function onSignedOut() {
+  const was = !!CL.user;
+  CL.user = null; stopPresence();
+  if (was) { running = false; S = null; closeModal(); if (typeof FV !== 'undefined') closeFishView(); SAVE_KEY = GUEST_KEY; CL.msg = 'Logisid välja.'; CL.msgKind = 'good' }
+  showStart();
+}
+if (CL.sb) {
+  CL.sb.auth.onAuthStateChange((ev, session) => {
+    setTimeout(() => {
+      if (ev === 'PASSWORD_RECOVERY') { CL.recovery = true; showPassModal() }
+      if (session && session.user) onSignedIn(session.user); else if (ev === 'SIGNED_OUT' || !session) onSignedOut();
+    }, 0);
+  });
+}
+function showPassModal() {
+  showModal(() => `<h2>Uus parool</h2><p>Sisesta oma kontole uus parool.</p><div class="field"><label for="newPass">Uus parool</label><input id="newPass" type="password" minlength="6" autocomplete="new-password"></div>
+    <div class="mbtns"><button class="btn" type="button" data-cl="setPass">Salvesta parool</button></div>`);
+}
+async function setNewPassword() {
+  const p = $('#newPass').value;
+  const { error } = await CL.sb.auth.updateUser({ password: p });
+  if (error) { toast(etError(error), 'bad'); return }
+  CL.recovery = false; closeModal(); toast('Parool on muudetud.', 'good');
+}
+
+/* ---------- pilvesalvestus ---------- */
+async function pullCloud() {
+  try {
+    const { data, error } = await CL.sb.from('saves').select('data, updated_at').eq('user_id', CL.user.id).maybeSingle();
+    if (error) throw error;
+    const local = loadSave();
+    if (data && data.data && data.data.res && (!local || (data.data.last || 0) > (local.last || 0))) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(data.data)) } catch (e) { }
+      CL.cloudCopy = data.data;
+    }
+    CL.lastCloud = Date.now();
+  } catch (e) { CL.msg = 'Pilvesalvestust ei saanud laadida: ' + etError(e); CL.msgKind = 'bad' }
+}
+const _loadSave = loadSave;
+loadSave = function () { const v = _loadSave(); if (!v && CL.user && CL.cloudCopy) return JSON.parse(JSON.stringify(CL.cloudCopy)); return v };
+async function cloudSave(force) {
+  if (!CL.sb || !CL.user || !S) return;
+  if (!force && Date.now() - CL.lastCloud < 20000) { CL.pending = true; return }
+  if (CL.saving) { CL.pending = true; return }
+  CL.saving = true; CL.pending = false;
+  const row = { user_id: CL.user.id, data: S, level: S.level | 0, fame: Math.floor(S.fame) | 0, regions: Object.keys(S.regions).length, treasures: (S.st.treasures || 0) | 0, updated_at: new Date().toISOString() };
+  try {
+    const { error } = await CL.sb.from('saves').upsert(row, { onConflict: 'user_id' });
+    if (error) throw error;
+    CL.lastCloud = Date.now(); CL.cloudCopy = null; CL.cloudOk = true;
+  } catch (e) { CL.cloudOk = false; CL.cloudErr = etError(e) }
+  CL.saving = false;
+}
+const _save = save;
+save = function () { _save(); if (CL.user && S) cloudSave(false) };
+setInterval(() => { if (CL.pending && CL.user && S && Date.now() - CL.lastCloud >= 20000) cloudSave(false) }, 5000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && CL.user && S) cloudSave(true) });
+const _wipe = wipeSave;
+wipeSave = function () { _wipe(); CL.cloudCopy = null; if (CL.sb && CL.user) CL.sb.from('saves').delete().eq('user_id', CL.user.id).then(() => { }) };
+
+/* uue mängu ja jätkamise juures uuendame profiili */
+const _doNewGame = doNewGame;
+doNewGame = function () { _doNewGame(); if (CL.user) { rpc('set_profile', { p_name: S.name, p_kingdom: S.kingdom }).catch(() => { }); cloudSave(true) } };
+$('#btnContinue').addEventListener('click', () => { if (CL.user && S) { rpc('set_profile', { p_name: S.name, p_kingdom: S.kingdom }).catch(() => { }); setTimeout(claimInbox, 1500) } });
+
+/* ---------- kuningriigi postkast (preemiad kalapüügist) ---------- */
+async function claimInbox() {
+  if (!CL.user || !S) return;
+  try {
+    const items = await rpc('kingdom_claim');
+    if (!items || !items.length) return;
+    const tot = {}; const why = new Set();
+    for (const it of items) { give(it.p); for (const k in it.p) tot[k] = (tot[k] || 0) + it.p[k]; why.add(it.why) }
+    toast(`Kuningriik sai: ${rewardText(tot)} (${[...why].join(', ')})`, 'gold', tot.gold ? 'gold' : 'fame');
+    RATES = computeRates(); hudUpdate(); save(); cloudSave(true);
+  } catch (e) { }
+}
+setInterval(() => { if (running) claimInbox() }, 60000);
+
+/* ---------- kolimine claude.ai mängust ---------- */
+function showImport() {
+  showModal(() => `<h2>Too kuningriik üle</h2><p>Ava claude.ai-s vana Metsakuningriik, mine vahekaardile „Kuningriik“ ja vajuta „Kopeeri kolimiskood“. Kleebi kood siia.</p>
+    <textarea class="importbox" id="importCode" placeholder="MK1:…"></textarea>
+    <p class="lead">Kalapüügi areng algab uues mängus otsast, sest seda hoiab nüüd server.</p>
+    <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Loobu</button><button class="btn" type="button" data-cl="doImport">Too kuningriik üle</button></div>`);
+}
+function decodeCode(t) {
+  t = (t || '').trim().replace(/\s+/g, '');
+  if (!t.startsWith('MK1:')) throw new Error('See ei ole Metsakuningriigi kolimiskood.');
+  const json = decodeURIComponent(escape(atob(t.slice(4))));
+  const o = JSON.parse(json);
+  if (!o || !o.res || !o.regions || !o.st) throw new Error('Kood on vigane või poolik.');
+  return o;
+}
+function doImport() {
+  let o; try { o = decodeCode($('#importCode').value) } catch (e) { toast(e.message || 'Kood on vigane.', 'bad'); return }
+  delete o.fish; o.last = Date.now();
+  if (o.cave) o.cave = null;
+  S = migrate(o); closeModal(); save(); cloudSave(true);
+  if (CL.user) rpc('set_profile', { p_name: S.name, p_kingdom: S.kingdom }).catch(() => { });
+  enterGame(); toast(`Tere tulemast tagasi, ${S.name}! ${S.kingdom} kolis edukalt.`, 'gold', 'fame');
+}
+
+/* ---------- praegu mängimas (Supabase Realtime) ---------- */
+function presencePayload() {
+  if (!S) return { k: null };
+  return S.lbHidden ? { k: null } : { k: String(S.kingdom).slice(0, 24), r: String(S.name).slice(0, 20), l: S.level, f: Math.floor(S.fame), g: Object.keys(S.regions).length, v: REGIONS[S.view] ? REGIONS[S.view].n : '', fl: (S.fishCache && S.fishCache.level) || 0 };
+}
+function startPresence() {
+  if (!CL.sb || !CL.user || CL.presence) return;
+  try {
+    const ch = CL.sb.channel('mangijad', { config: { presence: { key: CL.user.id } } });
+    ch.on('presence', { event: 'sync' }, () => {
+      const st = ch.presenceState(); const out = [];
+      for (const key in st) { const p = st[key][0]; if (p && p.k) out.push({ ...p, me: key === CL.user.id }) }
+      CL.peers = out.sort((a, b) => (b.l || 0) - (a.l || 0) || (b.f || 0) - (a.f || 0));
+    });
+    ch.subscribe(st => { if (st === 'SUBSCRIBED') { CL.presenceOn = true; CL.lastPres = ''; trackPresence() } });
+    CL.presence = ch;
+  } catch (e) { }
+}
+function trackPresence() {
+  if (!CL.presence || !CL.presenceOn) return;
+  const p = presencePayload(), sig = JSON.stringify(p);
+  if (sig === CL.lastPres) return; CL.lastPres = sig;
+  CL.presence.track(p).catch(() => { });
+}
+function stopPresence() { if (CL.presence) { try { CL.sb.removeChannel(CL.presence) } catch (e) { } } CL.presence = null; CL.presenceOn = false; CL.peers = [] }
+setInterval(trackPresence, 8000);
+
+/* ---------- edetabel ---------- */
+async function loadLb() {
+  if (!CL.user || CL.lbLoading) return; CL.lbLoading = true;
+  try { CL.lb = await rpc('kingdom_leaderboard'); CL.lbAt = Date.now(); CL.lbErr = '' } catch (e) { CL.lbErr = e.message }
+  CL.lbLoading = false;
+}
+TABS.edetabel = { n: 'Edetabel', r: renderLbWeb };
+{ const o = {}; for (const k in TABS) { if (k === 'kuningriik') o.edetabel = TABS.edetabel; if (k !== 'edetabel') o[k] = TABS[k] } for (const k in TABS) delete TABS[k]; Object.assign(TABS, o) }
+function renderLbWeb() {
+  let h = `<h2>Edetabel</h2><p class="lead">Kõik mängijad ühes tabelis. Järjestus on taseme ja seejärel kuulsuse järgi.</p>`;
+  if (!CL.user) return h + `<div class="card"><p class="lead">Edetabel on nähtav, kui oled sisse logitud.</p></div>`;
+  if (Date.now() - CL.lbAt > 60000) loadLb();
+  h += `<div class="sec-h">Praegu mängimas <small>${CL.peers.length} ${CL.peers.length === 1 ? 'mängija' : 'mängijat'}</small></div>`;
+  if (!CL.peers.length) h += `<p class="lead">Kui sõbrad on samal ajal mängus, ilmuvad nad siia.</p>`;
+  else h += `<div class="lbwrap"><table class="lb"><thead><tr><th></th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th></tr></thead><tbody>${CL.peers.map(p => `<tr class="${p.me ? 'me' : ''}"><td class="rk"><span class="livedot"></span></td><td><b>${esc(p.k)}</b><small>${esc(p.r || '')}${p.me ? ' · sina' : ''}${p.v ? ' · ' + esc(p.v) : ''}</small></td><td class="num">${p.l | 0}</td><td class="num">${fmt(p.f || 0)}</td><td class="num">${p.g | 0}</td></tr>`).join('')}</tbody></table></div>`;
+  h += `<div class="sec-h">Kõigi aegade tabel</div>`;
+  if (CL.lbErr) h += `<div class="card"><p class="lead">Edetabelit ei saanud laadida: ${esc(CL.lbErr)}</p></div>`;
+  else if (!CL.lb) h += `<div class="card"><p class="lead">Laadin edetabelit…</p></div>`;
+  else if (!CL.lb.length) h += `<div class="card"><p class="lead">Edetabel on veel tühi. Sinu kuningriik ilmub siia peagi.</p></div>`;
+  else h += `<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th><th>Aardeid</th></tr></thead><tbody>${CL.lb.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="rk">${i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : i + 1}</td><td><b>${esc(r.kingdom)}</b><small>${esc(r.name)}${r.me ? ' · sina' : ''}</small></td><td class="num">${r.level}</td><td class="num">${fmt(r.fame)}</td><td class="num">${r.regions}</td><td class="num">${r.treasures}</td></tr>`).join('')}</tbody></table></div>`;
+  h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-act="lbHide">${S.lbHidden ? 'Näita mind edetabelis' : 'Peida mind edetabelist'}</button><span class="lead" style="font-size:12.5px">${S.lbHidden ? 'Sinu kuningriik on edetabelist peidetud.' : 'Teised näevad sinu kuningriigi ja valitseja nime.'}</span></div>`;
+  return h;
+}
+ACT.lbHide = () => { S.lbHidden = !S.lbHidden; save(); rpc('set_profile', { p_name: S.name, p_kingdom: S.kingdom, p_hidden: !!S.lbHidden }).then(loadLb).catch(e => toast(e.message, 'bad')); CL.lastPres = ''; trackPresence() };
+
+/* ---------- konto info kuningriigi vahekaardil ---------- */
+{
+  const base = TABS.kuningriik.r;
+  TABS.kuningriik.r = () => {
+    const h = base();
+    const acc = CL.user
+      ? `<div class="card"><div class="sec-h" style="margin:0">Konto</div><p class="lead">Sisse logitud: <b>${esc(CL.user.email || '')}</b>. Kuningriik salvestub serverisse ja jätkub igas seadmes.</p><p class="cloudstate">${CL.cloudOk === false ? 'Viimane pilvesalvestus ebaõnnestus: ' + esc(CL.cloudErr || '') : CL.lastCloud ? 'Pilve salvestatud ' + new Date(CL.lastCloud).toLocaleTimeString('et-EE') : ''}</p><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-cl="logout">Logi välja</button><button class="btn sm ghost" type="button" data-cl="import">Too kuningriik claude.ai mängust</button></div></div>`
+      : `<div class="card"><div class="sec-h" style="margin:0">Konto</div><p class="lead">Mängid ilma kontota. Logi sisse, et kuningriik salvestuks serverisse ja et saaksid kalastada.</p></div>`;
+    return h + acc;
+  };
+}
+const _enterGame = enterGame;
+enterGame = function () { _enterGame(); if (CL.user) { setTimeout(claimInbox, 1200); loadLb(); trackPresence() } };
+
+/* käivitus */
+(async () => {
+  if (!CL.sb) { showStart(); return }
+  try { const { data } = await CL.sb.auth.getSession(); if (data && data.session) await onSignedIn(data.session.user); else showStart() } catch (e) { showStart() }
+})();
+
 </script>
 </body></html>

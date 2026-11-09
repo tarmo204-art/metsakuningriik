@@ -1,0 +1,898 @@
+-- =====================================================================
+--  METSAKUNINGRIIK – andmebaas ja serveri loogika (Supabase / Postgres)
+--  Käivita see kogu tekst Supabase'i SQL Editoris ("Run").
+--  Skripti võib uuesti käivitada: olemasolevad andmed jäävad alles.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. Mängijad ja kuningriigi salvestus
+-- ---------------------------------------------------------------------
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text not null default 'Valitseja' check (char_length(name) between 1 and 20),
+  kingdom text not null default 'Metsakuningriik' check (char_length(kingdom) between 1 and 24),
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.saves (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null,
+  level int not null default 1,
+  fame int not null default 0,
+  regions int not null default 1,
+  treasures int not null default 0,
+  updated_at timestamptz not null default now(),
+  constraint save_size check (octet_length(data::text) < 2000000)
+);
+
+alter table public.profiles enable row level security;
+alter table public.saves enable row level security;
+
+drop policy if exists "oma profiil" on public.profiles;
+create policy "oma profiil" on public.profiles for select to authenticated using (id = auth.uid());
+drop policy if exists "oma salvestus lugemine" on public.saves;
+create policy "oma salvestus lugemine" on public.saves for select to authenticated using (user_id = auth.uid());
+drop policy if exists "oma salvestus lisamine" on public.saves;
+create policy "oma salvestus lisamine" on public.saves for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "oma salvestus kustutamine" on public.saves;
+create policy "oma salvestus kustutamine" on public.saves for delete to authenticated using (user_id = auth.uid());
+drop policy if exists "oma salvestus muutmine" on public.saves;
+create policy "oma salvestus muutmine" on public.saves for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+revoke all on public.profiles from anon, authenticated;
+grant select on public.profiles to authenticated;
+revoke all on public.saves from anon, authenticated;
+grant select, insert, update, delete on public.saves to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 2. Kalapüügi andmed (kalad, kohad, õnged, söödad, saavutused)
+--    Uue kala lisamiseks lisa rida tabelisse fish_species.
+-- ---------------------------------------------------------------------
+create table if not exists public.fish_spots (
+  id text primary key, name text not null, descr text not null default '',
+  min_level int not null, difficulty int not null, bonus numeric not null default 0, sort int not null default 0
+);
+create table if not exists public.fish_species (
+  id text primary key, name text not null,
+  rarity int not null check (rarity between 1 and 6),
+  min_w numeric not null, max_w numeric not null,
+  price int not null, xp int not null,
+  spots text[] not null, min_level int not null default 1,
+  night_only boolean not null default false, winter_only boolean not null default false,
+  difficulty int not null default 3 check (difficulty between 1 and 10),
+  look jsonb not null default '{}', descr text not null default '', sort int not null default 0
+);
+create table if not exists public.fish_rods (
+  id text primary key, name text not null, price int not null, min_level int not null,
+  strength numeric not null, catch_bonus numeric not null, reel_bonus numeric not null, sort int not null default 0
+);
+create table if not exists public.fish_baits (
+  id text primary key, name text not null, price int not null, min_level int not null,
+  wait_mult numeric not null, rarity_bonus numeric not null, consumable boolean not null default true,
+  descr text not null default '', sort int not null default 0
+);
+create table if not exists public.fish_achievements (
+  id text primary key, name text not null, descr text not null, title text,
+  reward_gold int not null default 0, reward_xp int not null default 0, sort int not null default 0
+);
+
+-- Mängijate kalapüügi andmed (ainult serveri funktsioonid saavad muuta)
+create table if not exists public.fishers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  level int not null default 1, xp int not null default 0, gold int not null default 100,
+  rod text not null default 'algaja', rods text[] not null default '{algaja}',
+  bait text not null default 'leib', baits jsonb not null default '{"uss": 20}',
+  rod_broken boolean not null default false, luck int not null default 0,
+  total int not null default 0, rare int not null default 0, night int not null default 0,
+  junk int not null default 0, chests int not null default 0, broken int not null default 0,
+  lost int not null default 0, orders_done int not null default 0, comp_wins int not null default 0,
+  biggest numeric not null default 0, biggest_species text,
+  title text, titles text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+create table if not exists public.fish_casts (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  spot text not null, bait text not null,
+  kind text not null,               -- fish | junk | chest
+  species text, junk text, weight numeric, giant boolean not null default false,
+  bite_at timestamptz not null, hooked_at timestamptz,
+  need_hits int, state text not null default 'waiting', -- waiting|hooked|landed|lost|broken
+  created_at timestamptz not null default now()
+);
+create index if not exists fish_casts_user on public.fish_casts(user_id, state);
+create table if not exists public.fish_catches (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  species text not null references public.fish_species(id),
+  rarity int not null, weight numeric not null, spot text not null,
+  giant boolean not null default false, night boolean not null default false,
+  status text not null default 'kept', -- kept|trophy|sold|cooked|released|exchanged|delivered
+  caught_at timestamptz not null default now()
+);
+create index if not exists fish_catches_user on public.fish_catches(user_id, status);
+create index if not exists fish_catches_time on public.fish_catches(caught_at);
+create table if not exists public.fish_unlocked (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  ach text not null references public.fish_achievements(id),
+  at timestamptz not null default now(), primary key (user_id, ach)
+);
+create table if not exists public.fish_orders (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null, idx int not null, species text not null references public.fish_species(id),
+  qty int not null, reward_gold int not null, reward_xp int not null, reward_fame int not null,
+  done boolean not null default false, primary key (user_id, day, idx)
+);
+create table if not exists public.fish_prizes (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  comp text not null, period date not null, place int not null,
+  at timestamptz not null default now(), primary key (user_id, comp, period)
+);
+create table if not exists public.fish_sales (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null, species text not null, qty int not null default 0,
+  primary key (user_id, day, species)
+);
+-- Kuningriiki saadetud preemiad (kuld, toit, kaardid, kuulsus), mille mäng ühe korra kätte võtab
+create table if not exists public.kingdom_inbox (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  payload jsonb not null, reason text not null default '', created_at timestamptz not null default now()
+);
+
+do $$ declare t text; begin
+  foreach t in array array['fish_spots','fish_species','fish_rods','fish_baits','fish_achievements',
+    'fishers','fish_casts','fish_catches','fish_unlocked','fish_orders','fish_prizes','fish_sales','kingdom_inbox'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+  foreach t in array array['fish_spots','fish_species','fish_rods','fish_baits','fish_achievements'] loop
+    execute format('grant select on public.%I to anon, authenticated', t);
+    execute format('drop policy if exists "kõik loevad" on public.%I', t);
+    execute format('create policy "kõik loevad" on public.%I for select to anon, authenticated using (true)', t);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 3. Algandmed
+-- ---------------------------------------------------------------------
+insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort) values
+ ('metsajarv','Metsajärv','Vaikne järv kuuskede vahel. Ideaalne koht alustamiseks.',1,1,0,1),
+ ('jogi','Suur jõgi','Kiirevooluline jõgi, kus elavad forellid, harjused ja jõekuningas.',6,2,0.04,2),
+ ('kuninglik','Kuninglik järv','Lossi kõrval asuv sügav järv, täis haruldasi ja suuri kalu.',12,3,0.08,3),
+ ('meri','Mereäär','Tuuline rand. Merekalad, tuurad ja öised merevaimud.',18,3,0.10,4),
+ ('jaa','Jäätunud järv','Igavese jää all elavad talvised kalad. Püüki tehakse jääaugust.',25,4,0.13,5),
+ ('salajane','Salajane järv','Udu sees peidus järv, kus elavad legendaarsed ja müütilised olendid.',35,5,0.20,6)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, min_level=excluded.min_level,
+  difficulty=excluded.difficulty, bonus=excluded.bonus, sort=excluded.sort;
+
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort) values
+ ('ahven','Ahven',1,0.1,0.9,4,5,'{metsajarv,jogi,kuninglik}',1,false,false,1,'{"s":"n","c":["#9fb04a","#4a6a2a","#e8e0b0","#e2563a"],"st":6}','Triibuline ja ahne, võtab peaaegu iga söödaga.',10),
+ ('sarg','Särg',1,0.1,0.6,3,4,'{metsajarv,jogi}',1,false,false,1,'{"s":"n","c":["#c9d2d6","#5f7680","#f2f4f2","#d9503a"]}','Hõbedane parvekala punaste uimedega.',11),
+ ('roosarg','Roosärg',1,0.1,0.5,4,5,'{metsajarv}',1,false,false,1,'{"s":"n","c":["#d8c27a","#6a6a3a","#f2ecd0","#e8503a"]}','Kuldse läikega särje sugulane.',12),
+ ('kiisk','Kiisk',1,0.05,0.25,3,4,'{metsajarv,jogi}',1,false,false,1,'{"s":"n","c":["#9a8a5a","#4a4a2a","#e0d8b0","#8a7a4a"],"sp":1}','Väike ja limane, aga torkiv.',13),
+ ('teib','Teib',1,0.2,1.5,5,6,'{jogi}',6,false,false,2,'{"s":"n","c":["#b8c0b0","#4a5a4a","#eef0e8","#c8a060"]}','Jõgede lai ja tugev ujuja.',14),
+ ('latikas','Latikas',1,0.5,4,7,7,'{metsajarv,kuninglik}',3,false,false,2,'{"s":"d","c":["#b9a26a","#6a5a3a","#e6dcbf","#7a6a4a"]}','Lai ja lapik põhjakala.',15),
+ ('raim','Räim',1,0.05,0.3,3,5,'{meri}',18,false,false,1,'{"s":"n","c":["#c8d8e2","#3a5a7a","#f6fafc","#9ab4c8"]}','Eesti rahvuskala. Väike, aga maitsev.',16),
+ ('lest','Lest',1,0.2,1.8,8,7,'{meri}',18,false,false,2,'{"s":"f","c":["#a08a6a","#6a5a42","#e8dcc0","#8a7a5a"],"sp":1}','Lame kala, kelle silmad on ühel küljel.',17),
+ ('jaaahven','Jääahven',1,0.2,1.2,8,8,'{jaa}',25,false,false,2,'{"s":"n","c":["#a8c8c0","#4a6a6a","#eef6f2","#e2563a"],"st":6}','Talvise vee kange ahven.',18),
+ ('tint','Tint',1,0.05,0.2,6,7,'{jaa}',25,false,false,1,'{"s":"n","c":["#d8e6ea","#7a9aaa","#ffffff","#a8c8d8"]}','Kurgi järgi lõhnav väike kala.',19),
+ ('kuusarg','Kuuvalgusärg',1,0.2,1,15,12,'{salajane}',35,false,false,3,'{"s":"n","c":["#c8d0f0","#6a78b0","#f4f6ff","#9aa8e0"],"g":"#c8d8ff"}','Kuuvalgel helendav särg.',20),
+ ('linask','Linask',2,0.4,2.5,12,12,'{metsajarv,kuninglik}',2,false,false,3,'{"s":"n","c":["#8a9a3a","#4a5a1a","#d8c870","#5a6a2a"]}','Rohekuldne ja aeglane, aga sitke.',30),
+ ('haug','Haug',2,1,10,15,15,'{metsajarv,jogi,kuninglik}',4,false,false,4,'{"s":"l","c":["#7a9a5a","#3a5a2a","#e6e8c8","#9a7a3a"],"sp":1}','Järvede röövkala teravate hammastega.',31),
+ ('sainas','Säinas',2,0.5,3,14,14,'{jogi}',6,false,false,3,'{"s":"n","c":["#c0b890","#5a5a40","#eeeadc","#d07a4a"]}','Kuldse kõhuga jõekala.',32),
+ ('koha','Koha',2,1,8,18,16,'{jogi,kuninglik}',8,false,false,4,'{"s":"l","c":["#a9b49a","#4a5a4a","#eef0e2","#7a8a6a"],"st":7}','Klaasjate silmadega öine kiskja.',33),
+ ('tursk','Tursk',2,1,10,16,15,'{meri}',18,false,false,4,'{"s":"n","c":["#a9a07a","#6a6a4a","#eee8d8","#8a8a6a"],"sp":1}','Mere ahne kala vurrudega lõual.',34),
+ ('siig','Siig',2,0.5,3,16,16,'{jaa,kuninglik}',14,false,false,3,'{"s":"n","c":["#d0d8de","#7a8a94","#f6f8f8","#9aa8b0"]}','Hõbedane ja hinnatud kala.',35),
+ ('raabis','Rääbis',2,0.1,0.4,12,14,'{jaa}',25,false,false,3,'{"s":"n","c":["#d8e2e8","#5a7a8a","#ffffff","#8aa8b8"]}','Peipsi järve kuulus väikekala.',36),
+ ('kristallahven','Kristallahven',2,0.3,1.5,30,25,'{salajane}',35,false,false,5,'{"s":"n","c":["#b8f0ff","#5ab0d0","#f0ffff","#8ae0f0"],"st":5,"g":"#b8f0ff"}','Läbipaistvate soomustega ahven.',37),
+ ('angerjas','Angerjas',3,0.5,3.5,35,30,'{metsajarv,jogi,kuninglik,meri}',10,true,false,5,'{"s":"e","c":["#5a5a3a","#2a2a1a","#c8b88a","#4a4a2a"]}','Ujub ainult öösel. Libe nagu seep.',50),
+ ('luts','Luts',3,0.5,5,32,30,'{jogi,jaa}',10,false,true,5,'{"s":"e","c":["#7a6a4a","#3a2e1e","#d8c8a0","#5a4a32"],"sp":1}','Talvekala, kes armastab külma vett.',51),
+ ('harjus','Harjus',3,0.3,1.5,34,30,'{jogi}',7,false,false,5,'{"s":"n","c":["#9aa0b8","#4a5070","#e8e8f2","#7a6ab0"],"b":"#b090e0"}','Suure purjekujulise seljauimega jõekala.',52),
+ ('vikerforell','Vikerforell',3,0.5,4,38,32,'{jogi}',9,false,false,5,'{"s":"n","c":["#9ab4a4","#4a6a5a","#f2e8e0","#d97aa0"],"b":"#e86a8a","sp":1}','Vikerkaarevärviline tugev ujuja.',53),
+ ('karpkala','Karpkala',3,2,15,40,35,'{kuninglik}',12,false,false,6,'{"s":"d","c":["#c8a040","#7a5a1a","#f0dca0","#b07a2a"],"sp":1}','Lossi tiikide uhke ja jõuline kala.',54),
+ ('meriforell','Meriforell',3,1,8,42,36,'{meri}',18,false,false,6,'{"s":"n","c":["#c8d0d8","#5a6878","#f6f6f6","#9aa8b8"],"sp":1}','Hõbedane rändaja mere ja jõe vahel.',55),
+ ('lohe','Lõhe',3,2,16,45,38,'{meri,jogi}',14,false,false,6,'{"s":"l","c":["#c0ccd4","#4a5a6a","#f6f2ee","#8a9aaa"],"sp":1}','Jõgede kuningas, kes hüppab üle kärestike.',56),
+ ('paalia','Paalia',3,0.5,4,45,40,'{jaa}',26,false,false,6,'{"s":"n","c":["#5a7a8a","#2a3a4a","#f0a070","#e07040"],"sp":1}','Arktiline kala oranži kõhuga.',57),
+ ('kuldahven','Kuldne ahven',4,0.5,2,80,65,'{metsajarv,jogi,kuninglik}',12,false,false,7,'{"s":"n","c":["#ffc84a","#c08010","#fff0b0","#ff7a2a"],"st":6,"g":"#ffd870"}','Muinasjutuline ahven puhtast kullast soomustega.',70),
+ ('saga','Säga',4,5,60,90,70,'{kuninglik,jogi}',16,false,false,8,'{"s":"l","c":["#5a5a4a","#2a2a22","#b8b09a","#3a3a30"],"w":1}','Hiiglaslik vuntsidega põhjakala.',71),
+ ('kuningkarp','Kuninglik karpkala',4,5,25,100,80,'{kuninglik}',17,false,false,7,'{"s":"d","c":["#f0e0c0","#c03a2a","#ffffff","#e04a3a"],"sp":1}','Kuninga lemmik, punase-valgekirju.',72),
+ ('tuur','Tuur',4,10,80,110,85,'{meri}',20,false,false,8,'{"s":"l","c":["#8a9098","#4a5058","#d8dce0","#6a7078"],"st":4}','Iidne kala, kes elas juba dinosauruste ajal.',73),
+ ('virmaliskala','Virmaliskala',4,1,5,120,90,'{jaa}',28,false,false,8,'{"s":"n","c":["#7ae0b0","#3a6aa0","#e0fff0","#c070f0"],"b":"#7af0c0","g":"#90ffd0"}','Helendab nagu virmalised jää all.',74),
+ ('udukala','Udukala',4,0.5,3,140,100,'{salajane}',36,true,false,8,'{"s":"n","c":["#d8dce8","#8a90a8","#ffffff","#b0b8d0"],"g":"#e8ecff"}','Ilmub ainult öösel udu seest.',75),
+ ('kuuangerjas','Kuu-angerjas',5,1,5,300,200,'{salajane,kuninglik}',22,true,false,9,'{"s":"e","c":["#4a7ad8","#1a2a6a","#c8e0ff","#7ab0ff"],"g":"#8ab8ff"}','Öine legend, kes helendab nagu kuu.',90),
+ ('joekuningas','Jõekuningas',5,8,40,280,190,'{jogi}',20,false,false,9,'{"s":"l","c":["#4a6a3a","#1a2a12","#d8c890","#c0a040"],"sp":1,"g":"#e8d080"}','Vana haug, kellest kalurid räägivad lugusid.',91),
+ ('merivaim','Merivaim',5,2,10,330,220,'{meri}',24,true,false,9,'{"s":"l","c":["#a0e0e0","#2a6a7a","#f0ffff","#60c0d0"],"g":"#a0f0f0"}','Öise mere poolläbipaistev kala.',92),
+ ('jaahaug','Jäähaug',5,5,25,320,220,'{jaa}',30,false,false,9,'{"s":"l","c":["#d0f0ff","#6aa0c0","#ffffff","#9ad0f0"],"sp":1,"g":"#d8f8ff"}','Igijää all elav valge haug.',93),
+ ('haldjakala','Haldjakala',5,0.3,2,360,250,'{salajane}',38,false,false,9,'{"s":"d","c":["#d8a8f0","#7a5ab0","#f8eaff","#9ae8f0"],"g":"#e6b8ff","b":"#9ae8f0"}','Haldjate lemmik, sädeleb kõigis värvides.',94),
+ ('kuldkala','Kuldkala',6,0.2,0.6,600,500,'{metsajarv,jogi,kuninglik,meri,jaa,salajane}',10,false,false,10,'{"s":"n","c":["#ffc23a","#e07a10","#ffe8a0","#ffa020"],"g":"#ffd060"}','Täidab soovi, kui ta vabaks lased.',110),
+ ('igijaavaim','Igijää vaim',6,20,80,2200,1100,'{jaa}',32,false,false,10,'{"s":"l","c":["#ffffff","#a0d0f0","#ffffff","#c0e8ff"],"g":"#ffffff"}','Jäätunud järve süda ise.',111),
+ ('leviaatan','Leviaatan',6,100,400,2500,1200,'{meri}',30,false,false,10,'{"s":"l","c":["#3a5a6a","#0e1e2a","#a0b8c0","#2a4a5a"],"sp":1}','Mere sügavuste koletis. Vajab väga tugevat õnge.',112),
+ ('jarvelohe','Järvelohe',6,50,200,3000,1500,'{salajane}',40,false,false,10,'{"s":"e","c":["#3aa070","#0a3a2a","#d0f0a0","#f0c040"],"g":"#80ffb0","sp":1}','Salajase järve müütiline valvur.',113)
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
+  price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, night_only=excluded.night_only,
+  winter_only=excluded.winter_only, difficulty=excluded.difficulty, look=excluded.look, descr=excluded.descr, sort=excluded.sort;
+
+insert into public.fish_rods (id,name,price,min_level,strength,catch_bonus,reel_bonus,sort) values
+ ('algaja','Algaja õng',0,1,3,0,0,1),
+ ('puit','Puidust õng',120,3,6,0.02,0.02,2),
+ ('tugev','Tugevdatud õng',450,7,12,0.04,0.04,3),
+ ('teras','Terasõng',1300,12,22,0.06,0.06,4),
+ ('kuld','Kuldõng',3200,17,35,0.09,0.08,5),
+ ('kuninglik','Kuninglik õng',6800,22,55,0.12,0.10,6),
+ ('maagiline','Maagiline õng',12500,28,85,0.16,0.12,7),
+ ('draakon','Draakoniõng',23000,34,140,0.20,0.14,8),
+ ('legend','Legendaarne õng',42000,41,260,0.25,0.16,9),
+ ('muutiline','Müütiline õng',80000,48,500,0.32,0.19,10)
+on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, strength=excluded.strength,
+  catch_bonus=excluded.catch_bonus, reel_bonus=excluded.reel_bonus, sort=excluded.sort;
+
+insert into public.fish_baits (id,name,price,min_level,wait_mult,rarity_bonus,consumable,descr,sort) values
+ ('leib','Leivatükk',0,1,1.0,0,false,'Tasuta ja lõputu, aga kalad võtavad aeglaselt.',1),
+ ('uss','Vihmauss',1,1,0.85,0.02,true,'Klassikaline sööt, kalad võtavad kiiremini.',2),
+ ('vagel','Kärbsevagel',2,4,0.80,0.04,true,'Väikesed kalad ei suuda vastu panna.',3),
+ ('mais','Magus mais',3,8,0.80,0.05,true,'Karpkalade ja latikate lemmik.',4),
+ ('hobelant','Hõbelant',400,10,0.90,0.06,false,'Peibutis, mis ei kulu. Meelitab röövkalu.',5),
+ ('krevett','Krevett',6,18,0.75,0.08,true,'Merekalade maiuspala.',6),
+ ('kuldvobler','Kuldvobler',2500,20,0.80,0.10,false,'Kallis peibutis, mis ei kulu.',7),
+ ('valgus','Helendav sööt',15,26,0.70,0.13,true,'Paistab pimedas vees kaugele.',8),
+ ('haldjatolm','Haldjatolm',40,36,0.60,0.18,true,'Võlusööt, mis meelitab haruldasi olendeid.',9),
+ ('draakonilant','Draakonilant',16000,44,0.70,0.22,false,'Legendaarne peibutis, mis ei kulu kunagi.',10)
+on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, wait_mult=excluded.wait_mult,
+  rarity_bonus=excluded.rarity_bonus, consumable=excluded.consumable, descr=excluded.descr, sort=excluded.sort;
+
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('esimene','Esimene kala','Püüa oma esimene kala','Algaja kalur',30,20,1),
+ ('kala100','Sada kala','Püüa 100 kala','Kogenud kalur',400,200,2),
+ ('kala1000','Tuhat kala','Püüa 1000 kala','Kalameister',4000,2000,3),
+ ('haruldane','Esimene haruldane','Püüa haruldane või haruldasem kala',null,100,80,4),
+ ('eepiline','Esimene eepiline','Püüa eepiline kala',null,300,200,5),
+ ('legendaarne','Esimene legendaarne','Püüa legendaarne kala','Legendide püüdja',1000,600,6),
+ ('muutiline','Esimene müütiline','Püüa müütiline kala','Müütide murdja',3000,1500,7),
+ ('suur10','Suur kala','Püüa vähemalt 10 kg kala',null,150,100,8),
+ ('suur50','Hiidkala','Püüa vähemalt 50 kg kala','Hiidkala taltsutaja',800,400,9),
+ ('suur100','Koletis','Püüa vähemalt 100 kg kala','Koletiste kütt',2000,1000,10),
+ ('hiiglane','Rekordiline','Püüa rekordiliselt suur kala',null,200,150,11),
+ ('tavalised','Kõik tavalised','Püüa kõik tavalised kalaliigid',null,500,300,12),
+ ('kohad','Rändkalur','Püüa kala kõigis kuues kohas','Rändkalur',1500,800,13),
+ ('koik','Kalaraamat täis','Püüa kõik kalaliigid','Kalakuningas',10000,5000,14),
+ ('tase10','Tase 10','Saavuta kalapüügi 10. tase',null,300,0,15),
+ ('tase25','Tase 25','Saavuta kalapüügi 25. tase','Järvede isand',1500,0,16),
+ ('tase50','Tase 50','Saavuta kalapüügi 50. tase','Kalapüügimeister',10000,0,17),
+ ('oo','Öökalur','Püüa öösel 50 kala','Öökalur',600,300,18),
+ ('prugi','Prügikoristaja','Leia 10 naljakat eset','Prügikoristaja',200,100,19),
+ ('kirst','Veealune aardekütt','Leia 5 veealust aardekirstu','Aardekütt',800,400,20),
+ ('kuldkala','Soovide täitja','Püüa kuldkala','Soovide täitja',500,300,21),
+ ('tellimused','Kuninglik varustaja','Täida 20 kuningliku köögi tellimust','Kuninglik varustaja',1200,600,22),
+ ('voitja','Võistluste võitja','Võida mõni kalapüügivõistlus','Võistluste võitja',1000,500,23),
+ ('murdja','Õngemurdja','Murra 5 korda õng','Õngemurdja',100,50,24)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+
+-- ---------------------------------------------------------------------
+-- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
+-- ---------------------------------------------------------------------
+create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
+declare u uuid := auth.uid();
+begin
+  if u is null then raise exception 'Palun logi sisse' using errcode = '28000'; end if;
+  return u;
+end $$;
+
+create or replace function public.fx_today() returns date language sql stable as
+$$ select (now() at time zone 'Europe/Tallinn')::date $$;
+
+create or replace function public.fx_is_night() returns boolean language sql stable as
+$$ select extract(hour from now() at time zone 'Europe/Tallinn') >= 21 or extract(hour from now() at time zone 'Europe/Tallinn') < 5 $$;
+
+create or replace function public.fx_is_winter() returns boolean language sql stable as
+$$ select extract(month from now() at time zone 'Europe/Tallinn') in (12,1,2) $$;
+
+-- Ilm vahetub iga 3 tunni järel ja on kõigile mängijatele sama
+create or replace function public.fx_weather() returns text language sql stable as $$
+  select case
+    when h < 35 then 'paike' when h < 60 then 'pilves' when h < 80 then 'vihm' when h < 92 then 'udu' else 'torm' end
+  from (select abs(hashtext('ilm' || floor(extract(epoch from now()) / 10800)::text)) % 100 as h) x
+$$;
+create or replace function public.fx_weather_bonus(w text) returns numeric language sql immutable as
+$$ select case w when 'pilves' then 0.02 when 'vihm' then 0.05 when 'udu' then 0.04 when 'torm' then 0.10 else 0 end $$;
+create or replace function public.fx_weather_wait(w text) returns numeric language sql immutable as
+$$ select case w when 'paike' then 1.15 when 'vihm' then 0.85 when 'torm' then 0.9 else 1 end $$;
+
+create or replace function public.fx_xp_need(lvl int) returns int language sql immutable as
+$$ select floor(25 * power(lvl, 1.5))::int + 10 $$;
+
+create or replace function public.fx_fisher(u uuid) returns public.fishers language plpgsql as $$
+declare f public.fishers;
+begin
+  insert into public.fishers(user_id) values (u) on conflict (user_id) do nothing;
+  select * into f from public.fishers where user_id = u for update;
+  return f;
+end $$;
+
+create or replace function public.fx_add_xp(u uuid, amount int) returns int[] language plpgsql as $$
+declare f public.fishers; gained int[] := '{}';
+begin
+  select * into f from public.fishers where user_id = u for update;
+  if f.level >= 50 then return gained; end if;
+  f.xp := f.xp + greatest(0, amount);
+  while f.level < 50 and f.xp >= public.fx_xp_need(f.level) loop
+    f.xp := f.xp - public.fx_xp_need(f.level);
+    f.level := f.level + 1;
+    gained := gained || f.level;
+  end loop;
+  if f.level >= 50 then f.xp := 0; end if;
+  update public.fishers set xp = f.xp, level = f.level where user_id = u;
+  return gained;
+end $$;
+
+create or replace function public.fx_inbox(u uuid, p jsonb, why text) returns void language sql as
+$$ insert into public.kingdom_inbox(user_id, payload, reason) values (u, p, why) $$;
+
+-- Haruldusklasside tõenäosused (1..6) praeguste tingimuste jaoks, kokku alati 100
+create or replace function public.fx_rarity_weights(u uuid, p_spot text, p_bait text) returns numeric[] language plpgsql stable as $$
+declare
+  f public.fishers; sp public.fish_spots; r public.fish_rods; b public.fish_baits;
+  base numeric[] := array[50, 25, 15, 7, 2.5, 0.5];
+  w numeric[] := array[0,0,0,0,0,0]; bonus numeric; i int; j int; avail boolean[] := array[false,false,false,false,false,false];
+  night boolean := public.fx_is_night(); winter boolean := public.fx_is_winter(); tot numeric := 0;
+begin
+  select * into f from public.fishers where user_id = u;
+  select * into sp from public.fish_spots where id = p_spot;
+  select * into r from public.fish_rods where id = coalesce(f.rod, 'algaja');
+  select * into b from public.fish_baits where id = p_bait;
+  bonus := coalesce(r.catch_bonus,0) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
+           + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0);
+  for i in 1..6 loop
+    avail[i] := exists (select 1 from public.fish_species s where s.rarity = i and p_spot = any(s.spots)
+                 and s.min_level <= coalesce(f.level,1) and (not s.night_only or night)
+                 and (not s.winter_only or winter or p_spot = 'jaa'));
+    w[i] := base[i] * power(1 + bonus, i - 1);
+  end loop;
+  -- kui mõnes klassis kala pole saadaval, liigub selle tõenäosus madalamasse klassi
+  for i in reverse 6..2 loop
+    if not avail[i] then
+      j := i - 1;
+      while j > 1 and not avail[j] loop j := j - 1; end loop;
+      w[j] := w[j] + w[i]; w[i] := 0;
+    end if;
+  end loop;
+  for i in 1..6 loop tot := tot + w[i]; end loop;
+  for i in 1..6 loop w[i] := round(w[i] * 100 / tot, 3); end loop;
+  return w;
+end $$;
+
+create or replace function public.fx_check_ach(u uuid) returns jsonb language plpgsql as $$
+declare
+  f public.fishers; got jsonb := '[]'; a record; ok boolean;
+  ncommon int; ncommon_all int; nspots int; nall int; nall_total int; maxw numeric; maxr int; hasgold boolean; hasgiant boolean;
+begin
+  select * into f from public.fishers where user_id = u;
+  select coalesce(max(weight),0), coalesce(max(rarity),0), bool_or(species = 'kuldkala'), bool_or(giant), count(distinct spot)
+    into maxw, maxr, hasgold, hasgiant, nspots from public.fish_catches where user_id = u;
+  select count(distinct c.species) into ncommon from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and s.rarity = 1;
+  select count(*) into ncommon_all from public.fish_species where rarity = 1;
+  select count(distinct species) into nall from public.fish_catches where user_id = u;
+  select count(*) into nall_total from public.fish_species;
+  for a in select * from public.fish_achievements where id not in (select ach from public.fish_unlocked where user_id = u) order by sort loop
+    ok := case a.id
+      when 'esimene' then f.total >= 1 when 'kala100' then f.total >= 100 when 'kala1000' then f.total >= 1000
+      when 'haruldane' then maxr >= 3 when 'eepiline' then maxr >= 4 when 'legendaarne' then maxr >= 5 when 'muutiline' then maxr >= 6
+      when 'suur10' then maxw >= 10 when 'suur50' then maxw >= 50 when 'suur100' then maxw >= 100 when 'hiiglane' then coalesce(hasgiant,false)
+      when 'tavalised' then ncommon >= ncommon_all when 'kohad' then nspots >= 6 when 'koik' then nall >= nall_total
+      when 'tase10' then f.level >= 10 when 'tase25' then f.level >= 25 when 'tase50' then f.level >= 50
+      when 'oo' then f.night >= 50 when 'prugi' then f.junk >= 10 when 'kirst' then f.chests >= 5
+      when 'kuldkala' then coalesce(hasgold,false) when 'tellimused' then f.orders_done >= 20
+      when 'voitja' then f.comp_wins >= 1 when 'murdja' then f.broken >= 5 else false end;
+    if ok then
+      insert into public.fish_unlocked(user_id, ach) values (u, a.id) on conflict do nothing;
+      update public.fishers set gold = gold + a.reward_gold,
+        titles = case when a.title is not null and not (a.title = any(titles)) then titles || a.title else titles end
+        where user_id = u;
+      perform public.fx_add_xp(u, a.reward_xp);
+      got := got || jsonb_build_object('id', a.id, 'name', a.name, 'title', a.title, 'gold', a.reward_gold, 'xp', a.reward_xp);
+    end if;
+  end loop;
+  return got;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 5. Mängija funktsioonid (kutsutakse mängust)
+-- ---------------------------------------------------------------------
+create or replace function public.set_profile(p_name text, p_kingdom text, p_hidden boolean default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  insert into profiles(id, name, kingdom, hidden)
+  values (u, left(coalesce(nullif(trim(p_name),''),'Valitseja'),20), left(coalesce(nullif(trim(p_kingdom),''),'Metsakuningriik'),24), coalesce(p_hidden,false))
+  on conflict (id) do update set name = excluded.name, kingdom = excluded.kingdom, hidden = coalesce(p_hidden, profiles.hidden);
+end $$;
+
+create or replace function public.kingdom_leaderboard()
+returns table(name text, kingdom text, level int, fame int, regions int, treasures int, me boolean)
+language sql stable security definer set search_path = public as $$
+  select p.name, p.kingdom, s.level, s.fame, s.regions, s.treasures, s.user_id = auth.uid()
+  from saves s join profiles p on p.id = s.user_id
+  where not p.hidden or s.user_id = auth.uid()
+  order by s.level desc, s.fame desc limit 50
+$$;
+
+-- Kogu kalapüügi seis ühe päringuga
+create or replace function public.fish_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; book jsonb; v_ach jsonb; byr jsonb; inv jsonb; inbox int; act jsonb; w text := fx_weather();
+begin
+  f := fx_fisher(u);
+  -- vanad pooleli jäänud viskamised loetakse kaotatuks
+  update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked') and created_at < now() - interval '3 minutes';
+  select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx)), '{}') into book
+    from (select species, count(*) n, max(weight) mx from fish_catches where user_id = u group by species) x;
+  select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
+  select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u group by rarity) x;
+  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
+           'giant', giant, 'trophy', status = 'trophy', 'at', caught_at) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+    into inv from fish_catches where user_id = u and status in ('kept','trophy');
+  select count(*) into inbox from kingdom_inbox where user_id = u;
+  select to_jsonb(c) - 'species' - 'junk' - 'weight' - 'kind' - 'user_id' into act from fish_casts c where user_id = u and state in ('waiting','hooked') order by id desc limit 1;
+  return jsonb_build_object(
+    'level', f.level, 'xp', f.xp, 'xp_need', case when f.level >= 50 then 0 else fx_xp_need(f.level) end, 'gold', f.gold,
+    'rod', f.rod, 'rods', to_jsonb(f.rods), 'bait', f.bait, 'baits', f.baits, 'rod_broken', f.rod_broken, 'luck', f.luck,
+    'total', f.total, 'rare', f.rare, 'night', f.night, 'junk', f.junk, 'chests', f.chests, 'broken', f.broken, 'lost', f.lost,
+    'orders_done', f.orders_done, 'comp_wins', f.comp_wins, 'biggest', f.biggest, 'biggest_species', f.biggest_species,
+    'title', f.title, 'titles', to_jsonb(f.titles), 'book', book, 'ach', v_ach, 'by_rarity', byr, 'inventory', inv,
+    'inbox', inbox, 'active', act, 'weather', w, 'is_night', fx_is_night(), 'is_winter', fx_is_winter(), 'today', fx_today());
+end $$;
+
+create or replace function public.fish_odds(p_spot text, p_bait text) returns numeric[] language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u);
+  return fx_rarity_weights(u, p_spot, p_bait);
+end $$;
+
+-- 1) Viska õng
+create or replace function public.fish_cast(p_spot text, p_bait text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
+  s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
+  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather();
+begin
+  f := fx_fisher(u);
+  select * into sp from fish_spots where id = p_spot;
+  if sp.id is null then raise exception 'Tundmatu püügikoht'; end if;
+  if f.level < sp.min_level then raise exception 'See püügikoht avaneb kalapüügi % tasemel', sp.min_level; end if;
+  if f.rod_broken then raise exception 'Õng on katki. Paranda see enne püüki.'; end if;
+  select * into b from fish_baits where id = p_bait;
+  if b.id is null then raise exception 'Tundmatu sööt'; end if;
+  if b.consumable then
+    cnt := coalesce((f.baits ->> b.id)::int, 0);
+    if cnt < 1 then raise exception 'Sul pole seda sööta. Osta seda poest.'; end if;
+    update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(cnt - 1)) where user_id = u;
+  elsif b.price > 0 and not (f.baits ? b.id) then
+    raise exception 'Sul pole seda peibutist.';
+  end if;
+  update fishers set bait = b.id where user_id = u;
+  -- eelmine pooleli viske kaob
+  update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked');
+
+  roll := random() * 100;
+  if roll < 1.5 then kind := 'chest';
+  elsif roll < 6.5 then kind := 'junk'; junk := (array['saabas','purk','kepp','pudel'])[1 + floor(random() * 4)::int];
+  else
+    w := fx_rarity_weights(u, p_spot, p_bait);
+    roll := random() * 100;
+    for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
+    while rar >= 1 loop
+      select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= f.level
+        and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
+        order by random() limit 1;
+      exit when s.id is not null;
+      rar := rar - 1;
+    end loop;
+    if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
+    wt := s.min_w + (s.max_w - s.min_w) * power(random(), 1.7);
+    if random() < 0.03 then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
+    wt := round(wt, 2);
+  end if;
+  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr));
+  insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
+  values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
+  returning id into cid;
+  return jsonb_build_object('cast_id', cid, 'wait_ms', wait_ms, 'weather', wthr, 'night', night);
+end $$;
+
+-- 2) Haagi (kala näkkas)
+create or replace function public.fish_hook(p_cast bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); c fish_casts; s fish_species; r fish_rods; f fishers; sp fish_spots;
+  need int; zone numeric; speed numeric; est numeric; diff int;
+begin
+  select * into c from fish_casts where id = p_cast and user_id = u for update;
+  if c.id is null or c.state <> 'waiting' then return jsonb_build_object('ok', false, 'reason', 'gone'); end if;
+  if now() < c.bite_at - interval '300 milliseconds' then
+    update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
+    return jsonb_build_object('ok', false, 'reason', 'early');
+  end if;
+  if now() > c.bite_at + interval '3 seconds' then
+    update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
+    return jsonb_build_object('ok', false, 'reason', 'late');
+  end if;
+  select * into f from fishers where user_id = u;
+  select * into r from fish_rods where id = f.rod;
+  select * into sp from fish_spots where id = c.spot;
+  if c.kind = 'fish' then
+    select * into s from fish_species where id = c.species;
+    diff := s.difficulty;
+    need := 2 + (s.rarity >= 3)::int + (s.rarity >= 5)::int + (s.difficulty >= 9)::int;
+    zone := greatest(0.08, 0.27 - s.rarity * 0.025 - sp.difficulty * 0.01 + r.reel_bonus);
+    speed := 1.0 + s.difficulty * 0.12 + least(0.5, c.weight / 60);
+    est := round(c.weight * (0.85 + random()::numeric * 0.3), 1);
+  else
+    diff := 2; need := 2; zone := 0.26 + r.reel_bonus; speed := 1.0; est := case when c.kind = 'chest' then round((6 + random() * 6)::numeric, 1) else round((0.3 + random())::numeric, 1) end;
+  end if;
+  update fish_casts set state = 'hooked', hooked_at = now(), need_hits = need where id = c.id;
+  return jsonb_build_object('ok', true, 'need', need, 'zone', round(zone, 3), 'speed', round(speed, 2), 'est', est,
+    'strength', r.strength, 'difficulty', diff);
+end $$;
+
+-- 3a) Kala pääses (mängija eksis liiga palju)
+create or replace function public.fish_lose(p_cast bigint) returns void language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  update fish_casts set state = 'lost' where id = p_cast and user_id = u and state in ('waiting','hooked');
+  if found then update fishers set lost = lost + 1 where user_id = u; end if;
+end $$;
+
+-- 3b) Too kala välja
+create or replace function public.fish_land(p_cast bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); c fish_casts; f fishers; s fish_species; r fish_rods; sp fish_spots;
+  chance numeric; wthr text := fx_weather(); v_night boolean := fx_is_night(); levels int[]; xp int; ach jsonb;
+  newsp boolean; prevmax numeric; cid bigint; res jsonb; g int;
+begin
+  select * into c from fish_casts where id = p_cast and user_id = u for update;
+  if c.id is null or c.state <> 'hooked' then return jsonb_build_object('ok', false, 'reason', 'gone'); end if;
+  if now() < c.hooked_at + make_interval(secs => greatest(0.6, c.need_hits * 0.45 - 0.3)) then
+    update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
+    return jsonb_build_object('ok', false, 'reason', 'too_fast');
+  end if;
+  if now() > c.hooked_at + interval '90 seconds' then
+    update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
+    return jsonb_build_object('ok', false, 'reason', 'slow');
+  end if;
+  f := fx_fisher(u);
+  select * into r from fish_rods where id = f.rod;
+  select * into sp from fish_spots where id = c.spot;
+
+  if c.kind = 'junk' then
+    update fish_casts set state = 'landed' where id = c.id;
+    update fishers set junk = junk + 1, gold = gold + case when c.junk = 'purk' then 3 else 0 end where user_id = u;
+    if c.junk = 'pudel' then perform fx_inbox(u, '{"map":1}', 'Pudelipost'); end if;
+    levels := fx_add_xp(u, 8);
+    ach := fx_check_ach(u);
+    return jsonb_build_object('ok', true, 'kind', 'junk', 'junk', c.junk, 'xp', 8, 'levels', to_jsonb(levels), 'ach', ach,
+      'gold', case when c.junk = 'purk' then 3 else 0 end, 'map', c.junk = 'pudel');
+  elsif c.kind = 'chest' then
+    g := 80 + f.level * 25 + floor(random() * 60)::int;
+    update fish_casts set state = 'landed' where id = c.id;
+    update fishers set chests = chests + 1, gold = gold + g where user_id = u;
+    if random() < 0.4 then perform fx_inbox(u, '{"map":1}', 'Veealune aardekirst'); res := '{"map":true}'; else res := '{"map":false}'; end if;
+    levels := fx_add_xp(u, 30 + f.level * 2);
+    ach := fx_check_ach(u);
+    return jsonb_build_object('ok', true, 'kind', 'chest', 'gold', g, 'xp', 30 + f.level * 2, 'levels', to_jsonb(levels), 'ach', ach) || res;
+  end if;
+
+  select * into s from fish_species where id = c.species;
+  -- varustuse tugevus
+  if c.weight > r.strength then
+    chance := least(1, (c.weight / r.strength - 1) * 1.3) + case when wthr = 'torm' then 0.1 else 0 end;
+    if random() < chance then
+      update fish_casts set state = 'broken' where id = c.id;
+      update fishers set rod_broken = true, broken = broken + 1 where user_id = u;
+      ach := fx_check_ach(u);
+      return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach);
+    end if;
+  end if;
+  if random() < (case when wthr = 'torm' then 0.06 else 0.03 end) then
+    update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
+    return jsonb_build_object('ok', false, 'reason', 'escaped', 'name', s.name, 'rarity', s.rarity);
+  end if;
+
+  select max(weight) into prevmax from fish_catches where user_id = u and species = s.id;
+  newsp := prevmax is null;
+  update fish_casts set state = 'landed' where id = c.id;
+  insert into fish_catches(user_id, species, rarity, weight, spot, giant, night)
+  values (u, s.id, s.rarity, c.weight, c.spot, c.giant, v_night) returning id into cid;
+  update fishers set total = total + 1, rare = rare + (s.rarity >= 3)::int, night = fishers.night + v_night::int,
+    biggest = greatest(biggest, c.weight),
+    biggest_species = case when c.weight > biggest then s.id else biggest_species end
+    where user_id = u;
+  xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
+  levels := fx_add_xp(u, xp);
+  ach := fx_check_ach(u);
+  return jsonb_build_object('ok', true, 'kind', 'fish', 'catch_id', cid, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
+    'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
+    'xp', xp, 'levels', to_jsonb(levels), 'ach', ach);
+end $$;
+
+-- Turuhinnad (muutuvad iga päev, müües sama kala ühel päeval palju langeb hind)
+create or replace function public.fx_market_mult(p_species text, d date) returns numeric language sql immutable as
+$$ select round((0.7 + (abs(hashtext('turg' || p_species || d::text)) % 600) / 1000.0)::numeric, 2) $$;
+
+create or replace function public.fish_market() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); d date := fx_today();
+begin
+  return (select coalesce(jsonb_object_agg(s.id, jsonb_build_object('mult', fx_market_mult(s.id, d), 'sold', coalesce(x.qty, 0))), '{}')
+    from fish_species s left join fish_sales x on x.user_id = u and x.day = d and x.species = s.id);
+end $$;
+
+create or replace function public.fx_sell_value(u uuid, c fish_catches) returns int language plpgsql as $$
+declare s fish_species; d date := fx_today(); sold int; avgw numeric; v numeric;
+begin
+  select * into s from fish_species where id = c.species;
+  select coalesce(qty, 0) into sold from fish_sales where user_id = u and day = d and species = c.species;
+  sold := coalesce(sold, 0);
+  avgw := (s.min_w + s.max_w) / 2;
+  v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0);
+  insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
+    on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
+  return greatest(1, round(v));
+end $$;
+
+-- Kalade kasutamine: müü / toiduks / vabaks / trofeeks / vaheta
+create or replace function public.fish_use(p_ids bigint[], p_action text, p_choice text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); c fish_catches; s fish_species; v_gold int := 0; v_food int := 0; v_fame int := 0; v_xp int := 0; v_maps int := 0;
+  n int := 0; levels int[] := '{}'; ntro int; f fishers; extra jsonb := '{}'; bb text;
+begin
+  if p_action not in ('sell','cook','release','trophy','untrophy','exchange') then raise exception 'Tundmatu tegevus'; end if;
+  f := fx_fisher(u);
+  if p_action = 'exchange' and coalesce(array_length(p_ids, 1), 0) <> 1 then raise exception 'Vaheta korraga üks kala'; end if;
+  for c in select * from fish_catches where id = any(p_ids) and user_id = u
+             and status = case when p_action = 'untrophy' then 'trophy' else 'kept' end for update loop
+    select * into s from fish_species where id = c.species;
+    if p_action = 'sell' then v_gold := v_gold + fx_sell_value(u, c); update fish_catches set status = 'sold' where id = c.id;
+    elsif p_action = 'cook' then v_food := v_food + greatest(2, round(c.weight * 4 + s.rarity * 3)); update fish_catches set status = 'cooked' where id = c.id;
+    elsif p_action = 'release' then v_fame := v_fame + s.rarity * 2; v_xp := v_xp + ceil(s.xp * 0.3); update fish_catches set status = 'released' where id = c.id;
+    elsif p_action = 'trophy' then
+      select count(*) into ntro from fish_catches where user_id = u and status = 'trophy';
+      if ntro >= 12 then raise exception 'Trofeeriiulil on ruumi 12 kalale'; end if;
+      update fish_catches set status = 'trophy' where id = c.id;
+    elsif p_action = 'untrophy' then update fish_catches set status = 'kept' where id = c.id;
+    elsif p_action = 'exchange' then
+      if s.rarity < 4 then raise exception 'Vahetada saab ainult eepilisi ja haruldasemaid kalu'; end if;
+      if s.id = 'kuldkala' then
+        if p_choice = 'rikkus' then v_gold := 3000 + f.level * 100;
+        elsif p_choice = 'tarkus' then v_xp := 1500 + f.level * 100;
+        elsif p_choice = 'onn' then
+          if f.luck >= 5 then raise exception 'Kaluriõnn on juba maksimumis'; end if;
+          update fishers set luck = luck + 1 where user_id = u; extra := '{"luck":1}';
+        elsif p_choice = 'kuningriik' then perform fx_inbox(u, jsonb_build_object('gold', 4000 + f.level * 100), 'Kuldkala soov');
+          extra := jsonb_build_object('kingdom_gold', 4000 + f.level * 100);
+        else raise exception 'Vali soov'; end if;
+      elsif p_choice = 'kaart' then v_maps := s.rarity - 3;
+      elsif p_choice = 'kuulsus' then v_fame := s.rarity * s.rarity * 12;
+      elsif p_choice = 'sööt' then
+        select id into bb from fish_baits where consumable and min_level <= f.level order by sort desc limit 1;
+        update fishers set baits = jsonb_set(baits, array[bb], to_jsonb(coalesce((baits ->> bb)::int, 0) + s.rarity * 6)) where user_id = u;
+        extra := jsonb_build_object('bait', bb, 'qty', s.rarity * 6);
+      else raise exception 'Vali vahetuse preemia'; end if;
+      update fish_catches set status = 'exchanged' where id = c.id;
+    end if;
+    n := n + 1;
+  end loop;
+  if n = 0 then raise exception 'Valitud kalu ei leitud'; end if;
+  if v_gold > 0 then update fishers set gold = fishers.gold + v_gold where user_id = u; end if;
+  if v_xp > 0 then levels := fx_add_xp(u, v_xp); end if;
+  if v_food > 0 or v_fame > 0 or v_maps > 0 then
+    perform fx_inbox(u, jsonb_strip_nulls(jsonb_build_object('food', nullif(v_food,0), 'fame', nullif(v_fame,0), 'map', nullif(v_maps,0))),
+      case p_action when 'cook' then 'Kalaroog' when 'release' then 'Vabaks lastud kalad' else 'Kalavahetus' end);
+  end if;
+  return jsonb_build_object('n', n, 'gold', v_gold, 'food', v_food, 'fame', v_fame, 'xp', v_xp, 'map', v_maps, 'levels', to_jsonb(levels),
+    'ach', fx_check_ach(u)) || extra;
+end $$;
+
+create or replace function public.fish_sell_all(p_max_rarity int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); ids bigint[];
+begin
+  select array_agg(id) into ids from fish_catches where user_id = u and status = 'kept' and rarity <= least(p_max_rarity, 3);
+  if ids is null then raise exception 'Pole midagi müüa'; end if;
+  return fish_use(ids, 'sell');
+end $$;
+
+-- Pood
+create or replace function public.fish_shop(p_kind text, p_id text, p_qty int default 1) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r fish_rods; b fish_baits; cost int;
+begin
+  f := fx_fisher(u);
+  if p_kind = 'rod' then
+    select * into r from fish_rods where id = p_id;
+    if r.id is null then raise exception 'Tundmatu õng'; end if;
+    if r.id = any(f.rods) then update fishers set rod = r.id where user_id = u; return jsonb_build_object('equipped', r.id); end if;
+    if f.level < r.min_level then raise exception 'See õng avaneb % tasemel', r.min_level; end if;
+    if f.gold < r.price then raise exception 'Kulda jääb puudu'; end if;
+    update fishers set gold = gold - r.price, rods = rods || r.id, rod = r.id, rod_broken = false where user_id = u;
+    return jsonb_build_object('bought', r.id, 'cost', r.price);
+  elsif p_kind = 'bait' then
+    select * into b from fish_baits where id = p_id;
+    if b.id is null then raise exception 'Tundmatu sööt'; end if;
+    if f.level < b.min_level then raise exception 'See sööt avaneb % tasemel', b.min_level; end if;
+    if not b.consumable then
+      if b.price = 0 or f.baits ? b.id then update fishers set bait = b.id where user_id = u; return jsonb_build_object('equipped', b.id); end if;
+      if f.gold < b.price then raise exception 'Kulda jääb puudu'; end if;
+      update fishers set gold = gold - b.price, baits = baits || jsonb_build_object(b.id, 1), bait = b.id where user_id = u;
+      return jsonb_build_object('bought', b.id, 'cost', b.price);
+    end if;
+    if p_qty not in (10, 50) then raise exception 'Vali kogus 10 või 50'; end if;
+    cost := b.price * p_qty;
+    if f.gold < cost then raise exception 'Kulda jääb puudu'; end if;
+    update fishers set gold = gold - cost, bait = b.id,
+      baits = jsonb_set(baits, array[b.id], to_jsonb(coalesce((baits ->> b.id)::int, 0) + p_qty)) where user_id = u;
+    return jsonb_build_object('bought', b.id, 'qty', p_qty, 'cost', cost);
+  elsif p_kind = 'equip_bait' then
+    select * into b from fish_baits where id = p_id;
+    if b.id is null then raise exception 'Tundmatu sööt'; end if;
+    update fishers set bait = b.id where user_id = u; return jsonb_build_object('equipped', b.id);
+  elsif p_kind = 'repair' then
+    if not f.rod_broken then return jsonb_build_object('repaired', false); end if;
+    select * into r from fish_rods where id = f.rod;
+    cost := greatest(10, round(r.price * 0.2));
+    if f.gold < cost then raise exception 'Parandamiseks on vaja % kulda', cost; end if;
+    update fishers set gold = gold - cost, rod_broken = false where user_id = u;
+    return jsonb_build_object('repaired', true, 'cost', cost);
+  elsif p_kind = 'title' then
+    if p_id is not null and not (p_id = any(f.titles)) then raise exception 'Sul pole seda tiitlit'; end if;
+    update fishers set title = p_id where user_id = u; return jsonb_build_object('title', p_id);
+  elsif p_kind = 'transfer' then
+    if p_qty < 1 or p_qty > f.gold then raise exception 'Vale summa'; end if;
+    update fishers set gold = gold - p_qty where user_id = u;
+    perform fx_inbox(u, jsonb_build_object('gold', p_qty), 'Kalurikassast');
+    return jsonb_build_object('transferred', p_qty);
+  end if;
+  raise exception 'Tundmatu tegevus';
+end $$;
+
+-- Kuningliku köögi päevased tellimused
+create or replace function public.fish_orders_today() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d date := fx_today(); cnt int; i int; s fish_species; maxr int; q int; have int;
+begin
+  f := fx_fisher(u);
+  if not exists (select 1 from fish_orders where user_id = u and day = d) then
+    cnt := 1 + (f.level >= 5)::int + (f.level >= 12)::int + (f.level >= 20)::int;
+    for i in 1..cnt loop
+      maxr := case when i = 4 then 4 else least(3, 1 + f.level / 10) end;
+      select fs.* into s from fish_species fs
+        where fs.rarity <= maxr and fs.min_level <= f.level and not fs.night_only and not fs.winter_only
+          and exists (select 1 from fish_spots p where p.id = any(fs.spots) and p.min_level <= f.level)
+          and fs.id not in (select species from fish_orders where user_id = u and day = d)
+          and fs.id <> 'kuldkala'
+        order by case when i = 4 then -fs.rarity else 0 end, md5(u::text || d::text || i::text || fs.id) limit 1;
+      if s.id is not null then
+        q := case s.rarity when 1 then 3 + (abs(hashtext(u::text || d::text || i::text)) % 4) when 2 then 2 + (abs(hashtext(d::text || i::text)) % 2) else 1 end;
+        insert into fish_orders(user_id, day, idx, species, qty, reward_gold, reward_xp, reward_fame)
+        values (u, d, i, s.id, q, round(s.price * q * 1.7 + 25), round(s.xp * q * 1.6 + 10), s.rarity * 3 + q);
+      end if;
+    end loop;
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('idx', o.idx, 'species', o.species, 'qty', o.qty, 'gold', o.reward_gold,
+      'xp', o.reward_xp, 'fame', o.reward_fame, 'done', o.done,
+      'have', (select count(*) from fish_catches c where c.user_id = u and c.species = o.species and c.status = 'kept')) order by o.idx), '[]')
+    from fish_orders o where o.user_id = u and o.day = d);
+end $$;
+
+create or replace function public.fish_order_deliver(p_idx int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); o fish_orders; ids bigint[]; levels int[];
+begin
+  select * into o from fish_orders where user_id = u and day = fx_today() and idx = p_idx for update;
+  if o.user_id is null or o.done then raise exception 'Tellimust ei leitud'; end if;
+  select array_agg(id) into ids from (select id from fish_catches where user_id = u and species = o.species and status = 'kept'
+    order by weight asc limit o.qty) x;
+  if coalesce(array_length(ids, 1), 0) < o.qty then raise exception 'Sul pole veel piisavalt neid kalu'; end if;
+  update fish_catches set status = 'delivered' where id = any(ids);
+  update fish_orders set done = true where user_id = u and day = o.day and idx = o.idx;
+  update fishers set gold = gold + o.reward_gold, orders_done = orders_done + 1 where user_id = u;
+  perform fx_inbox(u, jsonb_build_object('fame', o.reward_fame, 'food', o.qty * 4), 'Kuninglik köök');
+  levels := fx_add_xp(u, o.reward_xp);
+  return jsonb_build_object('gold', o.reward_gold, 'xp', o.reward_xp, 'fame', o.reward_fame, 'food', o.qty * 4, 'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
+-- Kuningriiki saadetud preemiad: mäng võtab need ühe korra ja need kustutatakse
+create or replace function public.kingdom_claim() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); res jsonb;
+begin
+  with d as (delete from kingdom_inbox where user_id = u returning payload, reason, id)
+  select coalesce(jsonb_agg(jsonb_build_object('p', payload, 'why', reason) order by id), '[]') into res from d;
+  return res;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 6. Võistlused ja edetabelid
+-- ---------------------------------------------------------------------
+create or replace function public.fx_comp_rank(p_comp text, p_from timestamptz, p_to timestamptz)
+returns table(user_id uuid, place int, species text, weight numeric, rarity int, cnt int) language sql stable as $$
+  with base as (
+    select c.user_id, c.species, c.weight, c.rarity, c.caught_at,
+           count(*) over (partition by c.user_id) as cnt,
+           row_number() over (partition by c.user_id order by
+             case when p_comp = 'rare' then c.rarity else 0 end desc, c.weight desc, c.caught_at asc) as rn
+    from public.fish_catches c where c.caught_at >= p_from and c.caught_at < p_to
+  ), best as (select * from base where rn = 1)
+  select b.user_id,
+         (row_number() over (order by
+            case when p_comp = 'most' then b.cnt else 0 end desc,
+            case when p_comp = 'rare' then b.rarity else 0 end desc,
+            b.weight desc, b.caught_at asc))::int,
+         b.species, b.weight, b.rarity, b.cnt::int
+  from best b
+$$;
+
+create or replace function public.fx_period(p_comp text, d date) returns table(p_start date, p_from timestamptz, p_to timestamptz) language sql immutable as $$
+  select s, (s::timestamp at time zone 'Europe/Tallinn'), ((s + case when p_comp = 'big' then 1 else 7 end)::timestamp at time zone 'Europe/Tallinn')
+  from (select case when p_comp = 'big' then d else date_trunc('week', d)::date end as s) x
+$$;
+
+create or replace function public.fish_competitions() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); d date := fx_today(); cmp text; per record; prev record; res jsonb := '{}'; top jsonb; mine jsonb; last jsonb; lb jsonb;
+begin
+  perform fx_fisher(u);
+  foreach cmp in array array['big','rare','most'] loop
+    select * into per from fx_period(cmp, d);
+    select * into prev from fx_period(cmp, case when cmp = 'big' then d - 1 else d - 7 end);
+    select coalesce(jsonb_agg(jsonb_build_object('place', r.place, 'name', p.name, 'title', f.title, 'species', r.species,
+             'weight', r.weight, 'rarity', r.rarity, 'cnt', r.cnt, 'me', r.user_id = u) order by r.place), '[]')
+      into top from fx_comp_rank(cmp, per.p_from, per.p_to) r join profiles p on p.id = r.user_id left join fishers f on f.user_id = r.user_id
+      where r.place <= 10;
+    select to_jsonb(x) - 'user_id' into mine from fx_comp_rank(cmp, per.p_from, per.p_to) x where x.user_id = u;
+    select coalesce(jsonb_agg(jsonb_build_object('place', r.place, 'name', p.name, 'species', r.species, 'weight', r.weight,
+             'rarity', r.rarity, 'cnt', r.cnt, 'me', r.user_id = u) order by r.place), '[]')
+      into last from fx_comp_rank(cmp, prev.p_from, prev.p_to) r join profiles p on p.id = r.user_id where r.place <= 3;
+    res := res || jsonb_build_object(cmp, jsonb_build_object('top', top, 'mine', mine, 'last', last,
+             'ends', per.p_to, 'claimed', exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = prev.p_start)));
+  end loop;
+  select coalesce(jsonb_agg(jsonb_build_object('name', p.name, 'title', f.title, 'level', f.level, 'total', f.total,
+           'biggest', f.biggest, 'rare', f.rare, 'me', f.user_id = u) order by f.level desc, f.xp desc, f.total desc), '[]')
+    into lb from (select * from fishers order by level desc, xp desc, total desc limit 30) f
+    join profiles p on p.id = f.user_id where not p.hidden or f.user_id = u;
+  return res || jsonb_build_object('leaderboard', lb);
+end $$;
+
+-- Võidupreemiad (viimase 7 päeva ja 2 nädala lõppenud võistlused); iga preemiat saab võtta ühe korra
+create or replace function public.fish_claim_prizes() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); d date := fx_today(); cmp text; k int; per record; pl int; got jsonb := '[]';
+  v_gold int; v_xp int; ttl text; levels int[] := '{}';
+begin
+  perform fx_fisher(u);
+  foreach cmp in array array['big','rare','most'] loop
+    for k in 1..(case when cmp = 'big' then 7 else 2 end) loop
+      select * into per from fx_period(cmp, case when cmp = 'big' then d - k else d - 7 * k end);
+      if exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = per.p_start) then continue; end if;
+      select place into pl from fx_comp_rank(cmp, per.p_from, per.p_to) where user_id = u;
+      if pl is null or pl > 3 then continue; end if;
+      if cmp = 'big' then v_gold := (array[300,150,80])[pl]; v_xp := (array[150,80,40])[pl]; ttl := 'Päeva hiidkala püüdja';
+      elsif cmp = 'rare' then v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Haruldaste jahtija';
+      else v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Nädala kalur'; end if;
+      insert into fish_prizes(user_id, comp, period, place) values (u, cmp, per.p_start, pl);
+      update fishers set gold = fishers.gold + v_gold, comp_wins = comp_wins + (pl = 1)::int,
+        titles = case when pl = 1 and not (ttl = any(titles)) then titles || ttl else titles end where user_id = u;
+      levels := levels || fx_add_xp(u, v_xp);
+      got := got || jsonb_build_object('comp', cmp, 'period', per.p_start, 'place', pl, 'gold', v_gold, 'xp', v_xp, 'title', case when pl = 1 then ttl end);
+    end loop;
+  end loop;
+  return jsonb_build_object('prizes', got, 'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
+-- ---------------------------------------------------------------------
+do $$ declare r record; begin
+  for r in select p.oid::regprocedure as sig, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and (p.proname like 'fx\_%' or p.proname in
+             ('set_profile','kingdom_leaderboard','fish_state','fish_odds','fish_cast','fish_hook','fish_lose','fish_land',
+              'fish_market','fish_use','fish_sell_all','fish_shop','fish_orders_today','fish_order_deliver','kingdom_claim',
+              'fish_competitions','fish_claim_prizes')) loop
+    execute format('revoke all on function %s from public, anon', r.sig);
+    if r.proname like 'fx\_%' then
+      execute format('revoke all on function %s from authenticated', r.sig);
+    else
+      execute format('grant execute on function %s to authenticated', r.sig);
+    end if;
+  end loop;
+end $$;
