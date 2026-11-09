@@ -252,7 +252,7 @@ function phaseMsg() {
 }
 function mainButton() {
   if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="repair">Paranda õng (${repairCost2()} kulda)</button>`;
-  if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast" ${FV.busy ? 'disabled' : ''}>Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
+  if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast">Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
   if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
   if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut">Lase lahti</button></div>`;
   return `<button class="btn bigbtn" type="button" disabled>…</button>`;
@@ -326,7 +326,7 @@ async function doLand() {
     } else {
       FV.result = r; sparkleScene(r.kind === 'fish' ? RAR2[r.rarity][1] : '#ffd065');
       await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); FV.oddsKey = ''; loadOdds().then(() => FV.phase === 'result' && renderFV());
-      setPhase('result', resultMsg(r));
+      FV.busy = false; setPhase('result', resultMsg(r));
       afterLevels(r.levels); afterAch(r.ach);
       FV.orders = null; loadSide();
     }

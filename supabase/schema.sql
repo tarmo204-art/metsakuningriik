@@ -33,17 +33,26 @@ drop policy if exists "oma profiil" on public.profiles;
 create policy "oma profiil" on public.profiles for select to authenticated using (id = auth.uid());
 drop policy if exists "oma salvestus lugemine" on public.saves;
 create policy "oma salvestus lugemine" on public.saves for select to authenticated using (user_id = auth.uid());
+-- salvestamine käib ainult serveri kontrolliga funktsiooni save_kingdom kaudu
 drop policy if exists "oma salvestus lisamine" on public.saves;
-create policy "oma salvestus lisamine" on public.saves for insert to authenticated with check (user_id = auth.uid());
 drop policy if exists "oma salvestus kustutamine" on public.saves;
 create policy "oma salvestus kustutamine" on public.saves for delete to authenticated using (user_id = auth.uid());
 drop policy if exists "oma salvestus muutmine" on public.saves;
-create policy "oma salvestus muutmine" on public.saves for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 revoke all on public.profiles from anon, authenticated;
 grant select on public.profiles to authenticated;
 revoke all on public.saves from anon, authenticated;
-grant select, insert, update, delete on public.saves to authenticated;
+grant select, delete on public.saves to authenticated;
+
+-- Serveri kinnitatud kuningriigi seis (edetabel näitab ainult neid numbreid)
+create table if not exists public.kingdom_trust (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  level int not null default 1, xp_total numeric not null default 0, fame numeric not null default 0,
+  regions int not null default 1, treasures int not null default 0, gold numeric not null default 0, gtime numeric not null default 0,
+  at timestamptz not null default now(), flags int not null default 0, last_flag text, last_flag_at timestamptz
+);
+alter table public.kingdom_trust enable row level security;
+revoke all on public.kingdom_trust from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- 2. Kalapüügi andmed (kalad, kohad, õnged, söödad, saavutused)
@@ -409,14 +418,90 @@ begin
   on conflict (id) do update set name = excluded.name, kingdom = excluded.kingdom, hidden = coalesce(p_hidden, profiles.hidden);
 end $$;
 
+drop function if exists public.kingdom_leaderboard();
 create or replace function public.kingdom_leaderboard()
-returns table(name text, kingdom text, level int, fame int, regions int, treasures int, me boolean)
+returns table(id uuid, name text, kingdom text, level int, fame int, regions int, treasures int, me boolean)
 language sql stable security definer set search_path = public as $$
-  select p.name, p.kingdom, s.level, s.fame, s.regions, s.treasures, s.user_id = auth.uid()
-  from saves s join profiles p on p.id = s.user_id
-  where not p.hidden or s.user_id = auth.uid()
-  order by s.level desc, s.fame desc limit 50
+  select t.user_id, p.name, p.kingdom, t.level, floor(t.fame)::int, t.regions, t.treasures, t.user_id = auth.uid()
+  from kingdom_trust t join profiles p on p.id = t.user_id
+  join saves s on s.user_id = t.user_id
+  where not p.hidden or t.user_id = auth.uid()
+  order by t.level desc, t.fame desc limit 50
 $$;
+
+-- Kuningriigi kogemuse koguhulk (sama valem nagu mängus: 30 * tase^1.5 + 20)
+create or replace function public.fx_k_xp_total(lvl int) returns numeric language sql immutable as
+$$ select coalesce(sum(round(30 * power(i, 1.5) + 20)), 0) from generate_series(1, greatest(lvl, 1) - 1) i $$;
+
+-- Salvestus koos kontrolliga: andmed salvestatakse alati (keegi ei kaota arengut),
+-- aga edetabelisse jõuavad ainult numbrid, mis on mõistliku kiirusega kasvanud.
+create or replace function public.save_kingdom(p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  u uuid := fx_uid(); t kingdom_trust; first boolean := false; reasons text[] := '{}'; ok boolean;
+  lvl int; xp numeric; xpt numeric; v_fame numeric; regs text[]; nreg int; tre int; v_gold numeric; gt numeric; dt numeric; r text; k text;
+  req jsonb := '{"kodu":[1,0],"pime":[3,10],"jarv":[4,25],"maed":[5,50],"org":[7,120],"iidne":[9,250],"raba":[10,350],"meri":[12,500],"pohjala":[14,800],"haldja":[16,1200]}';
+begin
+  if p_data is null or jsonb_typeof(p_data) <> 'object' or jsonb_typeof(p_data -> 'res') <> 'object' or jsonb_typeof(p_data -> 'regions') <> 'object' then
+    raise exception 'Vigane salvestus';
+  end if;
+  if octet_length(p_data::text) > 2000000 then raise exception 'Salvestus on liiga suur'; end if;
+  begin
+    lvl := coalesce((p_data ->> 'level')::int, 1); xp := coalesce((p_data ->> 'xp')::numeric, 0);
+    v_fame := coalesce((p_data ->> 'fame')::numeric, 0); tre := coalesce((p_data -> 'st' ->> 'treasures')::int, 0);
+    v_gold := coalesce((p_data -> 'res' ->> 'gold')::numeric, 0); gt := coalesce((p_data ->> 'time')::numeric, 0);
+  exception when others then raise exception 'Vigane salvestus';
+  end;
+  select coalesce(array_agg(x), '{}') into regs from jsonb_object_keys(p_data -> 'regions') x;
+  nreg := coalesce(array_length(regs, 1), 0);
+  xpt := fx_k_xp_total(lvl) + xp;
+
+  -- 1) väärtused, mis pole kunagi võimalikud
+  if lvl < 1 or lvl > 200 or xp < 0 or v_fame < 0 or v_gold < 0 or tre < 0 or gt < 0 then reasons := reasons || 'võimatud väärtused'::text; end if;
+  foreach k in array array['wood','stone','berries','food','water'] loop
+    if coalesce((p_data -> 'res' ->> k)::numeric, 0) > 60000 or coalesce((p_data -> 'res' ->> k)::numeric, 0) < 0 then reasons := reasons || ('ladu üle piiri: ' || k); end if;
+  end loop;
+  foreach r in array regs loop
+    if not (req ? r) then reasons := reasons || ('tundmatu piirkond: ' || r);
+    elsif lvl < (req -> r ->> 0)::int or v_fame < (req -> r ->> 1)::numeric then reasons := reasons || ('piirkond avatud liiga vara: ' || r); end if;
+  end loop;
+
+  -- 2) kasvukiirus võrreldes viimase kinnitatud seisuga
+  select * into t from kingdom_trust where user_id = u for update;
+  if t.user_id is null then
+    first := true;
+    -- esimene salvestus (ka claude.ai mängust kolimine) võib olla kuni mõistliku suurusega
+    if lvl > 30 or v_fame > 10000 or tre > 25 or v_gold > 200000 then reasons := reasons || 'esimene salvestus on liiga suur'::text; end if;
+  else
+    dt := greatest(0, extract(epoch from now() - t.at));
+    if xpt > t.xp_total + 8000 + dt / 60 * 2500 then reasons := reasons || 'kogemus kasvas liiga kiiresti'::text; end if;
+    if v_fame > t.fame + 3000 + dt / 60 * 400 then reasons := reasons || 'kuulsus kasvas liiga kiiresti'::text; end if;
+    if tre > t.treasures + 2 + floor(dt / 30) then reasons := reasons || 'aardeid tuli liiga kiiresti'::text; end if;
+    if v_gold > t.gold + 60000 + dt / 60 * 8000 then reasons := reasons || 'kuld kasvas liiga kiiresti'::text; end if;
+    if gt > t.gtime + dt + 600 then reasons := reasons || 'mänguaeg liikus kiiremini kui päris aeg'::text; end if;
+  end if;
+  ok := coalesce(array_length(reasons, 1), 0) = 0;
+
+  insert into saves(user_id, data, level, fame, regions, treasures, updated_at)
+  values (u, p_data, least(lvl, 100000), least(floor(v_fame), 2000000000)::int, nreg, least(tre, 100000), now())
+  on conflict (user_id) do update set data = excluded.data, level = excluded.level, fame = excluded.fame,
+    regions = excluded.regions, treasures = excluded.treasures, updated_at = now();
+
+  if ok then
+    insert into kingdom_trust(user_id, level, xp_total, fame, regions, treasures, gold, gtime, at)
+    values (u, lvl, xpt, v_fame, nreg, tre, v_gold, gt, now())
+    on conflict (user_id) do update set level = excluded.level, xp_total = excluded.xp_total, fame = excluded.fame,
+      regions = excluded.regions, treasures = excluded.treasures, gold = excluded.gold, gtime = excluded.gtime, at = now();
+  elsif first then
+    insert into kingdom_trust(user_id, gold, at, flags, last_flag, last_flag_at)
+    values (u, 120, now(), 1, array_to_string(reasons, ', '), now());
+  else
+    update kingdom_trust set flags = flags + 1, last_flag = array_to_string(reasons, ', '), last_flag_at = now() where user_id = u;
+  end if;
+  select * into t from kingdom_trust where user_id = u;
+  return jsonb_build_object('trusted', ok, 'reason', case when ok then null else array_to_string(reasons, ', ') end,
+    'level', t.level, 'fame', floor(t.fame), 'regions', t.regions, 'treasures', t.treasures);
+end $$;
 
 -- Kogu kalapüügi seis ühe päringuga
 create or replace function public.fish_state() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -885,7 +970,7 @@ end $$;
 do $$ declare r record; begin
   for r in select p.oid::regprocedure as sig, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'public' and (p.proname like 'fx\_%' or p.proname in
-             ('set_profile','kingdom_leaderboard','fish_state','fish_odds','fish_cast','fish_hook','fish_lose','fish_land',
+             ('set_profile','kingdom_leaderboard','save_kingdom','fish_state','fish_odds','fish_cast','fish_hook','fish_lose','fish_land',
               'fish_market','fish_use','fish_sell_all','fish_shop','fish_orders_today','fish_order_deliver','kingdom_claim',
               'fish_competitions','fish_claim_prizes')) loop
     execute format('revoke all on function %s from public, anon', r.sig);

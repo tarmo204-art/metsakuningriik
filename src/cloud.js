@@ -174,10 +174,8 @@ async function cloudSave(force) {
   if (!force && Date.now() - CL.lastCloud < 20000) { CL.pending = true; return }
   if (CL.saving) { CL.pending = true; return }
   CL.saving = true; CL.pending = false;
-  const row = { user_id: CL.user.id, data: S, level: S.level | 0, fame: Math.floor(S.fame) | 0, regions: Object.keys(S.regions).length, treasures: (S.st.treasures || 0) | 0, updated_at: new Date().toISOString() };
   try {
-    const { error } = await CL.sb.from('saves').upsert(row, { onConflict: 'user_id' });
-    if (error) throw error;
+    CL.trust = await rpc('save_kingdom', { p_data: S });
     CL.lastCloud = Date.now(); CL.cloudCopy = null; CL.cloudOk = true;
   } catch (e) { CL.cloudOk = false; CL.cloudErr = etError(e) }
   CL.saving = false;
@@ -243,7 +241,7 @@ function startPresence() {
     const ch = CL.sb.channel('mangijad', { config: { presence: { key: CL.user.id } } });
     ch.on('presence', { event: 'sync' }, () => {
       const st = ch.presenceState(); const out = [];
-      for (const key in st) { const p = st[key][0]; if (p && p.k) out.push({ ...p, me: key === CL.user.id }) }
+      for (const key in st) { const p = st[key][0]; if (p && p.k) out.push({ ...p, uid: key, me: key === CL.user.id }) }
       CL.peers = out.sort((a, b) => (b.l || 0) - (a.l || 0) || (b.f || 0) - (a.f || 0));
     });
     ch.subscribe(st => { if (st === 'SUBSCRIBED') { CL.presenceOn = true; CL.lastPres = ''; trackPresence() } });
@@ -268,12 +266,15 @@ async function loadLb() {
 TABS.edetabel = { n: 'Edetabel', r: renderLbWeb };
 { const o = {}; for (const k in TABS) { if (k === 'kuningriik') o.edetabel = TABS.edetabel; if (k !== 'edetabel') o[k] = TABS[k] } for (const k in TABS) delete TABS[k]; Object.assign(TABS, o) }
 function renderLbWeb() {
-  let h = `<h2>Edetabel</h2><p class="lead">Kõik mängijad ühes tabelis. Järjestus on taseme ja seejärel kuulsuse järgi.</p>`;
+  let h = `<h2>Edetabel</h2><p class="lead">Kõik mängijad ühes tabelis. Järjestus on taseme ja seejärel kuulsuse järgi. Tabelis on ainult serveri kontrollitud numbrid.</p>`;
   if (!CL.user) return h + `<div class="card"><p class="lead">Edetabel on nähtav, kui oled sisse logitud.</p></div>`;
   if (Date.now() - CL.lbAt > 60000) loadLb();
   h += `<div class="sec-h">Praegu mängimas <small>${CL.peers.length} ${CL.peers.length === 1 ? 'mängija' : 'mängijat'}</small></div>`;
   if (!CL.peers.length) h += `<p class="lead">Kui sõbrad on samal ajal mängus, ilmuvad nad siia.</p>`;
-  else h += `<div class="lbwrap"><table class="lb"><thead><tr><th></th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th></tr></thead><tbody>${CL.peers.map(p => `<tr class="${p.me ? 'me' : ''}"><td class="rk"><span class="livedot"></span></td><td><b>${esc(p.k)}</b><small>${esc(p.r || '')}${p.me ? ' · sina' : ''}${p.v ? ' · ' + esc(p.v) : ''}</small></td><td class="num">${p.l | 0}</td><td class="num">${fmt(p.f || 0)}</td><td class="num">${p.g | 0}</td></tr>`).join('')}</tbody></table></div>`;
+  else {
+    const byId = {}; (CL.lb || []).forEach(r => byId[r.id] = r);
+    h += `<div class="lbwrap"><table class="lb"><thead><tr><th></th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th></tr></thead><tbody>${CL.peers.map(p => { const v = byId[p.uid]; return `<tr class="${p.me ? 'me' : ''}"><td class="rk"><span class="livedot"></span></td><td><b>${esc(p.k)}</b><small>${esc(p.r || '')}${p.me ? ' · sina' : ''}${p.v ? ' · ' + esc(p.v) : ''}</small></td><td class="num">${v ? v.level : '–'}</td><td class="num">${v ? fmt(v.fame) : '–'}</td><td class="num">${v ? v.regions : '–'}</td></tr>` }).join('')}</tbody></table></div>`;
+  }
   h += `<div class="sec-h">Kõigi aegade tabel</div>`;
   if (CL.lbErr) h += `<div class="card"><p class="lead">Edetabelit ei saanud laadida: ${esc(CL.lbErr)}</p></div>`;
   else if (!CL.lb) h += `<div class="card"><p class="lead">Laadin edetabelit…</p></div>`;
@@ -290,7 +291,8 @@ ACT.lbHide = () => { S.lbHidden = !S.lbHidden; save(); rpc('set_profile', { p_na
   TABS.kuningriik.r = () => {
     const h = base();
     const acc = CL.user
-      ? `<div class="card"><div class="sec-h" style="margin:0">Konto</div><p class="lead">Sisse logitud: <b>${esc(CL.user.email || '')}</b>. Kuningriik salvestub serverisse ja jätkub igas seadmes.</p><p class="cloudstate">${CL.cloudOk === false ? 'Viimane pilvesalvestus ebaõnnestus: ' + esc(CL.cloudErr || '') : CL.lastCloud ? 'Pilve salvestatud ' + new Date(CL.lastCloud).toLocaleTimeString('et-EE') : ''}</p><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-cl="logout">Logi välja</button><button class="btn sm ghost" type="button" data-cl="import">Too kuningriik claude.ai mängust</button></div></div>`
+      ? `<div class="card"><div class="sec-h" style="margin:0">Konto</div><p class="lead">Sisse logitud: <b>${esc(CL.user.email || '')}</b>. Kuningriik salvestub serverisse ja jätkub igas seadmes.</p><p class="cloudstate">${CL.cloudOk === false ? 'Viimane pilvesalvestus ebaõnnestus: ' + esc(CL.cloudErr || '') : CL.lastCloud ? 'Pilve salvestatud ' + new Date(CL.lastCloud).toLocaleTimeString('et-EE') : ''}</p>
+      ${CL.trust ? `<p class="lead" style="font-size:13px">Edetabelis kinnitatud: tase ${CL.trust.level}, kuulsus ${fmt(CL.trust.fame)}, ${CL.trust.regions} ala.${CL.trust.trusted ? '' : ' Server kontrollib veel sinu viimaseid edusamme. Sinu areng on salvestatud ja edetabel jõuab järele, kui kõik on korras.'}</p>` : ''}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-cl="logout">Logi välja</button><button class="btn sm ghost" type="button" data-cl="import">Too kuningriik claude.ai mängust</button></div></div>`
       : `<div class="card"><div class="sec-h" style="margin:0">Konto</div><p class="lead">Mängid ilma kontota. Logi sisse, et kuningriik salvestuks serverisse ja et saaksid kalastada.</p></div>`;
     return h + acc;
   };
