@@ -471,11 +471,11 @@ begin
   if t.user_id is null then
     first := true;
     -- esimene salvestus (ka claude.ai mängust kolimine) võib olla kuni mõistliku suurusega
-    if lvl > 30 or v_fame > 10000 or tre > 25 or v_gold > 200000 then reasons := reasons || 'esimene salvestus on liiga suur'::text; end if;
+    if lvl > 35 or v_fame > 80000 or tre > 40 or v_gold > 300000 then reasons := reasons || 'esimene salvestus on liiga suur'::text; end if;
   else
     dt := greatest(0, extract(epoch from now() - t.at));
     if xpt > t.xp_total + 8000 + dt / 60 * 2500 then reasons := reasons || 'kogemus kasvas liiga kiiresti'::text; end if;
-    if v_fame > t.fame + 3000 + dt / 60 * 400 then reasons := reasons || 'kuulsus kasvas liiga kiiresti'::text; end if;
+    if v_fame > t.fame + 5000 + dt / 60 * 1200 then reasons := reasons || 'kuulsus kasvas liiga kiiresti'::text; end if;
     if tre > t.treasures + 2 + floor(dt / 30) then reasons := reasons || 'aardeid tuli liiga kiiresti'::text; end if;
     if v_gold > t.gold + 60000 + dt / 60 * 8000 then reasons := reasons || 'kuld kasvas liiga kiiresti'::text; end if;
     if gt > t.gtime + dt + 600 then reasons := reasons || 'mänguaeg liikus kiiremini kui päris aeg'::text; end if;
