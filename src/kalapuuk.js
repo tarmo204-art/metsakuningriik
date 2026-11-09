@@ -10,7 +10,7 @@ const WNAME = { paike: 'päikesega', pilves: 'pilvise ilmaga', vihm: 'vihmaga', 
 const BADGE_T = ['', 'Pronks', 'Hõbe', 'Kuld'], BADGE_C = ['#5a6a70', '#d0905a', '#d8e4ec', '#ffd060'];
 const BADGE_IC = { puudja: '🎣', haruldased: '💠', hiid: '🐋', koguja: '📖', usin: '📜', aare: '🗝️', oo: '🌙', voitja: '🏆' };
 const WTH2 = { paike: ['Päike', 'kalad võtavad aeglasemalt'], pilves: ['Pilves', 'tavaline püügiilm'], vihm: ['Vihm', 'kalad võtavad kiiremini, haruldasi rohkem'], udu: ['Udu', 'haruldasi kalu veidi rohkem'], torm: ['Torm', 'palju haruldasi kalu, aga õng murdub kergemini'] };
-const FD = { loaded: false, spots: [], species: [], rods: [], baits: [], achs: [], items: [], sp: {}, rod: {}, bait: {}, spot: {}, item: {} };
+const FD = { loaded: false, spots: [], species: [], rods: [], baits: [], achs: [], items: [], sp: {}, rod: {}, bait: {}, spot: {}, item: {}, house: {} };
 let FS = null;
 const FV = { quests: null, news: null, open: false, tab: 'puuk', spot: null, phase: 'idle', msg: '', cast: null, hook: null, result: null, sel: new Set(), market: null, comps: null, orders: null, busy: false, odds: null, oddsKey: '' };
 function ensureFish() { }
@@ -87,6 +87,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .itemrow{display:flex;gap:5px;flex-wrap:wrap}.itm{font-size:12.5px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.25);border:1px solid}
 .news{display:grid;gap:6px}.newsi{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2);font-size:13.5px;line-height:1.4}
 .newsi.me{background:rgba(242,181,82,.12)}.newsi .ni{font-size:20px;line-height:1}.newsi small{font-size:11.5px}
+.housecv{width:100%;max-width:560px;aspect-ratio:2.1/1;height:auto;border-radius:12px;display:block;margin:0 auto}
 .chip.wfish{max-width:100%;white-space:normal}
 .ctable{width:100%;border-collapse:collapse;font-size:13px}
 .ctable td,.ctable th{padding:6px 5px;border-top:1px solid rgba(134,205,224,.1);text-align:left}
@@ -106,6 +107,7 @@ async function loadFD() {
   const [spots, species, rods, baits, achs, items] = await Promise.all([q('fish_spots'), q('fish_species'), q('fish_rods'), q('fish_baits'), q('fish_achievements'), q('fish_items').catch(() => [])]);
   Object.assign(FD, { spots, species, rods, baits, achs, items, loaded: true });
   items.forEach(x => FD.item[x.id] = x);
+  try { const { data } = await CL.sb.from('fish_house_levels').select('*').order('level'); (data || []).forEach(x => { ['sell_bonus', 'xp_bonus', 'bait_save'].forEach(k => x[k] = +x[k]); FD.house[x.level] = x }) } catch (e) { }
   spots.forEach(x => FD.spot[x.id] = x); species.forEach(x => { x.min_w = +x.min_w; x.max_w = +x.max_w; FD.sp[x.id] = x }); rods.forEach(x => FD.rod[x.id] = x); baits.forEach(x => FD.bait[x.id] = x);
 }
 async function refreshFS() {
@@ -219,12 +221,13 @@ function weatherChips() {
   const w = WTH2[FS.weather] || ['', ''];
   return `<span class="chip" title="${w[1]}">${w[0]}</span>${WFISH[FS.weather] ? `<span class="chip wfish" title="Need kalad ujuvad ainult selle ilmaga">🌦️ ${WFISH[FS.weather]}</span>` : ''}${FS.is_night ? '<span class="chip" title="Öised kalad on väljas">🌙 Öö</span>' : '<span class="chip">☀️ Päev</span>'}${FS.is_winter ? '<span class="chip" title="Talvised kalad on väljas">❄️ Talv</span>' : ''}${FS.luck ? `<span class="chip" title="Kuldkala õnnistus">🍀 Õnn ${FS.luck}</span>` : ''}`;
 }
-const FTABS = { puuk: 'Püük', saak: 'Saak', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', voistlus: 'Võistlused', uudised: 'Uudised' };
+const FTABS = { puuk: 'Püük', saak: 'Saak', maja: 'Kalamaja', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', voistlus: 'Võistlused', uudised: 'Uudised' };
 function fvBadges() {
   const b = {};
   b.saak = (FS.inventory || []).filter(x => !x.trophy).length || 0;
   b.tellimus = (FV.orders ? FV.orders.filter(o => !o.done && o.have >= o.qty).length : 0) + (FV.quests ? [...FV.quests.daily, ...FV.quests.weekly].filter(q => !q.done && +q.progress >= +q.target).length : 0);
   b.uudised = NEWS.unread;
+  b.maja = FS.aq_pending >= 50 ? 1 : 0;
   if (FV.comps) b.voistlus = ['big', 'rare', 'most'].filter(k => { const c = FV.comps[k]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) }).length;
   return b;
 }
@@ -232,11 +235,12 @@ function renderFV(force) {
   if (!FV.open || !FS) return;
   if (!force && FV.busyUI) return;
   const b = fvBadges();
-  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised }[FV.tab]()}</div>`;
+  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised, maja: tabMaja }[FV.tab]()}</div>`;
   const root = $('#fvIn'), st = $('#fishView').scrollTop;
   root.innerHTML = html;
   const slot = root.querySelector('#fvSceneSlot'); if (slot) slot.replaceWith(sceneCv);
-  paintFishCanvases(root);
+  const aslot = root.querySelector('#fvAqSlot'); if (aslot) aslot.replaceWith(aqCv);
+  paintFishCanvases(root); paintHouses(root);
   $('#fishView').scrollTop = st;
 }
 
@@ -377,7 +381,7 @@ function resultCard() {
   return `<div class="result" style="--rc:${rc}"><canvas data-fl="${r.species}" data-r="${r.rarity}"></canvas><div style="display:grid;gap:4px"><span class="rpill" style="color:${rc}">${rn}</span><h3>${esc(r.name)}</h3>
     <p class="lead">${fmt1(+r.weight)} kg · +${r.xp} kogemust${r.giant ? ' · <b style="color:var(--amber-2)">rekordsuurus!</b>' : ''}${r.new_species ? ' · <b style="color:var(--ok)">uus liik!</b>' : r.record ? ' · <b style="color:var(--ok)">isiklik rekord!</b>' : ''}</p>
     <p class="lead" style="font-size:12.5px">${esc(sp ? sp.descr : '')}</p>${r.items && r.items.length ? '<small class="lead">Kala kõhust leitud:</small>' + itemsRow(r.items) : ''}</div>
-    ${inInv ? `<div class="acts"><button class="btn sm" type="button" data-fa="use" data-arg="sell:${r.catch_id}">Müü (~${estPrice(r.catch_id)} kulda)</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="cook:${r.catch_id}">Toiduks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="release:${r.catch_id}">Lase vabaks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="trophy:${r.catch_id}">Trofeeriiulile</button>${r.rarity >= 4 ? `<button class="btn sm ghost" type="button" data-fa="exch" data-arg="${r.catch_id}">${r.species === 'kuldkala' ? 'Soovi midagi' : 'Vaheta preemia vastu'}</button>` : ''}<span class="lead" style="font-size:12px;align-self:center">või jäta saagi hulka</span></div>` : '<div class="acts"><span class="lead">Kala on kasutatud.</span></div>'}</div>`;
+    ${inInv ? `<div class="acts"><button class="btn sm" type="button" data-fa="use" data-arg="sell:${r.catch_id}">Müü (~${estPrice(r.catch_id)} kulda)</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="cook:${r.catch_id}">Toiduks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="release:${r.catch_id}">Lase vabaks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="trophy:${r.catch_id}">Trofeeriiulile</button>${FS.house ? `<button class="btn sm ghost" type="button" data-fa="aqput" data-arg="${r.catch_id}">Akvaariumi</button>` : ''}${r.rarity >= 4 ? `<button class="btn sm ghost" type="button" data-fa="exch" data-arg="${r.catch_id}">${r.species === 'kuldkala' ? 'Soovi midagi' : 'Vaheta preemia vastu'}</button>` : ''}<span class="lead" style="font-size:12px;align-self:center">või jäta saagi hulka</span></div>` : '<div class="acts"><span class="lead">Kala on kasutatud.</span></div>'}</div>`;
 }
 
 /* ---------- stseen ---------- */
@@ -393,6 +397,7 @@ function sceneLoop(ts) {
   if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); renderFV(true) }
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1150 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
   if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
+  if (aqCv.isConnected) drawAquarium(t);
   if (!sceneCv.isConnected) return;
   const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
   if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
@@ -462,6 +467,7 @@ function tabSaak() {
       <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="cook" ${selN ? '' : 'disabled'}>Valitud toiduks</button>
       <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="release" ${selN ? '' : 'disabled'}>Lase valitud vabaks</button>
       <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="trophy" ${selN === 1 ? '' : 'disabled'}>Trofeeriiulile</button>
+      ${FS.house ? `<button class="btn sm ghost" type="button" data-fa="aqputSel" ${selN === 1 ? '' : 'disabled'}>Akvaariumi</button>` : ''}
       <button class="btn sm ghost" type="button" data-fa="exchSel" ${selN === 1 && kept.find(x => FV.sel.has(x.id) && x.rarity >= 4) ? '' : 'disabled'}>Vaheta preemia vastu</button>
       <button class="btn sm ghost" type="button" data-fa="selnone" ${selN ? '' : 'disabled'}>Tühista valik</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="1" ${kept.some(x => x.rarity === 1) ? '' : 'disabled'}>Müü kõik tavalised</button><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="2" ${kept.some(x => x.rarity <= 2) ? '' : 'disabled'}>Müü kõik tavalised ja ebatavalised</button></div>
@@ -584,10 +590,11 @@ function newsText(n) {
     case 'chest': return `${who} leidis kuldse aardekirstu ja ${fmt(d.gold || 0)} kulda!`;
     case 'comp': return `${who} võitis võistluse „${COMPN[d.comp] ? COMPN[d.comp][0] : d.comp}“!`;
     case 'level': return `${who} jõudis kalapüügi ${d.level}. tasemele!`;
+    case 'house': return `${who} täiendas kalamaja: nüüd on tal ${esc(d.name || '')} (tase ${d.level})!`;
   }
   return who;
 }
-const NEWS_IC = { first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
+const NEWS_IC = { house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
 function newsAgo(at) { const m = Math.floor((Date.now() - new Date(at)) / 60000); if (m < 1) return 'just nüüd'; if (m < 60) return m + ' min tagasi'; const h = Math.floor(m / 60); if (h < 24) return h + ' h tagasi'; return new Date(at).toLocaleDateString('et-EE', { day: 'numeric', month: 'long' }) }
 function newsHtml(max) {
   if (!NEWS.list) return '<p class="lead">Laadin uudiseid…</p>';
@@ -642,6 +649,111 @@ function afterLevels(lv) {
     <button class="btn" type="button" data-act="closeModal">Edasi püüki</button>`, 'lvlup');
 }
 
+/* ---------- Kalamaja ja akvaarium ---------- */
+const aqCv = document.createElement('canvas'); aqCv.id = 'fvAq'; aqCv.setAttribute('aria-label', 'Akvaarium'); aqCv.style.cssText = 'width:100%;display:block;border-radius:12px';
+const AQ = { list: null, visit: null, fish: [] };
+function aqScore(f) { return f.rarity * f.rarity * 2 + (f.giant ? 10 : 0) }
+function houseRow(l) { return FD.house[l] }
+function drawHouse(c, w, h, lvl, t = 0) {
+  const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#2c5a72'); sky.addColorStop(.62, '#7fb0c0'); sky.addColorStop(.62, '#2f6a86'); sky.addColorStop(1, '#173a4c');
+  c.fillStyle = sky; c.fillRect(0, 0, w, h);
+  const wy = h * .62;
+  ell(c, w * .5, wy + 2, w * .55, h * .1, '#3f6e3a'); rect(c, 0, wy - h * .05, w, h * .07, '#4a7a3a');
+  for (let i = 0; i < 5; i++) { const x = w * (.08 + i * .22), s = h * (.18 + (i % 2) * .06); poly(c, [x - s * .35, wy - h * .03, x, wy - h * .03 - s, x + s * .35, wy - h * .03], i % 2 ? '#2f5a34' : '#295030') }
+  if (!lvl) {
+    const x = w * .5, y = wy - h * .04;
+    rect(c, x - 2, y - h * .2, 4, h * .2, '#6b4528'); rect(c, x - w * .1, y - h * .26, w * .2, h * .09, '#c8955a');
+    c.fillStyle = '#3a2410'; c.font = `700 ${Math.max(10, h * .055)}px system-ui`; c.textAlign = 'center'; c.fillText('Ehitusplats', x, y - h * .2);
+    return;
+  }
+  const big = Math.min(1, .45 + lvl * .055), bw = w * .34 * big, floors = 1 + (lvl >= 5) + (lvl >= 9), fh = h * .13, x0 = w * .5 - bw / 2, base = wy - h * .03;
+  const wall = lvl >= 9 ? '#cfe6ee' : lvl >= 6 ? '#e8d8b8' : lvl >= 3 ? '#b8875a' : '#9a6a42', roof = lvl >= 8 ? '#e0a830' : lvl >= 6 ? '#8a3a2a' : lvl >= 3 ? '#5a3a24' : '#6a5a3a';
+  if (lvl >= 4) { rect(c, w * .5 + bw * .2, base - 2, w * .3, h * .03, '#7a5434'); for (let i = 0; i < 4; i++) rect(c, w * .5 + bw * .25 + i * w * .07, base, 3, h * .1, '#5a3a24') }
+  if (lvl >= 7) { const bx = w * .82 + Math.sin(t) * 3, by = wy + h * .05; poly(c, [bx - 22, by, bx + 22, by, bx + 14, by + 10, bx - 14, by + 10], '#8a5a34'); rect(c, bx - 1, by - 26, 2, 26, '#5a3a24'); poly(c, [bx + 1, by - 25, bx + 16, by - 6, bx + 1, by - 6], '#f0e8d8') }
+  if (lvl >= 2) rect(c, x0 - bw * .38, base - fh * .7, bw * .34, fh * .7, '#7a5a3a');
+  for (let f = 0; f < floors; f++) {
+    const y = base - fh * (f + 1); rect(c, x0, y, bw, fh, wall);
+    for (let i = 0; i < 3; i++) { const wx = x0 + bw * (.15 + i * .3); rect(c, wx, y + fh * .28, bw * .12, fh * .38, lvl >= 9 ? '#9ad8f0' : '#ffd890'); rect(c, wx, y + fh * .45, bw * .12, 2, wall) }
+  }
+  if (floors === 1) rect(c, x0 + bw * .44, base - fh * .62, bw * .12, fh * .62, '#4a2e1a');
+  const top = base - fh * floors;
+  if (lvl >= 10) { ell(c, w * .5, top, bw * .32, fh * .9, roof); rect(c, w * .5 - 1, top - fh * 1.3, 2, fh * .5, '#c89020'); circ(c, w * .5, top - fh * 1.3, 4, '#ffe080') }
+  else poly(c, [x0 - bw * .08, top, w * .5, top - fh * (.9 + lvl * .03), x0 + bw * 1.08, top], roof);
+  if (lvl >= 9) for (const s of [-1, 1]) { const tx = w * .5 + s * bw * .62; rect(c, tx - bw * .08, base - fh * (floors + .4), bw * .16, fh * (floors + .4), wall); poly(c, [tx - bw * .1, base - fh * (floors + .4), tx, base - fh * (floors + 1.1), tx + bw * .1, base - fh * (floors + .4)], roof) }
+  if (lvl >= 3) { rect(c, x0 + bw * .72, top - fh * .55, bw * .08, fh * .4, '#5a4a3a'); for (let i = 0; i < 3; i++) { const p = (t * .4 + i / 3) % 1; circ(c, x0 + bw * .76 + Math.sin(p * 6 + i) * 4, top - fh * .6 - p * h * .25, 3 + p * 6, `rgba(230,236,240,${.5 * (1 - p)})`) } }
+  if (lvl >= 6) { const fx = x0 + bw * .1, fy = top - fh * .2; rect(c, fx, fy - h * .14, 2, h * .14, '#3a2a1a'); poly(c, [fx + 2, fy - h * .14, fx + 18 + Math.sin(t * 4) * 2, fy - h * .12, fx + 2, fy - h * .1], lvl >= 8 ? '#3a6ad0' : '#c84a3a') }
+  for (let i = 0; i < 6; i++) { const p = (t * .15 + i / 6) % 1; rect(c, w * p, wy + h * .04 + (i % 3) * h * .07, w * .05, 1.5, 'rgba(255,255,255,.18)') }
+}
+function drawAquarium(t) {
+  const w = aqCv.clientWidth || 600, hgt = Math.round(Math.min(300, Math.max(190, w * .4))), d = Math.min(2, devicePixelRatio || 1);
+  if (aqCv.width !== Math.round(w * d) || aqCv.height !== Math.round(hgt * d)) { aqCv.width = Math.round(w * d); aqCv.height = Math.round(hgt * d); aqCv.style.height = hgt + 'px' }
+  const c = aqCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const h = hgt;
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#3a8aa8'); g.addColorStop(1, '#0f3446'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+  for (let i = 0; i < 4; i++) { c.fillStyle = 'rgba(255,255,255,.05)'; c.beginPath(); const x = w * (.1 + i * .25) + Math.sin(t * .5 + i) * 20; c.moveTo(x, 0); c.lineTo(x + 40, 0); c.lineTo(x + 90, h); c.lineTo(x + 30, h); c.fill() }
+  ell(c, w * .5, h + 6, w * .7, h * .14, '#c8b07a'); ell(c, w * .2, h, w * .2, h * .08, '#b09a68');
+  for (let i = 0; i < 7; i++) { const x = w * (.06 + i * .15), hh = h * (.25 + (i % 3) * .1); c.strokeStyle = i % 2 ? '#3a8a4a' : '#2a6a3a'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(x, h); c.quadraticCurveTo(x + Math.sin(t + i) * 12, h - hh / 2, x + Math.sin(t * 1.3 + i) * 8, h - hh); c.stroke() }
+  ell(c, w * .78, h - 10, 22, 12, '#7a8a8a'); ell(c, w * .72, h - 6, 14, 8, '#8a9a9a');
+  const F = AQ.fish;
+  if (!F.length) { c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '600 14px system-ui'; c.textAlign = 'center'; c.fillText('Akvaarium on tühi', w / 2, h / 2) }
+  F.forEach((f, i) => {
+    const sp = FD.sp[f.species]; if (!sp) return;
+    const L = Math.min(w * .22, 30 + f.rarity * 7 + (f.giant ? 10 : 0)), lane = h * (.18 + ((i * .37) % .62)), spd = .25 + ((i * 17) % 10) / 40, ph = i * 1.7;
+    const x = w / 2 + Math.sin(t * spd + ph) * (w / 2 - L * .7), dir = Math.cos(t * spd + ph) >= 0 ? -1 : 1, y = lane + Math.sin(t * 1.3 + i) * 6;
+    drawLook(c, x, y, L, sp.look, t + i, dir);
+  });
+  for (let i = 0; i < 10; i++) { const p = (t * .25 + i / 10) % 1; circ(c, w * (.15 + (i * .37) % .7) + Math.sin(p * 8 + i) * 4, h - p * h, 1.5 + (i % 3), 'rgba(255,255,255,.35)') }
+  c.strokeStyle = 'rgba(200,230,240,.35)'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
+}
+function paintHouses(root) {
+  root.querySelectorAll('canvas[data-house]').forEach(cv2 => { const w = cv2.clientWidth || 300, h = cv2.clientHeight || 170, d = 2; cv2.width = w * d; cv2.height = h * d; const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); drawHouse(c, w, h, +cv2.dataset.house, 1) });
+}
+function bonusTxt(hr) { return hr ? `müük +${Math.round(hr.sell_bonus * 100)}% · kogemus +${Math.round(hr.xp_bonus * 100)}% · sööta säästab ${Math.round(hr.bait_save * 100)}% · akvaariumis ${hr.slots} kohta` : 'boonuseid pole' }
+function tabMaja() {
+  if (AQ.visit) return visitHtml();
+  const L = FS.house || 0, cur = houseRow(L), nx = houseRow(L + 1);
+  let h = `<div class="fv-card"><h2>${cur ? esc(cur.name) : 'Sinu kalamaja'} <small class="lead">${L ? `tase ${L} / 10` : 'veel ehitamata'}</small></h2>
+    <canvas data-house="${L}" class="housecv"></canvas>
+    <p class="lead">${cur ? esc(cur.descr) + ' ' : 'Ehita kalamaja, et saada püsivaid boonuseid ja oma akvaarium. '}Praegu: <b>${bonusTxt(cur)}</b>.</p>`;
+  if (nx) {
+    const items = Object.entries(nx.items || {}), lvlOk = FS.level >= nx.min_fish_level, goldOk = FS.gold >= nx.gold, itOk = items.every(([k, q]) => ((FS.items || {})[k] || 0) >= q);
+    h += `<div class="srow"><div><b>${L ? 'Täienda' : 'Ehita'}: ${esc(nx.name)}</b><small>Annab: ${bonusTxt(nx)}</small>
+      <small><span style="color:${lvlOk ? 'var(--ok)' : 'var(--bad)'}">kalapüügi tase ${nx.min_fish_level}</span> · <span style="color:${goldOk ? 'var(--ok)' : 'var(--bad)'}">${fmt(nx.gold)} kulda</span>${items.map(([k, q]) => { const have = (FS.items || {})[k] || 0; return ` · <span style="color:${have >= q ? 'var(--ok)' : 'var(--bad)'}">${itemName(k)} ${Math.min(have, q)}/${q}</span>` }).join('')}</small></div>
+      <button class="btn" type="button" data-fa="house" ${lvlOk && goldOk && itOk ? '' : 'disabled'}>${L ? 'Täienda' : 'Ehita'}</button></div>`;
+  } else h += '<p class="lead"><b>Sinu kalamaja on kõige kõrgemal tasemel!</b></p>';
+  h += '</div>';
+  if (L) {
+    const aq = FS.aquarium || [], slots = cur.slots, perDay = (FS.aq_score || 0) * 3;
+    AQ.fish = aq;
+    h += `<div class="fv-card"><h2>Akvaarium <small class="lead">${aq.length} / ${slots}</small></h2><div id="fvAqSlot"></div>
+      <p class="lead">Ilu <b>${FS.aq_score || 0}</b> · külastajad toovad <b>${fmt(perDay)} kulda päevas</b> (kogub kuni 2 päeva) · imetlusi ${FS.aq_likes || 0}. Haruldased ja rekordsuured kalad on ilusamad. Akvaariumis olevat kala ei saa müüa.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button class="btn sm" type="button" data-fa="aqcollect" ${FS.aq_pending > 0 ? '' : 'disabled'}>Korja ${fmt(FS.aq_pending || 0)} kulda</button></div>
+      ${aq.length ? `<div class="inv">${aq.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqtake" data-arg="${f.id}" role="button" tabindex="0" title="Võta akvaariumist välja" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fmt1(+f.weight)} kg · võta välja</small></div>` }).join('')}</div>` : ''}`;
+    const cand = (FS.inventory || []).slice().sort((a, b) => aqScore(b) - aqScore(a) || b.weight - a.weight).slice(0, 12);
+    h += aq.length < slots ? `<div class="sec-h">Lisa akvaariumi <small>sinu ilusaimad kalad</small></div>${cand.length ? `<div class="inv">${cand.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqput" data-arg="${f.id}" role="button" tabindex="0" style="border-color:${rc}44">${f.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fmt1(+f.weight)} kg · pane sisse</small></div>` }).join('')}</div>` : '<p class="lead">Saak on tühi. Püüa kalu, et neid akvaariumi panna.</p>'}` : '<p class="lead">Akvaarium on täis. Täienda kalamaja, et saada rohkem kohti, või võta mõni kala välja.</p>';
+    h += '</div>';
+  }
+  h += `<div class="fv-card"><h2>Teiste mängijate akvaariumid</h2><p class="lead">Külasta teisi kalureid ja imetle nende akvaariumi. Iga imetlus toob omanikule 15 kulda (üks kord päevas iga akvaariumi kohta).</p>`;
+  if (!AQ.list) { h += '<p class="lead">Laadin…</p>'; loadAqList() }
+  else if (!AQ.list.filter(a => !a.me).length) h += '<p class="lead">Teistel mängijatel pole veel akvaariumi. Ole esimene!</p>';
+  else h += `<table class="ctable"><thead><tr><th>#</th><th>Kalur</th><th>Ilu</th><th></th></tr></thead><tbody>${AQ.list.map((a, i) => `<tr class="${a.me ? 'me' : ''}"><td>${i + 1}</td><td><b>${esc(a.name)}</b><br><small class="lead">${houseRow(a.house) ? esc(houseRow(a.house).name) : ''} · ${a.n} kala · ${a.likes} imetlust</small></td><td class="n">${a.score}</td><td>${a.me ? '<small class="lead">sina</small>' : `<button class="btn sm ghost" type="button" data-fa="aqvisit" data-arg="${a.id}">Külasta</button>`}</td></tr>`).join('')}</tbody></table>`;
+  return h + '</div>';
+}
+function visitHtml() {
+  const v = AQ.visit; AQ.fish = v.fish;
+  return `<div class="fv-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn ghost sm" type="button" data-fa="aqback">← Tagasi</button><h2 style="margin:0">Akvaarium: ${esc(v.name)}</h2></div>
+    <p class="lead">${v.title ? esc(v.title) + ' · ' : ''}kalapüügi tase ${v.level} · ${esc(v.house_name || '')} · ilu ${v.score} · ${v.likes} imetlust</p>
+    <canvas data-house="${v.house}" class="housecv"></canvas>
+    <div id="fvAqSlot"></div>
+    ${v.fish.length ? `<div class="inv">${v.fish.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${f.giant ? ' · rekordsuurus' : ''}</small><small>${fmt1(+f.weight)} kg</small></div>` }).join('')}</div>` : '<p class="lead">Akvaarium on veel tühi.</p>'}
+    <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
+}
+async function loadAqList() { if (AQ.loading) return; AQ.loading = true; try { AQ.list = await rpc('fish_aquariums') } catch (e) { AQ.list = [] } AQ.loading = false; if (FV.open && FV.tab === 'maja') renderFV() }
+async function aqCall(fn, args, okMsg) {
+  if (FV.busy) return; FV.busy = true;
+  try { const r = await rpc(fn, args); if (okMsg) toast(okMsg(r), 'good', 'fish'); await refreshFS(); AQ.list = null; afterAch(r.ach); FV.busy = false; return r } catch (e) { toast(e.message, 'bad') }
+  FV.busy = false;
+}
+
 /* ---------- tegevused ---------- */
 async function fUse(action, ids, choice) {
   if (FV.busy) return; FV.busy = true;
@@ -690,7 +802,7 @@ document.addEventListener('click', async e => {
   const a = el.dataset.fa, arg = el.dataset.arg;
   switch (a) {
     case 'close': closeFishView(); break;
-    case 'tab': FV.tab = arg; renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
+    case 'tab': FV.tab = arg; if (arg === 'maja') { AQ.visit = null; AQ.list = null } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
     case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
@@ -714,6 +826,14 @@ document.addEventListener('click', async e => {
     case 'deliver': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_order_deliver', { p_idx: +arg }); toast(`Kokk on õnnelik! +${r.gold} kulda, +${r.xp} kogemust, +${r.fame} kuulsust ja +${r.food} toitu kuningriiki.`, 'gold', 'fish'); await refreshFS(); FV.orders = await rpc('fish_orders_today'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'claim': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_claim_prizes'); if (!r.prizes.length) toast('Uusi võidupreemiaid pole. Ole parim ja proovi uuesti!', 'info'); r.prizes.forEach(p => toast(`${COMPN[p.comp][0]}: ${p.place}. koht! +${p.gold} kulda, +${p.xp} kogemust${p.title ? `, tiitel „${p.title}“` : ''}`, 'gold', 'fame')); await refreshFS(); FV.comps = await rpc('fish_competitions'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'reloadComp': FV.comps = null; renderFV(true); loadSide(); break;
+    case 'house': { const r = await aqCall('fish_house_upgrade', {}, r => `Valmis: ${r.name}! Kalamaja tase ${r.level}.`); renderFV(true); break }
+    case 'aqput': { const r = await aqCall('fish_aquarium_put', { p_catch: +arg }, () => 'Kala ujub nüüd sinu akvaariumis.'); if (r && FV.tab === 'puuk') FV.result = null; renderFV(true); break }
+    case 'aqputSel': { const id = [...FV.sel][0]; if (!id) break; const r = await aqCall('fish_aquarium_put', { p_catch: id }, () => 'Kala ujub nüüd sinu akvaariumis.'); if (r) FV.sel.delete(id); renderFV(true); break }
+    case 'aqtake': await aqCall('fish_aquarium_take', { p_catch: +arg }, () => 'Kala on tagasi saagis.'); renderFV(true); break;
+    case 'aqcollect': await aqCall('fish_aquarium_collect', {}, r => `Akvaariumi külastajad tõid ${fmt(r.gold)} kulda!`); renderFV(true); break;
+    case 'aqvisit': if (FV.busy) return; FV.busy = true; try { AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); $('#fishView').scrollTop = 0; break;
+    case 'aqback': AQ.visit = null; renderFV(true); break;
+    case 'aqlike': if (FV.busy) return; FV.busy = true; try { await rpc('fish_aquarium_like', { p_user: arg }); toast('Imetlesid akvaariumi! Omanik sai 15 kulda.', 'good', 'fish'); AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }); AQ.list = null } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'qclaim': { if (FV.busy) return; FV.busy = true; const [per, idx] = arg.split(':'); try { const r = await rpc('fish_quest_claim', { p_period: per, p_idx: +idx }); toast(`Ülesanne täidetud! +${fmt(r.gold)} kulda, +${fmt(r.xp)} kogemust${itemsTxt(r.items, false).replace(' ning kotti:', ', kotti:')}`, 'gold', 'fish'); await refreshFS(); FV.quests = await rpc('fish_quests'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
     case 'isell': { if (FV.busy) return; FV.busy = true; const [it, q] = arg.split(':'); try { const r = await rpc('fish_item_sell', { p_item: it, p_qty: +q }); toast(`Müüsid ${itemName(it)} × ${r.qty} ja said ${fmt(r.gold)} kulda.`, 'good', 'gold'); await refreshFS() } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
   }

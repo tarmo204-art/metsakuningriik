@@ -198,6 +198,28 @@ do $$ declare t text; begin
   create policy "kõik loevad" on public.fish_items for select to anon, authenticated using (true);
 end $$;
 
+-- 2c. Laiendus 2: kalamaja ja akvaarium
+alter table public.fishers add column if not exists house_level int not null default 0;
+alter table public.fishers add column if not exists aq_at timestamptz not null default now();
+alter table public.fishers add column if not exists aq_likes int not null default 0;
+create table if not exists public.fish_house_levels (
+  level int primary key, name text not null, descr text not null default '', gold int not null, min_fish_level int not null,
+  items jsonb not null default '{}', sell_bonus numeric not null, xp_bonus numeric not null, bait_save numeric not null, slots int not null
+);
+create table if not exists public.fish_aq_likes (
+  owner uuid not null references auth.users(id) on delete cascade, visitor uuid not null references auth.users(id) on delete cascade,
+  day date not null, primary key (owner, visitor, day)
+);
+do $$ declare t text; begin
+  foreach t in array array['fish_house_levels','fish_aq_likes'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+  grant select on public.fish_house_levels to anon, authenticated;
+  drop policy if exists "kõik loevad" on public.fish_house_levels;
+  create policy "kõik loevad" on public.fish_house_levels for select to anon, authenticated using (true);
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 3. Algandmed
 -- ---------------------------------------------------------------------
@@ -346,6 +368,28 @@ insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
+insert into public.fish_house_levels (level,name,descr,gold,min_fish_level,items,sell_bonus,xp_bonus,bait_save,slots) values
+ (1,'Kaluri onn','Väike onn järve kaldal. Siia mahub esimene akvaarium.',300,3,'{}',0.02,0.03,0.04,3),
+ (2,'Paadikuur','Kuur paadi ja võrkude jaoks.',800,6,'{"karp":5}',0.04,0.06,0.08,4),
+ (3,'Kalurionn','Soe onn suitsuahjuga.',1800,9,'{"karp":10,"parl":2}',0.06,0.09,0.12,5),
+ (4,'Kalamaja','Päris kalamaja oma sillaga.',3500,13,'{"parl":4,"merevaik":3}',0.08,0.12,0.16,6),
+ (5,'Suur kalamaja','Kahekordne maja suure akvaariumiga.',6000,17,'{"merevaik":5,"ruun":2}',0.10,0.15,0.20,7),
+ (6,'Kalurimõis','Mõis, kuhu tullakse kaugelt kalu vaatama.',10000,22,'{"ruun":3,"sormus":2}',0.12,0.18,0.24,8),
+ (7,'Sadamamaja','Maja oma väikese sadamaga.',16000,27,'{"sormus":3,"mustparl":1}',0.14,0.21,0.28,9),
+ (8,'Kuninglik kalamaja','Kuningas ise käib siin kala söömas.',25000,33,'{"mustparl":2,"kristall":1}',0.16,0.24,0.32,10),
+ (9,'Järvede loss','Klaasseintega loss vee kohal.',40000,40,'{"kristall":2,"soomus":1}',0.18,0.27,0.36,11),
+ (10,'Veekuninga palee','Legendaarne palee, mille akvaariumist räägib kogu kuningriik.',65000,46,'{"kristall":3,"soomus":2}',0.20,0.30,0.40,12)
+on conflict (level) do update set name=excluded.name, descr=excluded.descr, gold=excluded.gold, min_fish_level=excluded.min_fish_level,
+  items=excluded.items, sell_bonus=excluded.sell_bonus, xp_bonus=excluded.xp_bonus, bait_save=excluded.bait_save, slots=excluded.slots;
+
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('maja1','Oma nurk','Ehita kalamaja',null,200,100,29),
+ ('maja5','Suur kalamaja','Täienda kalamaja 5. tasemele','Majaperemees',1500,800,30),
+ ('maja10','Veekuninga palee','Täienda kalamaja 10. tasemele','Veekuningas',10000,5000,31),
+ ('akvaarium','Akvaarist','Pane akvaariumi 5 kala',null,300,150,32)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
@@ -467,7 +511,9 @@ begin
       when 'kuldkala' then coalesce(hasgold,false) when 'tellimused' then f.orders_done >= 20
       when 'voitja' then f.comp_wins >= 1 when 'murdja' then f.broken >= 5
       when 'ilmakalur' then nweather_all > 0 and nweather >= nweather_all when 'kuldkirst' then goldchest
-      when 'usin' then f.quests_done >= 25 when 'kott' then nitems >= 30 else false end;
+      when 'usin' then f.quests_done >= 25 when 'kott' then nitems >= 30
+      when 'maja1' then f.house_level >= 1 when 'maja5' then f.house_level >= 5 when 'maja10' then f.house_level >= 10
+      when 'akvaarium' then (select count(*) from public.fish_catches where user_id = u and status = 'aquarium') >= 5 else false end;
     if ok then
       insert into public.fish_unlocked(user_id, ach) values (u, a.id) on conflict do nothing;
       update public.fishers set gold = gold + a.reward_gold,
@@ -601,7 +647,8 @@ begin
     'orders_done', f.orders_done, 'comp_wins', f.comp_wins, 'biggest', f.biggest, 'biggest_species', f.biggest_species,
     'title', f.title, 'titles', to_jsonb(f.titles), 'book', book, 'ach', v_ach, 'by_rarity', byr, 'inventory', inv,
     'inbox', inbox, 'active', act, 'weather', w, 'is_night', fx_is_night(), 'is_winter', fx_is_winter(), 'today', fx_today(),
-    'items', v_items, 'quests_done', f.quests_done, 'badges', fx_badges(u));
+    'items', v_items, 'quests_done', f.quests_done, 'badges', fx_badges(u),
+    'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes);
 end $$;
 
 create or replace function public.fish_odds(p_spot text, p_bait text) returns numeric[] language plpgsql security definer set search_path = public as $$
@@ -628,7 +675,9 @@ begin
   if b.consumable then
     cnt := coalesce((f.baits ->> b.id)::int, 0);
     if cnt < 1 then raise exception 'Sul pole seda sööta. Osta seda poest.'; end if;
-    update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(cnt - 1)) where user_id = u;
+    if random() >= coalesce((fx_house(u)).bait_save, 0) then
+      update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(cnt - 1)) where user_id = u;
+    end if;
   elsif b.price > 0 and not (f.baits ? b.id) then
     raise exception 'Sul pole seda peibutist.';
   end if;
@@ -787,6 +836,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0)));
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -813,7 +863,8 @@ begin
   select coalesce(qty, 0) into sold from fish_sales where user_id = u and day = d and species = c.species;
   sold := coalesce(sold, 0);
   avgw := (s.min_w + s.max_w) / 2;
-  v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0);
+  v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
+       * (1 + coalesce((fx_house(u)).sell_bonus, 0));
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return greatest(1, round(v));
@@ -1226,6 +1277,130 @@ create or replace function public.kingdom_news(p_after bigint default 0) returns
 $$;
 
 -- ---------------------------------------------------------------------
+-- 6c. Laiendus 2: kalamaja ja akvaarium
+-- ---------------------------------------------------------------------
+create or replace function public.fx_house(u uuid) returns public.fish_house_levels language sql stable as
+$$ select h.* from public.fishers f join public.fish_house_levels h on h.level = f.house_level where f.user_id = u $$;
+
+-- Akvaariumi ilu: haruldasemad ja rekordsuured kalad on ilusamad
+create or replace function public.fx_aq_score(u uuid) returns int language sql stable as
+$$ select coalesce(sum(rarity * rarity * 2 + case when giant then 10 else 0 end), 0)::int from public.fish_catches where user_id = u and status = 'aquarium' $$;
+
+-- Külastajad toovad iga päev kulda (ilu × 3 päevas, kogub kuni 48 tundi)
+create or replace function public.fx_aq_pending(u uuid) returns int language sql stable as $$
+  select floor(public.fx_aq_score(u) * 3 * least(48, extract(epoch from (now() - f.aq_at)) / 3600) / 24)::int
+  from public.fishers f where f.user_id = u
+$$;
+
+-- arvutab kogunenud kulla kassasse (enne igat akvaariumi muutust, et ilu ei saaks tagantjärele tõsta)
+create or replace function public.fx_aq_settle(u uuid) returns int language plpgsql as $$
+declare g int;
+begin
+  perform 1 from public.fishers where user_id = u for update;
+  g := coalesce(public.fx_aq_pending(u), 0);
+  update public.fishers set gold = gold + g, aq_at = now() where user_id = u;
+  return g;
+end $$;
+
+create or replace function public.fish_house_upgrade() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; h fish_house_levels; it record; have int;
+begin
+  perform fx_fisher(u);
+  select * into f from fishers where user_id = u for update;
+  select * into h from fish_house_levels where level = f.house_level + 1;
+  if h.level is null then raise exception 'Kalamaja on juba kõige kõrgemal tasemel'; end if;
+  if f.level < h.min_fish_level then raise exception 'Selle ehitamiseks on vaja kalapüügi %. taset', h.min_fish_level; end if;
+  if f.gold < h.gold then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', h.gold; end if;
+  for it in select key, value::int as qty from jsonb_each_text(h.items) loop
+    select qty into have from fisher_items where user_id = u and item = it.key for update;
+    if coalesce(have, 0) < it.qty then raise exception 'Kotis pole piisavalt esemeid: %', (select name from fish_items where id = it.key); end if;
+  end loop;
+  for it in select key, value::int as qty from jsonb_each_text(h.items) loop
+    update fisher_items set qty = qty - it.qty where user_id = u and item = it.key;
+  end loop;
+  perform fx_aq_settle(u);
+  update fishers set gold = gold - h.gold, house_level = h.level where user_id = u;
+  if h.level >= 5 then perform fx_news(u, 'house', jsonb_build_object('level', h.level, 'name', h.name)); end if;
+  return jsonb_build_object('level', h.level, 'name', h.name, 'cost', h.gold, 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.fish_aquarium_put(p_catch bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); h fish_house_levels; n int; c fish_catches; g int;
+begin
+  perform fx_fisher(u);
+  g := fx_aq_settle(u);  -- lukustab ka mängija rea
+  h := fx_house(u);
+  if h.level is null then raise exception 'Akvaariumi jaoks ehita esmalt kalamaja'; end if;
+  select * into c from fish_catches where id = p_catch and user_id = u and status in ('kept','trophy') for update;
+  if c.id is null then raise exception 'Seda kala ei leitud sinu saagist'; end if;
+  select count(*) into n from fish_catches where user_id = u and status = 'aquarium';
+  if n >= h.slots then raise exception 'Akvaarium on täis (% kohta). Täienda kalamaja, et saada rohkem kohti.', h.slots; end if;
+  update fish_catches set status = 'aquarium' where id = c.id;
+  return jsonb_build_object('ok', true, 'collected', g, 'score', fx_aq_score(u), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.fish_aquarium_take(p_catch bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); g int;
+begin
+  perform fx_fisher(u);
+  g := fx_aq_settle(u);
+  update fish_catches set status = 'kept' where id = p_catch and user_id = u and status = 'aquarium';
+  if not found then raise exception 'Seda kala pole sinu akvaariumis'; end if;
+  return jsonb_build_object('ok', true, 'collected', g, 'score', fx_aq_score(u));
+end $$;
+
+create or replace function public.fish_aquarium_collect() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); g int;
+begin
+  perform fx_fisher(u);
+  g := fx_aq_settle(u);
+  return jsonb_build_object('gold', g);
+end $$;
+
+create or replace function public.fx_aq_fish(u uuid) returns jsonb language sql stable as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'giant', giant)
+         order by rarity desc, weight desc), '[]') from public.fish_catches where user_id = u and status = 'aquarium'
+$$;
+
+create or replace function public.fish_aquarium_view(p_user uuid) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare u uuid := fx_uid(); p profiles; f fishers; h fish_house_levels;
+begin
+  select * into p from profiles where id = p_user;
+  select * into f from fishers where user_id = p_user;
+  if f.user_id is null or (coalesce(p.hidden, false) and p_user <> u) then raise exception 'Seda akvaariumi ei saa vaadata'; end if;
+  h := fx_house(p_user);
+  return jsonb_build_object('user', p_user, 'name', coalesce(p.name, 'Kalur'), 'kingdom', p.kingdom, 'title', f.title, 'level', f.level,
+    'house', f.house_level, 'house_name', h.name, 'slots', coalesce(h.slots, 0), 'score', fx_aq_score(p_user), 'likes', f.aq_likes,
+    'liked', exists (select 1 from fish_aq_likes where owner = p_user and visitor = u and day = fx_today()),
+    'me', p_user = u, 'fish', fx_aq_fish(p_user));
+end $$;
+
+create or replace function public.fish_aquariums() returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by x.score desc, x.likes desc), '[]') from (
+    select f.user_id as id, coalesce(p.name, 'Kalur') as name, p.kingdom, f.title, f.house_level as house, f.aq_likes as likes,
+      public.fx_aq_score(f.user_id) as score, (select count(*) from fish_catches c where c.user_id = f.user_id and c.status = 'aquarium') as n,
+      f.user_id = auth.uid() as me
+    from fishers f join profiles p on p.id = f.user_id
+    where f.house_level > 0 and (not p.hidden or f.user_id = auth.uid())
+    order by public.fx_aq_score(f.user_id) desc limit 30) x
+  where x.n > 0 or x.me
+$$;
+
+-- Imetle teise mängija akvaariumi (1 kord päevas iga akvaariumi kohta). Omanik saab 15 kulda.
+create or replace function public.fish_aquarium_like(p_user uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p profiles;
+begin
+  perform fx_fisher(u);
+  if p_user = u then raise exception 'Oma akvaariumi ei saa imetleda'; end if;
+  select * into p from profiles where id = p_user;
+  if p.id is null or p.hidden or not exists (select 1 from fishers where user_id = p_user and house_level > 0) then raise exception 'Seda akvaariumi ei leitud'; end if;
+  insert into fish_aq_likes(owner, visitor, day) values (p_user, u, fx_today()) on conflict do nothing;
+  if not found then raise exception 'Sa juba imetlesid seda akvaariumi täna'; end if;
+  update fishers set aq_likes = aq_likes + 1, gold = gold + 15 where user_id = p_user;
+  return jsonb_build_object('ok', true);
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -1233,7 +1408,8 @@ do $$ declare r record; begin
            where n.nspname = 'public' and (p.proname like 'fx\_%' or p.proname in
              ('set_profile','kingdom_leaderboard','save_kingdom','fish_state','fish_odds','fish_cast','fish_hook','fish_lose','fish_land',
               'fish_market','fish_use','fish_sell_all','fish_shop','fish_orders_today','fish_order_deliver','kingdom_claim',
-              'fish_competitions','fish_claim_prizes','fish_item_sell','fish_quests','fish_quest_claim','kingdom_news')) loop
+              'fish_competitions','fish_claim_prizes','fish_item_sell','fish_quests','fish_quest_claim','kingdom_news',
+              'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
