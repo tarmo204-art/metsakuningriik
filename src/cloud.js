@@ -209,20 +209,31 @@ setInterval(() => { if (running) claimInbox() }, 60000);
 /* ---------- kolimine claude.ai mängust ---------- */
 function showImport() {
   showModal(() => `<h2>Too kuningriik üle</h2><p>Ava claude.ai-s vana Metsakuningriik, mine vahekaardile „Kuningriik“ ja vajuta „Kopeeri kolimiskood“. Kleebi kood siia.</p>
-    <textarea class="importbox" id="importCode" placeholder="MK1:…"></textarea>
+    <textarea class="importbox" id="importCode" placeholder="MK2:…"></textarea>
     <p class="lead">Kalapüügi areng algab uues mängus otsast, sest seda hoiab nüüd server.</p>
     <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Loobu</button><button class="btn" type="button" data-cl="doImport">Too kuningriik üle</button></div>`);
 }
-function decodeCode(t) {
-  t = (t || '').trim().replace(/\s+/g, '');
-  if (!t.startsWith('MK1:')) throw new Error('See ei ole Metsakuningriigi kolimiskood.');
-  const json = decodeURIComponent(escape(atob(t.slice(4))));
-  const o = JSON.parse(json);
-  if (!o || !o.res || !o.regions || !o.st) throw new Error('Kood on vigane või poolik.');
+const BADCODE = 'Kood on poolik või muutunud. Vajuta vanas mängus uuesti „Kopeeri kolimiskood“ ja kleebi see siia tervikuna, ilma midagi lisamata.';
+async function decodeCode(t) {
+  t = (t || '').replace(/\s+/g, '');
+  const i = Math.max(t.indexOf('MK1:'), t.indexOf('MK2:'));
+  if (i < 0) throw new Error('See ei ole Metsakuningriigi kolimiskood. Kood algab tähtedega MK1: või MK2:');
+  const ver = t.slice(i, i + 3); t = t.slice(i + 4).replace(/[^A-Za-z0-9+/=]/g, '');
+  let json;
+  try {
+    const bin = atob(t);
+    if (ver === 'MK2') {
+      const u = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+      const st = new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'));
+      json = await new Response(st).text();
+    } else json = decodeURIComponent(escape(bin));
+  } catch (e) { throw new Error(BADCODE) }
+  let o; try { o = JSON.parse(json) } catch (e) { throw new Error(BADCODE) }
+  if (!o || !o.res || !o.regions || !o.st) throw new Error(BADCODE);
   return o;
 }
-function doImport() {
-  let o; try { o = decodeCode($('#importCode').value) } catch (e) { toast(e.message || 'Kood on vigane.', 'bad'); return }
+async function doImport() {
+  let o; try { o = await decodeCode($('#importCode').value) } catch (e) { toast(e.message || BADCODE, 'bad'); return }
   delete o.fish; o.last = Date.now();
   if (o.cave) o.cave = null;
   S = migrate(o); closeModal(); save(); cloudSave(true);
