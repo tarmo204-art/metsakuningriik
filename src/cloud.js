@@ -280,6 +280,7 @@ function renderLbWeb() {
   else if (!CL.lb) h += `<div class="card"><p class="lead">Laadin edetabelit…</p></div>`;
   else if (!CL.lb.length) h += `<div class="card"><p class="lead">Edetabel on veel tühi. Sinu kuningriik ilmub siia peagi.</p></div>`;
   else h += `<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th><th>Aardeid</th></tr></thead><tbody>${CL.lb.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="rk">${i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : i + 1}</td><td><b>${esc(r.kingdom)}</b><small>${esc(r.name)}${r.me ? ' · sina' : ''}</small></td><td class="num">${r.level}</td><td class="num">${fmt(r.fame)}</td><td class="num">${r.regions}</td><td class="num">${r.treasures}</td></tr>`).join('')}</tbody></table></div>`;
+  if (typeof newsHtml === 'function') { if (!NEWS.list || Date.now() - NEWS.at > 60000) { NEWS.at = Date.now(); loadNews() } h += `<div class="sec-h">Kuningriigi uudised <small>kalapüügi erakordsed hetked</small></div><div class="card fvnews">${newsHtml(8)}</div>` }
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-act="lbHide">${S.lbHidden ? 'Näita mind edetabelis' : 'Peida mind edetabelist'}</button><span class="lead" style="font-size:12.5px">${S.lbHidden ? 'Sinu kuningriik on edetabelist peidetud.' : 'Teised näevad sinu kuningriigi ja valitseja nime.'}</span></div>`;
   return h;
 }
