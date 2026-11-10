@@ -38,7 +38,7 @@ function treeSprite(kind, stage, sk, snow, v, s) {
   return natSprite(`t|${kind}|${stage}|${sk}|${snow ? 1 : 0}|${v}`, s, (c, S0) => {
     const rnd = natRand(v * 9973 + stage * 131 + kind.length * 17), sc = [0.3, 0.5, 0.75, 1][stage], u = S0 * sc;
     // pehme vari
-    const sh = c.createRadialGradient(0, 0, 0, 0, 0, u * .45); sh.addColorStop(0, 'rgba(10,25,15,.38)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(u * .08, 0, u * .5, u * .14, 0, 0, 6.283); c.fill();
+    const sh = c.createRadialGradient(0, 0, 0, 0, 0, u * .45); sh.addColorStop(0, snow ? 'rgba(40,60,80,.16)' : 'rgba(10,25,15,.38)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(u * .08, 0, u * .5, u * .14, 0, 0, 6.283); c.fill();
     if (stage === 0) {
       c.strokeStyle = '#6b4a2a'; c.lineWidth = Math.max(1, S0 / 30); c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(S0 * .02, -S0 * .15, 0, -S0 * .3); c.stroke();
       for (const [dx, dy, a] of [[-.07, -.22, -.5], [.07, -.27, .5], [0, -.31, 0]]) { c.save(); c.translate(dx * S0, dy * S0); c.rotate(a); const g = c.createLinearGradient(0, -S0 * .04, 0, S0 * .04); g.addColorStop(0, '#a8e07a'); g.addColorStop(1, '#4f9a3e'); c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, S0 * .075, S0 * .035, 0, 0, 6.283); c.fill(); c.restore() }
@@ -115,7 +115,7 @@ function treeSprite(kind, stage, sk, snow, v, s) {
 function rockSprite(kind, size, gold, moss, snow, v, s) {
   return natSprite(`r|${kind}|${size}|${gold}|${moss}|${snow ? 1 : 0}|${v}`, s, (c, S0) => {
     const rnd = natRand(v * 7919 + size * 31 + (kind === 'goldvein' ? 5 : 0)), k = .55 + .45 * size / 8, rw = S0 * .32 * k, rh = S0 * .26 * k;
-    const sh = c.createRadialGradient(0, 0, 0, 0, 0, rw * 1.3); sh.addColorStop(0, 'rgba(10,20,15,.45)'); sh.addColorStop(1, 'rgba(10,20,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(rw * .1, 0, rw * 1.25, rh * .35, 0, 0, 6.283); c.fill();
+    const sh = c.createRadialGradient(0, 0, 0, 0, 0, rw * 1.3); sh.addColorStop(0, snow ? 'rgba(40,60,80,.2)' : 'rgba(10,20,15,.45)'); sh.addColorStop(1, 'rgba(10,20,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(rw * .1, 0, rw * 1.25, rh * .35, 0, 0, 6.283); c.fill();
     // ebakorrapärane ümar rahn
     const pts = []; const n = 9; for (let i = 0; i < n; i++) { const a = Math.PI + i / (n - 1) * Math.PI, r = .85 + rnd() * .25; pts.push([Math.cos(a) * rw * r, -Math.abs(Math.sin(a)) * rh * 1.6 * r - rh * .05]) }
     c.beginPath(); c.moveTo(-rw, 0); for (let i = 0; i < pts.length; i++) { const [px, py] = pts[i], [qx, qy] = pts[Math.min(pts.length - 1, i + 1)]; c.quadraticCurveTo(px, py, (px + qx) / 2, (py + qy) / 2) } c.lineTo(rw, 0); c.quadraticCurveTo(0, rh * .25, -rw, 0); c.closePath();
@@ -137,12 +137,19 @@ function rockSprite(kind, size, gold, moss, snow, v, s) {
 function bushSprite(ripe, sk, snow, v, region, s) {
   return natSprite(`b|${ripe ? 1 : 0}|${sk}|${snow ? 1 : 0}|${v}|${region}`, s, (c, S0) => {
     const rnd = natRand(v * 4111 + 7), r = S0 * .33;
-    const sh = c.createRadialGradient(0, 0, 0, 0, 0, r * 1.2); sh.addColorStop(0, 'rgba(10,25,15,.4)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(r * .1, 0, r * 1.15, r * .3, 0, 0, 6.283); c.fill();
+    const sh = c.createRadialGradient(0, 0, 0, 0, 0, r * 1.2); sh.addColorStop(0, snow ? 'rgba(40,60,80,.16)' : 'rgba(10,25,15,.4)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(r * .1, 0, r * 1.15, r * .3, 0, 0, 6.283); c.fill();
     const pal = { kevad: ['#3f8a3e', '#55a24a', '#7cc35c'], suvi: ['#2c6a34', '#3a8242', '#5aa452'], sygis: ['#9a4a2a', '#c06a2a', '#d8a040'], talv: null }[sk];
     if (!pal || snow) {
-      c.strokeStyle = '#5a3a24'; c.lineWidth = Math.max(.6, S0 * .012); for (let i = 0; i < 9; i++) { const a = -Math.PI * (.15 + rnd() * .7); c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(Math.cos(a) * r * .5, Math.sin(a) * r * .5, Math.cos(a) * r * (.9 + rnd() * .3), Math.sin(a) * r * (.9 + rnd() * .3)); c.stroke() }
-      if (snow) { c.fillStyle = 'rgba(248,252,255,.92)'; c.beginPath(); c.ellipse(0, -r * .7, r * .8, r * .22, 0, 0, 6.283); c.fill() }
-      if (ripe && !snow) for (let i = 0; i < 5; i++) { const bx = (rnd() - .5) * r * 1.4, by = -r * (.3 + rnd() * .6); c.fillStyle = '#c8344f'; c.beginPath(); c.arc(bx, by, S0 * .03, 0, 6.283); c.fill() }
+      // raagus põõsas: hargnevad oksad, lumi okste peal väikeste tükkidena
+      const tips = [];
+      const twig = (x, y, a, len, w, d) => { const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len; c.strokeStyle = d ? '#7a5038' : '#4a2e1c'; c.lineWidth = Math.max(.4, w); c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + Math.cos(a + .25) * len * .5, y + Math.sin(a + .25) * len * .5, x2, y2); c.stroke();
+        if (d < 2) { twig(x2, y2, a - .35 - rnd() * .3, len * .6, w * .65, d + 1); twig(x2, y2, a + .35 + rnd() * .3, len * .6, w * .65, d + 1) } else tips.push([x2, y2]) };
+      for (let i = 0; i < 6; i++) twig((rnd() - .5) * r * .3, 0, -Math.PI * (.22 + i / 5 * .56) + (rnd() - .5) * .2, r * (.45 + rnd() * .2), S0 * .014, 0);
+      if (snow) {
+        for (const [tx, ty] of tips) if (rnd() < .55) { const rr = S0 * (.012 + rnd() * .014); c.fillStyle = '#eef4f8'; c.beginPath(); c.ellipse(tx, ty + rr * .2, rr * 1.4, rr * .8, 0, 0, 6.283); c.fill(); c.fillStyle = 'rgba(160,180,200,.5)'; c.beginPath(); c.ellipse(tx + rr * .3, ty + rr * .6, rr, rr * .3, 0, 0, 6.283); c.fill() }
+        const g = c.createRadialGradient(0, -r * .05, 0, 0, -r * .05, r * .7); g.addColorStop(0, 'rgba(250,252,255,.95)'); g.addColorStop(.6, 'rgba(236,243,248,.7)'); g.addColorStop(1, 'rgba(236,243,248,0)'); c.fillStyle = g; c.beginPath(); c.ellipse(0, -r * .05, r * .7, r * .2, 0, 0, 6.283); c.fill();
+      }
+      if (ripe && !snow) for (let i = 0; i < 5; i++) { const [bx, by] = tips[Math.floor(rnd() * tips.length)]; c.fillStyle = '#c8344f'; c.beginPath(); c.arc(bx, by, S0 * .025, 0, 6.283); c.fill() }
       return;
     }
     // lehtedest küngas
@@ -163,7 +170,7 @@ function bushSprite(ripe, sk, snow, v, region, s) {
 function stumpSprite(v, snow, s) {
   return natSprite(`s|${v}|${snow ? 1 : 0}`, s, (c, S0) => {
     const rnd = natRand(v * 331), w = S0 * .14, h = S0 * .16;
-    const sh = c.createRadialGradient(0, 0, 0, 0, 0, w * 2); sh.addColorStop(0, 'rgba(10,25,15,.4)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(w * .2, 0, w * 1.8, h * .45, 0, 0, 6.283); c.fill();
+    const sh = c.createRadialGradient(0, 0, 0, 0, 0, w * 2); sh.addColorStop(0, snow ? 'rgba(40,60,80,.16)' : 'rgba(10,25,15,.4)'); sh.addColorStop(1, 'rgba(10,25,15,0)'); c.fillStyle = sh; c.beginPath(); c.ellipse(w * .2, 0, w * 1.8, h * .45, 0, 0, 6.283); c.fill();
     const g = c.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, '#8a5a34'); g.addColorStop(.5, '#6b4528'); g.addColorStop(1, '#3e2614'); c.fillStyle = g;
     c.beginPath(); c.moveTo(-w * 1.25, 0); c.quadraticCurveTo(-w, -h * .3, -w, -h); c.lineTo(w, -h); c.quadraticCurveTo(w, -h * .3, w * 1.3, 0); c.closePath(); c.fill();
     c.strokeStyle = 'rgba(30,15,5,.5)'; c.lineWidth = Math.max(.5, S0 * .008); for (let i = 0; i < 4; i++) { const x = -w * .7 + i * w * .45; c.beginPath(); c.moveTo(x, -h * .95); c.lineTo(x + (rnd() - .5) * w * .2, -h * .1); c.stroke() }
