@@ -3915,10 +3915,16 @@ function rockSprite(kind, size, gold, moss, snow, v, s) {
     const g2 = c.createLinearGradient(-rw, 0, rw, 0); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(.6, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,.28)'); c.fillStyle = g2; c.fillRect(-rw, -rh * 2, rw * 2, rh * 2.3);
     if (moss && !snow) for (let i = 0; i < 5; i++) { const mx = (rnd() - .6) * rw, my = -rh * (1.2 + rnd() * .5); c.fillStyle = `rgba(${90 + rnd() * 30},${130 + rnd() * 30},${50},.75)`; c.beginPath(); c.ellipse(mx, my, rw * (.2 + rnd() * .15), rh * .15, 0, 0, 6.283); c.fill() }
     if (kind === 'goldvein') { for (let i = 0; i < 8; i++) { const gx = (rnd() - .5) * rw * 1.4, gy = -rh * (.3 + rnd() * 1.2); c.fillStyle = gold ? '#ffd24a' : '#7a6a40'; c.beginPath(); c.moveTo(gx, gy - S0 * .025); c.lineTo(gx + S0 * .02, gy); c.lineTo(gx, gy + S0 * .02); c.lineTo(gx - S0 * .02, gy); c.fill(); if (gold) { c.fillStyle = 'rgba(255,250,200,.8)'; c.fillRect(gx - S0 * .005, gy - S0 * .012, S0 * .008, S0 * .008) } } }
+    if (snow) { // lumi katab kivi ülaosa ja järgib selle kuju; alumine serv laineline
+      const base = -rh * (.85 + rnd() * .15), sg = c.createLinearGradient(0, -rh * 1.9, 0, base + rh * .2); sg.addColorStop(0, '#ffffff'); sg.addColorStop(.7, '#e6eef4'); sg.addColorStop(1, '#c4d2de');
+      c.fillStyle = sg; c.beginPath(); c.moveTo(-rw * 1.1, -rh * 2.2); c.lineTo(rw * 1.1, -rh * 2.2); c.lineTo(rw * 1.1, base - rh * .25);
+      const m = 7; for (let i = m; i >= 0; i--) { const x = -rw * 1.1 + i / m * rw * 2.2, y = base + Math.sin(i * 2.1 + v) * rh * .12 + (i % 2 ? rh * .1 : 0) - (i / m) * rh * .25; c.quadraticCurveTo(x + rw * .15, y + rh * .14, x, y) }
+      c.closePath(); c.fill();
+      c.fillStyle = 'rgba(120,140,165,.25)'; c.fillRect(rw * .35, -rh * 2.2, rw, rh * 2.4);
+    }
     c.restore();
-    if (snow) { c.fillStyle = 'rgba(248,252,255,.95)'; c.beginPath(); c.ellipse(-rw * .1, -rh * 1.55, rw * .7, rh * .28, 0, 0, 6.283); c.fill() }
     // kivikesed ümber
-    for (let i = 0; i < 3; i++) { const px = (rnd() < .5 ? -1 : 1) * rw * (1 + rnd() * .3), py = rnd() * rh * .15; c.fillStyle = '#8a908e'; c.beginPath(); c.ellipse(px, py, S0 * .025, S0 * .016, 0, 0, 6.283); c.fill() }
+    for (let i = 0; i < 3; i++) { const px = (rnd() < .5 ? -1 : 1) * rw * (1 + rnd() * .3), py = rnd() * rh * .15; c.fillStyle = snow ? '#dfe7ee' : '#8a908e'; c.beginPath(); c.ellipse(px, py, S0 * .025, S0 * .016, 0, 0, 6.283); c.fill() }
   });
 }
 function bushSprite(ripe, sk, snow, v, region, s) {
