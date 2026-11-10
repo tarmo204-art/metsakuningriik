@@ -220,6 +220,33 @@ do $$ declare t text; begin
   create policy "kõik loevad" on public.fish_house_levels for select to anon, authenticated using (true);
 end $$;
 
+-- 2d. Laiendus 3: õngede täiustamine, võlud, paadid ja merekohad
+alter table public.fish_spots add column if not exists boat text;
+alter table public.fishers add column if not exists boats text[] not null default '{}';
+create table if not exists public.fish_enchants (
+  id text primary key, name text not null, descr text not null, vals numeric[] not null, costs jsonb not null, sort int not null default 0
+);
+create table if not exists public.fish_boats (
+  id text primary key, name text not null, descr text not null, price int not null, min_level int not null,
+  items jsonb not null default '{}', wait_mult numeric not null, sort int not null default 0
+);
+create table if not exists public.fisher_rods (
+  user_id uuid not null references auth.users(id) on delete cascade, rod text not null references public.fish_rods(id),
+  upg int not null default 0 check (upg between 0 and 5), ench text references public.fish_enchants(id), ench_lvl int not null default 0 check (ench_lvl between 0 and 3),
+  primary key (user_id, rod)
+);
+do $$ declare t text; begin
+  foreach t in array array['fish_enchants','fish_boats','fisher_rods'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+  foreach t in array array['fish_enchants','fish_boats'] loop
+    execute format('grant select on public.%I to anon, authenticated', t);
+    execute format('drop policy if exists "kõik loevad" on public.%I', t);
+    execute format('create policy "kõik loevad" on public.%I for select to anon, authenticated using (true)', t);
+  end loop;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 3. Algandmed
 -- ---------------------------------------------------------------------
@@ -232,6 +259,27 @@ insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort) va
  ('salajane','Salajane järv','Udu sees peidus järv, kus elavad legendaarsed ja müütilised olendid.',35,5,0.20,6)
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, min_level=excluded.min_level,
   difficulty=excluded.difficulty, bonus=excluded.bonus, sort=excluded.sort;
+insert into public.fish_boats (id,name,descr,price,min_level,items,wait_mult,sort) values
+ ('paat','Puupaat','Tugev sõudepaat. Viib sind saarestikku ja kala võtab merel 5% kiiremini.',3000,18,'{"karp":10,"merevaik":2}',0.95,1),
+ ('kaater','Mootorpaat','Kiire kaater avamere jaoks. Merel võtab kala 10% kiiremini.',15000,27,'{"ruun":3,"sormus":2}',0.90,2),
+ ('laev','Kalalaev','Suur laev sügavikku püüdmiseks. Merel võtab kala 15% kiiremini.',45000,35,'{"kristall":2,"mustparl":2}',0.85,3)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, price=excluded.price, min_level=excluded.min_level,
+  items=excluded.items, wait_mult=excluded.wait_mult, sort=excluded.sort;
+insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort,boat) values
+ ('saarestik','Saarestik','Kaljused laiud ja lahed. Siin elavad kammeljad, emakalad ja merihärjad. Vaja on paati.',20,4,0.12,7,'paat'),
+ ('avameri','Avameri','Lõputu sinine meri, kus jahivad tuunid ja mõõkkalad. Vaja on mootorpaati.',28,5,0.16,8,'kaater'),
+ ('sugavik','Sügavik','Pimedad sügavused, kuhu päike ei paista. Helendavad koletised ja müütiline draakon. Vaja on kalalaeva.',36,5,0.22,9,'laev')
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, min_level=excluded.min_level,
+  difficulty=excluded.difficulty, bonus=excluded.bonus, sort=excluded.sort, boat=excluded.boat;
+insert into public.fish_enchants (id,name,descr,vals,costs,sort) values
+ ('onn','Õnnevõlu','Haruldasi kalu tuleb sagedamini.','{0.03,0.06,0.10}','[{"gold":300,"items":{"ruun":2}},{"gold":1500,"items":{"ruun":4,"parl":3}},{"gold":6000,"items":{"ruun":6,"soomus":1}}]',1),
+ ('tugevus','Tugevusvõlu','Õng peab vastu palju raskemale kalale.','{0.15,0.30,0.50}','[{"gold":400,"items":{"sormus":1,"karp":5}},{"gold":2000,"items":{"sormus":3,"kristall":1}},{"gold":8000,"items":{"kristall":3,"soomus":1}}]',2),
+ ('kiirus','Kiirusvõlu','Kala võtab kiiremini.','{0.08,0.15,0.22}','[{"gold":250,"items":{"merevaik":2}},{"gold":1200,"items":{"merevaik":4,"parl":2}},{"gold":5000,"items":{"merevaik":6,"kristall":1}}]',3),
+ ('aare','Aardeleidja','Aardekirste tuleb tunduvalt sagedamini.','{1.6,2.2,3.0}','[{"gold":300,"items":{"parl":3}},{"gold":1500,"items":{"mustparl":1,"parl":4}},{"gold":6000,"items":{"mustparl":3,"soomus":1}}]',4),
+ ('kuu','Kuuvalgus','Öösel tuleb palju rohkem haruldasi kalu.','{0.08,0.15,0.25}','[{"gold":300,"items":{"parl":2,"karp":4}},{"gold":1500,"items":{"mustparl":1,"ruun":2}},{"gold":6000,"items":{"mustparl":2,"kristall":2}}]',5),
+ ('torm','Tormikutse','Ilmast sõltuvaid kalu tuleb sagedamini.','{0.70,0.85,1.00}','[{"gold":300,"items":{"merevaik":2,"karp":4}},{"gold":1500,"items":{"kristall":1,"ruun":2}},{"gold":6000,"items":{"kristall":3,"soomus":1}}]',6),
+ ('hiid','Hiiglaste võlu','Rekordsuuri kalu tuleb sagedamini.','{1.6,2.2,3.0}','[{"gold":400,"items":{"sormus":1,"ruun":1}},{"gold":2000,"items":{"sormus":2,"mustparl":1}},{"gold":8000,"items":{"soomus":2}}]',7)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, vals=excluded.vals, costs=excluded.costs, sort=excluded.sort;
 
 insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort) values
  ('ahven','Ahven',1,0.1,0.9,4,5,'{metsajarv,jogi,kuninglik}',1,false,false,1,'{"s":"n","c":["#9fb04a","#4a6a2a","#e8e0b0","#e2563a"],"st":6}','Triibuline ja ahne, võtab peaaegu iga söödaga.',10),
@@ -240,8 +288,8 @@ insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_l
  ('kiisk','Kiisk',1,0.05,0.25,3,4,'{metsajarv,jogi}',1,false,false,1,'{"s":"n","c":["#9a8a5a","#4a4a2a","#e0d8b0","#8a7a4a"],"sp":1}','Väike ja limane, aga torkiv.',13),
  ('teib','Teib',1,0.2,1.5,5,6,'{jogi}',6,false,false,2,'{"s":"n","c":["#b8c0b0","#4a5a4a","#eef0e8","#c8a060"]}','Jõgede lai ja tugev ujuja.',14),
  ('latikas','Latikas',1,0.5,4,7,7,'{metsajarv,kuninglik}',3,false,false,2,'{"s":"d","c":["#b9a26a","#6a5a3a","#e6dcbf","#7a6a4a"]}','Lai ja lapik põhjakala.',15),
- ('raim','Räim',1,0.05,0.3,3,5,'{meri}',18,false,false,1,'{"s":"n","c":["#c8d8e2","#3a5a7a","#f6fafc","#9ab4c8"]}','Eesti rahvuskala. Väike, aga maitsev.',16),
- ('lest','Lest',1,0.2,1.8,8,7,'{meri}',18,false,false,2,'{"s":"f","c":["#a08a6a","#6a5a42","#e8dcc0","#8a7a5a"],"sp":1}','Lame kala, kelle silmad on ühel küljel.',17),
+ ('raim','Räim',1,0.05,0.3,3,5,'{meri,saarestik,avameri}',18,false,false,1,'{"s":"n","c":["#c8d8e2","#3a5a7a","#f6fafc","#9ab4c8"]}','Eesti rahvuskala. Väike, aga maitsev.',16),
+ ('lest','Lest',1,0.2,1.8,8,7,'{meri,saarestik}',18,false,false,2,'{"s":"f","c":["#a08a6a","#6a5a42","#e8dcc0","#8a7a5a"],"sp":1}','Lame kala, kelle silmad on ühel küljel.',17),
  ('jaaahven','Jääahven',1,0.2,1.2,8,8,'{jaa}',25,false,false,2,'{"s":"n","c":["#a8c8c0","#4a6a6a","#eef6f2","#e2563a"],"st":6}','Talvise vee kange ahven.',18),
  ('tint','Tint',1,0.05,0.2,6,7,'{jaa}',25,false,false,1,'{"s":"n","c":["#d8e6ea","#7a9aaa","#ffffff","#a8c8d8"]}','Kurgi järgi lõhnav väike kala.',19),
  ('kuusarg','Kuuvalgusärg',1,0.2,1,15,12,'{salajane}',35,false,false,3,'{"s":"n","c":["#c8d0f0","#6a78b0","#f4f6ff","#9aa8e0"],"g":"#c8d8ff"}','Kuuvalgel helendav särg.',20),
@@ -249,7 +297,7 @@ insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_l
  ('haug','Haug',2,1,10,15,15,'{metsajarv,jogi,kuninglik}',4,false,false,4,'{"s":"l","c":["#7a9a5a","#3a5a2a","#e6e8c8","#9a7a3a"],"sp":1}','Järvede röövkala teravate hammastega.',31),
  ('sainas','Säinas',2,0.5,3,14,14,'{jogi}',6,false,false,3,'{"s":"n","c":["#c0b890","#5a5a40","#eeeadc","#d07a4a"]}','Kuldse kõhuga jõekala.',32),
  ('koha','Koha',2,1,8,18,16,'{jogi,kuninglik}',8,false,false,4,'{"s":"l","c":["#a9b49a","#4a5a4a","#eef0e2","#7a8a6a"],"st":7}','Klaasjate silmadega öine kiskja.',33),
- ('tursk','Tursk',2,1,10,16,15,'{meri}',18,false,false,4,'{"s":"n","c":["#a9a07a","#6a6a4a","#eee8d8","#8a8a6a"],"sp":1}','Mere ahne kala vurrudega lõual.',34),
+ ('tursk','Tursk',2,1,10,16,15,'{meri,saarestik,avameri,sugavik}',18,false,false,4,'{"s":"n","c":["#a9a07a","#6a6a4a","#eee8d8","#8a8a6a"],"sp":1}','Mere ahne kala vurrudega lõual.',34),
  ('siig','Siig',2,0.5,3,16,16,'{jaa,kuninglik}',14,false,false,3,'{"s":"n","c":["#d0d8de","#7a8a94","#f6f8f8","#9aa8b0"]}','Hõbedane ja hinnatud kala.',35),
  ('raabis','Rääbis',2,0.1,0.4,12,14,'{jaa}',25,false,false,3,'{"s":"n","c":["#d8e2e8","#5a7a8a","#ffffff","#8aa8b8"]}','Peipsi järve kuulus väikekala.',36),
  ('kristallahven','Kristallahven',2,0.3,1.5,30,25,'{salajane}',35,false,false,5,'{"s":"n","c":["#b8f0ff","#5ab0d0","#f0ffff","#8ae0f0"],"st":5,"g":"#b8f0ff"}','Läbipaistvate soomustega ahven.',37),
@@ -258,23 +306,23 @@ insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_l
  ('harjus','Harjus',3,0.3,1.5,34,30,'{jogi}',7,false,false,5,'{"s":"n","c":["#9aa0b8","#4a5070","#e8e8f2","#7a6ab0"],"b":"#b090e0"}','Suure purjekujulise seljauimega jõekala.',52),
  ('vikerforell','Vikerforell',3,0.5,4,38,32,'{jogi}',9,false,false,5,'{"s":"n","c":["#9ab4a4","#4a6a5a","#f2e8e0","#d97aa0"],"b":"#e86a8a","sp":1}','Vikerkaarevärviline tugev ujuja.',53),
  ('karpkala','Karpkala',3,2,15,40,35,'{kuninglik}',12,false,false,6,'{"s":"d","c":["#c8a040","#7a5a1a","#f0dca0","#b07a2a"],"sp":1}','Lossi tiikide uhke ja jõuline kala.',54),
- ('meriforell','Meriforell',3,1,8,42,36,'{meri}',18,false,false,6,'{"s":"n","c":["#c8d0d8","#5a6878","#f6f6f6","#9aa8b8"],"sp":1}','Hõbedane rändaja mere ja jõe vahel.',55),
- ('lohe','Lõhe',3,2,16,45,38,'{meri,jogi}',14,false,false,6,'{"s":"l","c":["#c0ccd4","#4a5a6a","#f6f2ee","#8a9aaa"],"sp":1}','Jõgede kuningas, kes hüppab üle kärestike.',56),
+ ('meriforell','Meriforell',3,1,8,42,36,'{meri,saarestik}',18,false,false,6,'{"s":"n","c":["#c8d0d8","#5a6878","#f6f6f6","#9aa8b8"],"sp":1}','Hõbedane rändaja mere ja jõe vahel.',55),
+ ('lohe','Lõhe',3,2,16,45,38,'{meri,jogi,saarestik,avameri}',14,false,false,6,'{"s":"l","c":["#c0ccd4","#4a5a6a","#f6f2ee","#8a9aaa"],"sp":1}','Jõgede kuningas, kes hüppab üle kärestike.',56),
  ('paalia','Paalia',3,0.5,4,45,40,'{jaa}',26,false,false,6,'{"s":"n","c":["#5a7a8a","#2a3a4a","#f0a070","#e07040"],"sp":1}','Arktiline kala oranži kõhuga.',57),
  ('kuldahven','Kuldne ahven',4,0.5,2,80,65,'{metsajarv,jogi,kuninglik}',12,false,false,7,'{"s":"n","c":["#ffc84a","#c08010","#fff0b0","#ff7a2a"],"st":6,"g":"#ffd870"}','Muinasjutuline ahven puhtast kullast soomustega.',70),
  ('saga','Säga',4,5,60,90,70,'{kuninglik,jogi}',16,false,false,8,'{"s":"l","c":["#5a5a4a","#2a2a22","#b8b09a","#3a3a30"],"w":1}','Hiiglaslik vuntsidega põhjakala.',71),
  ('kuningkarp','Kuninglik karpkala',4,5,25,100,80,'{kuninglik}',17,false,false,7,'{"s":"d","c":["#f0e0c0","#c03a2a","#ffffff","#e04a3a"],"sp":1}','Kuninga lemmik, punase-valgekirju.',72),
- ('tuur','Tuur',4,10,80,110,85,'{meri}',20,false,false,8,'{"s":"l","c":["#8a9098","#4a5058","#d8dce0","#6a7078"],"st":4}','Iidne kala, kes elas juba dinosauruste ajal.',73),
+ ('tuur','Tuur',4,10,80,110,85,'{meri,saarestik}',20,false,false,8,'{"s":"l","c":["#8a9098","#4a5058","#d8dce0","#6a7078"],"st":4}','Iidne kala, kes elas juba dinosauruste ajal.',73),
  ('virmaliskala','Virmaliskala',4,1,5,120,90,'{jaa}',28,false,false,8,'{"s":"n","c":["#7ae0b0","#3a6aa0","#e0fff0","#c070f0"],"b":"#7af0c0","g":"#90ffd0"}','Helendab nagu virmalised jää all.',74),
  ('udukala','Udukala',4,0.5,3,140,100,'{salajane}',36,true,false,8,'{"s":"n","c":["#d8dce8","#8a90a8","#ffffff","#b0b8d0"],"g":"#e8ecff"}','Ilmub ainult öösel udu seest.',75),
  ('kuuangerjas','Kuu-angerjas',5,1,5,300,200,'{salajane,kuninglik}',22,true,false,9,'{"s":"e","c":["#4a7ad8","#1a2a6a","#c8e0ff","#7ab0ff"],"g":"#8ab8ff"}','Öine legend, kes helendab nagu kuu.',90),
  ('joekuningas','Jõekuningas',5,8,40,280,190,'{jogi}',20,false,false,9,'{"s":"l","c":["#4a6a3a","#1a2a12","#d8c890","#c0a040"],"sp":1,"g":"#e8d080"}','Vana haug, kellest kalurid räägivad lugusid.',91),
- ('merivaim','Merivaim',5,2,10,330,220,'{meri}',24,true,false,9,'{"s":"l","c":["#a0e0e0","#2a6a7a","#f0ffff","#60c0d0"],"g":"#a0f0f0"}','Öise mere poolläbipaistev kala.',92),
+ ('merivaim','Merivaim',5,2,10,330,220,'{meri,avameri}',24,true,false,9,'{"s":"l","c":["#a0e0e0","#2a6a7a","#f0ffff","#60c0d0"],"g":"#a0f0f0"}','Öise mere poolläbipaistev kala.',92),
  ('jaahaug','Jäähaug',5,5,25,320,220,'{jaa}',30,false,false,9,'{"s":"l","c":["#d0f0ff","#6aa0c0","#ffffff","#9ad0f0"],"sp":1,"g":"#d8f8ff"}','Igijää all elav valge haug.',93),
  ('haldjakala','Haldjakala',5,0.3,2,360,250,'{salajane}',38,false,false,9,'{"s":"d","c":["#d8a8f0","#7a5ab0","#f8eaff","#9ae8f0"],"g":"#e6b8ff","b":"#9ae8f0"}','Haldjate lemmik, sädeleb kõigis värvides.',94),
  ('kuldkala','Kuldkala',6,0.2,0.6,600,500,'{metsajarv,jogi,kuninglik,meri,jaa,salajane}',10,false,false,10,'{"s":"n","c":["#ffc23a","#e07a10","#ffe8a0","#ffa020"],"g":"#ffd060"}','Täidab soovi, kui ta vabaks lased.',110),
  ('igijaavaim','Igijää vaim',6,20,80,2200,1100,'{jaa}',32,false,false,10,'{"s":"l","c":["#ffffff","#a0d0f0","#ffffff","#c0e8ff"],"g":"#ffffff"}','Jäätunud järve süda ise.',111),
- ('leviaatan','Leviaatan',6,100,400,2500,1200,'{meri}',30,false,false,10,'{"s":"l","c":["#3a5a6a","#0e1e2a","#a0b8c0","#2a4a5a"],"sp":1}','Mere sügavuste koletis. Vajab väga tugevat õnge.',112),
+ ('leviaatan','Leviaatan',6,100,400,2500,1200,'{meri,avameri,sugavik}',30,false,false,10,'{"s":"l","c":["#3a5a6a","#0e1e2a","#a0b8c0","#2a4a5a"],"sp":1}','Mere sügavuste koletis. Vajab väga tugevat õnge.',112),
  ('jarvelohe','Järvelohe',6,50,200,3000,1500,'{salajane}',40,false,false,10,'{"s":"e","c":["#3aa070","#0a3a2a","#d0f0a0","#f0c040"],"g":"#80ffb0","sp":1}','Salajase järve müütiline valvur.',113)
 on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
   price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, night_only=excluded.night_only,
@@ -344,10 +392,37 @@ insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_l
  ('uduhobe','Uduhõbe',3,0.3,2,45,40,'{metsajarv,kuninglik,salajane}',9,false,false,6,'{"s":"n","c":["#e8eef2","#a0aab8","#ffffff","#c8d0dc"],"g":"#f0f4ff"}','Peaaegu nähtamatu kala, kes ilmub udus.',59,'{udu}'),
  ('vikerkaarekala','Vikerkaarekala',4,0.5,3,130,95,'{jogi,kuninglik,salajane}',14,false,false,8,'{"s":"n","c":["#ff9a6a","#7a5ac8","#fff0d8","#60c8f0"],"b":"#a0f080","g":"#ffd0f0"}','Kõigis värvides helkiv kala, mida nähakse vihmasajus.',76,'{vihm}'),
  ('tormihaug','Tormihaug',4,3,18,120,90,'{kuninglik,jogi,meri}',15,false,false,8,'{"s":"l","c":["#5a6a7a","#1a2a3a","#c8d0d8","#3a4a5a"],"sp":1}','Tormiga tõuseb ta sügavusest jahtima.',77,'{torm}'),
- ('valgukala','Välgukala',5,1,6,380,260,'{meri,salajane}',24,false,false,9,'{"s":"e","c":["#ffe860","#3a3a8a","#ffffd0","#ffd020"],"g":"#fff080"}','Sähvatab nagu välk. Püütav ainult tormiga.',95,'{torm}')
+ ('valgukala','Välgukala',5,1,6,380,260,'{meri,salajane,avameri}',24,false,false,9,'{"s":"e","c":["#ffe860","#3a3a8a","#ffffd0","#ffd020"],"g":"#fff080"}','Sähvatab nagu välk. Püütav ainult tormiga.',95,'{torm}')
 on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
   price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty,
   look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
+
+-- Mere- ja sügavikukalad (3. laiendus)
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather) values
+ ('tobias','Tobias',1,0.02,0.2,4,6,'{saarestik,avameri}',20,false,false,2,'{"s":"n","c":["#c8e0d8","#4a7a6a","#f2faf6","#a8c8c0"]}','Sale liivaangerjas, kes peitub parvedena liiva sisse.',13,null),
+ ('laternkala','Laternkala',1,0.02,0.12,6,8,'{sugavik}',36,false,false,3,'{"s":"n","c":["#4a5a7a","#1a2238","#8a9ac0","#3a4a6a"],"g":"#7ad8ff"}','Pisike sügavikukala, kelle kõhul helendavad tuled.',14,null),
+ ('emakala','Emakala',2,0.2,0.8,18,17,'{saarestik}',20,false,false,4,'{"s":"e","c":["#8a7a4a","#4a3a1e","#d8c890","#7a6a3a"],"sp":1}','Kummaline kala, kes sünnitab elusaid poegi.',40,null),
+ ('merihark','Merihärg',2,0.1,0.6,20,18,'{saarestik}',21,false,false,4,'{"s":"n","c":["#a0603a","#4a2a1a","#e8c0a0","#c0603a"],"st":0}','Okkaline kivide vahel elav kala, kes kõht täis sööb.',41,null),
+ ('makrell','Makrell',2,0.3,1.5,24,20,'{avameri,saarestik}',28,false,false,5,'{"s":"n","c":["#7ab0b8","#1a4a5a","#f4f8f8","#6a98a0"]}','Kiire triibulise seljaga merekala, kes ujub suurtes parvedes.',42,null),
+ ('kammeljas','Kammeljas',3,2,12,80,60,'{saarestik,avameri}',22,false,false,6,'{"s":"f","c":["#8a7a5a","#4a3e28","#e8e0c8","#7a6a4a"],"sp":1}','Suur lapik kala, kelle mõlemad silmad on ühel küljel.',62,null),
+ ('kirveskala','Kirveskala',3,0.05,0.3,90,70,'{sugavik}',36,false,false,6,'{"s":"d","c":["#d0d8e8","#4a5a7a","#f4f8ff","#a0b0c8"],"g":"#9ad8ff"}','Hõbedane kirvekujuline kala, kes helendab sügavuses.',63,null),
+ ('tuun','Tuun',4,20,250,320,220,'{avameri}',28,false,false,9,'{"s":"l","c":["#4a6a9a","#0e2048","#e8eef4","#ffd040"]}','Ookeani kiireim ujuja. Väga tugev ja raske kala.',80,null),
+ ('merikurat','Merikurat',4,5,40,280,200,'{sugavik}',36,false,false,8,'{"s":"d","c":["#5a4a3a","#2a1e14","#a08a6a","#4a3a2a"],"sp":1,"g":"#a0fff0"}','Hiiglasliku suuga sügavikukala, kes meelitab saaki helendava ridvaga.',81,null),
+ ('mookkala','Mõõkkala',5,30,300,900,560,'{avameri}',30,false,false,10,'{"s":"l","c":["#5a6a9a","#1a2448","#e0e6f0","#7a5a9a"]}','Pika mõõgaga ookeani kuningas.',98,null),
+ ('airukala','Airukala',5,20,150,850,540,'{sugavik}',36,false,false,10,'{"s":"e","c":["#d8dce8","#8a90a8","#ffffff","#ff4a3a"]}','Väga pikk hõbedane kala punase harjaga. Peetakse meremaoks.',99,null),
+ ('sugavusedraakon','Sügavuse draakon',6,100,500,4000,2000,'{sugavik}',40,false,false,10,'{"s":"e","c":["#2a3a6a","#0a0e24","#7ad0ff","#3af0e0"],"g":"#40e0ff"}','Müütiline olend, kes ärkab vaid sügaviku kõige pimedamas osas.',118,null)
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
+  price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty,
+  look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
+
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('paadimees','Paadimees','Osta oma esimene paat','Meremees',500,300,33),
+ ('kapten','Kapten','Osta kõik kolm paati','Kapten',5000,3000,34),
+ ('taiustaja','Meistri käsi','Täiusta mõni õng +5 tasemeni','Õngemeister',3000,1500,35),
+ ('volur','Õngevõlur','Lisa õngele 3. astme võlu','Õngevõlur',4000,2000,36),
+ ('suvamees','Sügavike uurija','Püüa kõik sügaviku kalad','Sügavike uurija',8000,4000,37)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
 insert into public.fish_items (id,name,descr,rarity,price,sort) values
  ('karp','Merekarp','Ilus karp põhjamudast.',1,5,1),
@@ -462,7 +537,7 @@ begin
   select * into sp from public.fish_spots where id = p_spot;
   select * into r from public.fish_rods where id = coalesce(f.rod, 'algaja');
   select * into b from public.fish_baits where id = p_bait;
-  bonus := coalesce(r.catch_bonus,0) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
+  bonus := coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
            + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0);
   for i in 1..6 loop
     avail[i] := exists (select 1 from public.fish_species s where s.rarity = i and p_spot = any(s.spots)
@@ -513,7 +588,12 @@ begin
       when 'ilmakalur' then nweather_all > 0 and nweather >= nweather_all when 'kuldkirst' then goldchest
       when 'usin' then f.quests_done >= 25 when 'kott' then nitems >= 30
       when 'maja1' then f.house_level >= 1 when 'maja5' then f.house_level >= 5 when 'maja10' then f.house_level >= 10
-      when 'akvaarium' then (select count(*) from public.fish_catches where user_id = u and status = 'aquarium') >= 5 else false end;
+      when 'akvaarium' then (select count(*) from public.fish_catches where user_id = u and status = 'aquarium') >= 5
+      when 'paadimees' then cardinality(f.boats) >= 1 when 'kapten' then cardinality(f.boats) >= 3
+      when 'taiustaja' then exists (select 1 from public.fisher_rods where user_id = u and upg >= 5)
+      when 'volur' then exists (select 1 from public.fisher_rods where user_id = u and ench_lvl >= 3)
+      when 'suvamees' then not exists (select 1 from public.fish_species s where 'sugavik' = any(s.spots) and s.rarity >= 3 and not exists (select 1 from public.fish_catches c where c.user_id = u and c.species = s.id))
+      else false end;
     if ok then
       insert into public.fish_unlocked(user_id, ach) values (u, a.id) on conflict do nothing;
       update public.fishers set gold = gold + a.reward_gold,
@@ -648,6 +728,8 @@ begin
     'title', f.title, 'titles', to_jsonb(f.titles), 'book', book, 'ach', v_ach, 'by_rarity', byr, 'inventory', inv,
     'inbox', inbox, 'active', act, 'weather', w, 'is_night', fx_is_night(), 'is_winter', fx_is_winter(), 'today', fx_today(),
     'items', v_items, 'quests_done', f.quests_done, 'badges', fx_badges(u),
+    'gear', fx_gear(u), 'boats', to_jsonb(f.boats),
+    'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes);
 end $$;
 
@@ -663,12 +745,14 @@ create or replace function public.fish_cast(p_spot text, p_bait text) returns js
 declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
-  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather();
+  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric;
 begin
   f := fx_fisher(u);
   select * into sp from fish_spots where id = p_spot;
   if sp.id is null then raise exception 'Tundmatu püügikoht'; end if;
   if f.level < sp.min_level then raise exception 'See püügikoht avaneb kalapüügi % tasemel', sp.min_level; end if;
+  if sp.boat is not null and not (sp.boat = any(f.boats)) then raise exception 'Siia pääsemiseks on vaja paati: %', (select name from fish_boats where id = sp.boat); end if;
+  g := fx_gear(u, p_spot); chm := (g ->> 'chest')::numeric;
   if f.rod_broken then raise exception 'Õng on katki. Paranda see enne püüki.'; end if;
   select * into b from fish_baits where id = p_bait;
   if b.id is null then raise exception 'Tundmatu sööt'; end if;
@@ -686,9 +770,9 @@ begin
   update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked');
 
   roll := random() * 100;
-  if roll < 1.5 then kind := 'chest';
+  if roll < 1.5 * chm then kind := 'chest';
     roll := random(); junk := case when roll < 0.05 then 'kuld' when roll < 0.30 then 'hobe' else 'puu' end;
-  elsif roll < 6.5 then kind := 'junk'; junk := (array['saabas','purk','kepp','pudel','karp','karp'])[1 + floor(random() * 6)::int];
+  elsif roll < 1.5 * chm + 5 then kind := 'junk'; junk := (array['saabas','purk','kepp','pudel','karp','karp'])[1 + floor(random() * 6)::int];
   else
     w := fx_rarity_weights(u, p_spot, p_bait);
     roll := random() * 100;
@@ -697,16 +781,16 @@ begin
       select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= f.level
         and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
         and (fs.weather is null or wthr = any(fs.weather))
-        order by case when fs.weather is not null and random() < 0.5 then 0 else 1 end, random() limit 1;
+        order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end, random() limit 1;
       exit when s.id is not null;
       rar := rar - 1;
     end loop;
     if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
     wt := s.min_w + (s.max_w - s.min_w) * power(random(), 1.7);
-    if random() < 0.03 then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
+    if random() < 0.03 * (g ->> 'giant')::numeric then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
     wt := round(wt, 2);
   end if;
-  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr));
+  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric);
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
   returning id into cid;
@@ -731,6 +815,7 @@ begin
   select * into f from fishers where user_id = u;
   select * into r from fish_rods where id = f.rod;
   select * into sp from fish_spots where id = c.spot;
+  r.reel_bonus := (fx_gear(u) ->> 'reel')::numeric; r.strength := (fx_gear(u) ->> 'strength')::numeric;
   if c.kind = 'fish' then
     select * into s from fish_species where id = c.species;
     diff := s.difficulty;
@@ -772,6 +857,7 @@ begin
   end if;
   f := fx_fisher(u);
   select * into r from fish_rods where id = f.rod;
+  r.strength := (fx_gear(u) ->> 'strength')::numeric;
   select * into sp from fish_spots where id = c.spot;
 
   if c.kind = 'junk' then
@@ -1401,6 +1487,112 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6d. Laiendus 3: õngede täiustamine, võlumine ja paadid
+-- ---------------------------------------------------------------------
+-- Kõik õnge, võlu ja paadi mõjud arvutatakse siin ühes kohas
+create or replace function public.fx_gear(u uuid, p_spot text default null) returns jsonb language plpgsql stable as $$
+declare f public.fishers; r public.fish_rods; m public.fisher_rods; e public.fish_enchants; v numeric := 0; up int := 0;
+  st numeric; cb numeric; rb numeric; wm numeric := 1; chest numeric := 1; giant numeric := 1; wpref numeric := .5; boatw numeric := 1;
+begin
+  select * into f from public.fishers where user_id = u;
+  select * into r from public.fish_rods where id = coalesce(f.rod, 'algaja');
+  select * into m from public.fisher_rods where user_id = u and rod = r.id;
+  up := coalesce(m.upg, 0);
+  if m.ench is not null and coalesce(m.ench_lvl, 0) > 0 then select * into e from public.fish_enchants where id = m.ench; v := e.vals[m.ench_lvl]; end if;
+  st := r.strength * (1 + 0.1 * up); cb := r.catch_bonus + 0.01 * up; rb := r.reel_bonus + 0.02 * up;
+  case e.id
+    when 'tugevus' then st := st * (1 + v);
+    when 'onn' then cb := cb + v;
+    when 'kuu' then if public.fx_is_night() then cb := cb + v; end if;
+    when 'kiirus' then wm := 1 - v;
+    when 'aare' then chest := v;
+    when 'hiid' then giant := v;
+    when 'torm' then wpref := v;
+    else null;
+  end case;
+  if p_spot in ('meri', 'saarestik', 'avameri', 'sugavik') then
+    select coalesce(min(b.wait_mult), 1) into boatw from public.fish_boats b where b.id = any(coalesce(f.boats, '{}'));
+  end if;
+  return jsonb_build_object('rod', r.id, 'upg', up, 'ench', e.id, 'ench_lvl', case when e.id is null then 0 else m.ench_lvl end, 'ench_val', v,
+    'strength', round(st, 1), 'catch', round(cb, 3), 'reel', round(rb, 3), 'wait', round(wm * boatw, 3), 'chest', chest, 'giant', giant, 'wpref', wpref, 'boat_wait', boatw);
+end $$;
+
+-- maksab esemetega (lukustab read, et ei saaks topelt kulutada)
+create or replace function public.fx_pay_items(u uuid, p_items jsonb) returns void language plpgsql as $$
+declare it record; have int;
+begin
+  for it in select key, value::int as qty from jsonb_each_text(coalesce(p_items, '{}')) loop
+    select qty into have from public.fisher_items where user_id = u and item = it.key for update;
+    if coalesce(have, 0) < it.qty then raise exception 'Kotis pole piisavalt esemeid: %', (select name from public.fish_items where id = it.key); end if;
+  end loop;
+  for it in select key, value::int as qty from jsonb_each_text(coalesce(p_items, '{}')) loop
+    update public.fisher_items set qty = qty - it.qty where user_id = u and item = it.key;
+  end loop;
+end $$;
+
+create or replace function public.fx_upg_cost(p_rod text, p_lvl int) returns jsonb language sql stable as $$
+  select jsonb_build_object('gold', greatest(150, round(r.price * 0.25))::int * p_lvl,
+    'items', (array['{"karp":3}','{"karp":5,"parl":1}','{"parl":2,"merevaik":2}','{"ruun":2,"sormus":1}','{"mustparl":1,"kristall":1}']::jsonb[])[p_lvl])
+  from public.fish_rods r where r.id = p_rod
+$$;
+
+create or replace function public.fish_rod_upgrade(p_rod text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; m fisher_rods; cost jsonb; nl int;
+begin
+  perform fx_fisher(u);
+  select * into f from fishers where user_id = u for update;
+  if not (p_rod = any(f.rods)) then raise exception 'Sul pole seda õnge'; end if;
+  insert into fisher_rods(user_id, rod) values (u, p_rod) on conflict do nothing;
+  select * into m from fisher_rods where user_id = u and rod = p_rod for update;
+  if m.upg >= 5 then raise exception 'See õng on juba täielikult täiustatud'; end if;
+  nl := m.upg + 1; cost := fx_upg_cost(p_rod, nl);
+  if f.gold < (cost ->> 'gold')::int then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', cost ->> 'gold'; end if;
+  perform fx_pay_items(u, cost -> 'items');
+  update fishers set gold = gold - (cost ->> 'gold')::int where user_id = u;
+  update fisher_rods set upg = nl where user_id = u and rod = p_rod;
+  return jsonb_build_object('rod', p_rod, 'upg', nl, 'cost', cost, 'gear', fx_gear(u), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.fish_enchant(p_rod text, p_ench text, p_tier int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; e fish_enchants; m fisher_rods; cost jsonb;
+begin
+  perform fx_fisher(u);
+  select * into f from fishers where user_id = u for update;
+  if not (p_rod = any(f.rods)) then raise exception 'Sul pole seda õnge'; end if;
+  select * into e from fish_enchants where id = p_ench;
+  if e.id is null or p_tier not between 1 and 3 then raise exception 'Tundmatu võlu'; end if;
+  if f.level < (array[8, 18, 30])[p_tier] then raise exception 'Selle võlu jaoks on vaja kalapüügi %. taset', (array[8, 18, 30])[p_tier]; end if;
+  insert into fisher_rods(user_id, rod) values (u, p_rod) on conflict do nothing;
+  select * into m from fisher_rods where user_id = u and rod = p_rod for update;
+  if m.ench = p_ench and m.ench_lvl >= p_tier then raise exception 'Õngel on see võlu juba olemas'; end if;
+  cost := e.costs -> (p_tier - 1);
+  if f.gold < (cost ->> 'gold')::int then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', cost ->> 'gold'; end if;
+  perform fx_pay_items(u, cost -> 'items');
+  update fishers set gold = gold - (cost ->> 'gold')::int where user_id = u;
+  update fisher_rods set ench = p_ench, ench_lvl = p_tier where user_id = u and rod = p_rod;
+  if p_tier = 3 then perform fx_news(u, 'enchant', jsonb_build_object('ench', e.name, 'rod', (select name from fish_rods where id = p_rod))); end if;
+  return jsonb_build_object('rod', p_rod, 'ench', p_ench, 'tier', p_tier, 'name', e.name, 'gear', fx_gear(u), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.fish_boat_buy(p_boat text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; b fish_boats; prev text;
+begin
+  perform fx_fisher(u);
+  select * into f from fishers where user_id = u for update;
+  select * into b from fish_boats where id = p_boat;
+  if b.id is null then raise exception 'Tundmatu paat'; end if;
+  if b.id = any(f.boats) then raise exception 'See paat on sul juba olemas'; end if;
+  select id into prev from fish_boats where sort < b.sort and not (id = any(f.boats)) order by sort limit 1;
+  if prev is not null then raise exception 'Osta enne väiksem paat: %', (select name from fish_boats where id = prev); end if;
+  if f.level < b.min_level then raise exception 'See paat avaneb kalapüügi %. tasemel', b.min_level; end if;
+  if f.gold < b.price then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', b.price; end if;
+  perform fx_pay_items(u, b.items);
+  update fishers set gold = gold - b.price, boats = boats || b.id where user_id = u;
+  perform fx_news(u, 'boat', jsonb_build_object('boat', b.name));
+  return jsonb_build_object('boat', b.id, 'name', b.name, 'ach', fx_check_ach(u));
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -1409,7 +1601,8 @@ do $$ declare r record; begin
              ('set_profile','kingdom_leaderboard','save_kingdom','fish_state','fish_odds','fish_cast','fish_hook','fish_lose','fish_land',
               'fish_market','fish_use','fish_sell_all','fish_shop','fish_orders_today','fish_order_deliver','kingdom_claim',
               'fish_competitions','fish_claim_prizes','fish_item_sell','fish_quests','fish_quest_claim','kingdom_news',
-              'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like')) loop
+              'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like',
+              'fish_rod_upgrade','fish_enchant','fish_boat_buy')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

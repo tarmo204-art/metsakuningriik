@@ -2762,7 +2762,7 @@ const WNAME = { paike: 'päikesega', pilves: 'pilvise ilmaga', vihm: 'vihmaga', 
 const BADGE_T = ['', 'Pronks', 'Hõbe', 'Kuld'], BADGE_C = ['#5a6a70', '#d0905a', '#d8e4ec', '#ffd060'];
 const BADGE_IC = { puudja: '🎣', haruldased: '💠', hiid: '🐋', koguja: '📖', usin: '📜', aare: '🗝️', oo: '🌙', voitja: '🏆' };
 const WTH2 = { paike: ['Päike', 'kalad võtavad aeglasemalt'], pilves: ['Pilves', 'tavaline püügiilm'], vihm: ['Vihm', 'kalad võtavad kiiremini, haruldasi rohkem'], udu: ['Udu', 'haruldasi kalu veidi rohkem'], torm: ['Torm', 'palju haruldasi kalu, aga õng murdub kergemini'] };
-const FD = { loaded: false, spots: [], species: [], rods: [], baits: [], achs: [], items: [], sp: {}, rod: {}, bait: {}, spot: {}, item: {}, house: {} };
+const FD = { loaded: false, spots: [], species: [], rods: [], baits: [], achs: [], items: [], enchants: [], boats: [], ench: {}, sp: {}, rod: {}, bait: {}, spot: {}, item: {}, house: {} };
 let FS = null;
 const FV = { quests: null, news: null, open: false, tab: 'puuk', spot: null, phase: 'idle', msg: '', cast: null, hook: null, result: null, sel: new Set(), market: null, comps: null, orders: null, busy: false, odds: null, oddsKey: '' };
 function ensureFish() { }
@@ -2843,6 +2843,18 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .news{display:grid;gap:6px}.newsi{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2);font-size:13.5px;line-height:1.4}
 .newsi.me{background:rgba(242,181,82,.12)}.newsi .ni{font-size:20px;line-height:1}.newsi small{font-size:11.5px}
 .housecv{width:100%;max-width:560px;aspect-ratio:2.1/1;height:auto;border-radius:12px;display:block;margin:0 auto}
+.upstars{color:#ffd060;letter-spacing:2px;font-size:16px}.upstars i{color:rgba(255,255,255,.18);font-style:normal}
+.wsrod{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;align-items:center}.wscv{width:100%;aspect-ratio:1.5/1;border-radius:12px;display:block}
+.wsinfo{display:grid;gap:6px;align-content:start}.wsinfo h3{margin:0;font-size:20px}.wsinfo .kv{margin:4px 0}
+.ench-tag{display:inline-block;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--ec) 18%,transparent);border:1px solid var(--ec);font-size:13px;font-weight:700}
+.enchs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px}
+.ench{padding:10px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid color-mix(in srgb,var(--ec) 30%,transparent);display:grid;gap:6px}
+.ench.on{background:linear-gradient(160deg,color-mix(in srgb,var(--ec) 16%,transparent),rgba(0,0,0,.22));border-color:var(--ec)}
+.ench .eh{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;align-items:center}.ench .ei{font-size:22px;width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:rgba(0,0,0,.3);box-shadow:0 0 0 2px var(--ec)}
+.ench small{display:block;color:#9cb8c4;font-size:12px}.ench .et{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.18);font-size:13px}.ench .et.has{background:color-mix(in srgb,var(--ec) 14%,transparent)}
+.boats{display:grid;gap:8px}.boat{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22)}.boat.own{outline:1px solid var(--ok)}
+.boat small{display:block;color:#9cb8c4;font-size:12.5px;margin:2px 0}.boat .btn{margin-top:6px}.boatcv{width:150px;height:100px;border-radius:10px;display:block}
+@media (max-width:620px){.wsrod{grid-template-columns:1fr}.boat{grid-template-columns:1fr}.boatcv{width:100%;height:130px}}
 .chip.wfish{max-width:100%;white-space:normal}
 .ctable{width:100%;border-collapse:collapse;font-size:13px}
 .ctable td,.ctable th{padding:6px 5px;border-top:1px solid rgba(134,205,224,.1);text-align:left}
@@ -2862,13 +2874,15 @@ async function loadFD() {
   const [spots, species, rods, baits, achs, items] = await Promise.all([q('fish_spots'), q('fish_species'), q('fish_rods'), q('fish_baits'), q('fish_achievements'), q('fish_items').catch(() => [])]);
   Object.assign(FD, { spots, species, rods, baits, achs, items, loaded: true });
   items.forEach(x => FD.item[x.id] = x);
+  const [enchants, boats] = await Promise.all([q('fish_enchants').catch(() => []), q('fish_boats').catch(() => [])]);
+  Object.assign(FD, { enchants, boats }); enchants.forEach(x => FD.ench[x.id] = x);
   try { const { data } = await CL.sb.from('fish_house_levels').select('*').order('level'); (data || []).forEach(x => { ['sell_bonus', 'xp_bonus', 'bait_save'].forEach(k => x[k] = +x[k]); FD.house[x.level] = x }) } catch (e) { }
   spots.forEach(x => FD.spot[x.id] = x); species.forEach(x => { x.min_w = +x.min_w; x.max_w = +x.max_w; x.look = x.look || {}; x.look._id = x.id; FD.sp[x.id] = x }); rods.forEach(x => FD.rod[x.id] = x); baits.forEach(x => FD.bait[x.id] = x);
 }
 async function refreshFS() {
   FS = await rpc('fish_state');
   if (S) S.fishCache = { level: FS.level, total: FS.total };
-  if (!FV.spot || (FD.spot[FV.spot] && FD.spot[FV.spot].min_level > FS.level)) FV.spot = 'metsajarv';
+  if (!FV.spot || (FD.spot[FV.spot] && (FD.spot[FV.spot].min_level > FS.level || (FD.spot[FV.spot].boat && !(FS.boats || []).includes(FD.spot[FV.spot].boat))))) FV.spot = 'metsajarv';
   if (FS.inbox > 0) claimInbox();
   return FS;
 }
@@ -2935,6 +2949,9 @@ const ARCH = {
   burbot: { eel: 1, H: .075, eye: '#c8b080', eyeR: .02, chin: 1, burbot: 1 },
   serpent: { eel: 1, H: .07, eye: '#ffe060', eyeR: .022, crest: 1 },
   flat: { flat: 1, eye: '#d8c080', eyeR: .03 },
+  tuna: { H: .16, p: .42, ped: .12, hump: 1.08, belly: 1.12, head: 1.25, tail: 'lunate', dors: 'tuna', anal: 'tuna', scale: .018, eye: '#e8e8e8', eyeR: .026, finlets: 1 },
+  sword: { H: .12, p: .38, ped: .13, hump: 1.1, belly: 1, head: 1.15, tail: 'lunate', dors: 'sword', anal: 'short', scale: 0, eye: '#e0e4f0', eyeR: .028, bill: .3 },
+  angler: { H: .21, p: .24, ped: .32, hump: .9, belly: 1.15, head: .42, tail: 'round', dors: 'tiny', anal: 'short', scale: 0, eye: '#e0ffe0', eyeR: .018, angler: 1 },
 };
 const SP_ARCH = {
   ahven: 'perch', jaaahven: 'perch', kuldahven: 'perch', kristallahven: 'perch', kiisk: 'perch', koha: 'zander',
@@ -2945,8 +2962,10 @@ const SP_ARCH = {
   virmaliskala: 'salmon', vikerkaarekala: 'salmon', igijaavaim: 'salmon', merivaim: 'salmon', harjus: 'grayling',
   tursk: 'cod', lest: 'flat', angerjas: 'eel', kuuangerjas: 'eel', valgukala: 'eel', jarvelohe: 'serpent', luts: 'burbot',
   saga: 'catfish', tuur: 'sturgeon', haldjakala: 'angel', leviaatan: 'monster',
+  tobias: 'herring', laternkala: 'herring', emakala: 'eel', merihark: 'perch', makrell: 'tuna', kammeljas: 'flat', kirveskala: 'bream',
+  tuun: 'tuna', merikurat: 'angler', mookkala: 'sword', airukala: 'serpent', sugavusedraakon: 'serpent',
 };
-const SP_PAT = { lohe: 'xspots', meriforell: 'xspots', vikerforell: 'trout', vihmaforell: 'trout', paalia: 'char', kuningkarp: 'koi', haug: 'pikespots', jaahaug: 'pikespots', tormihaug: 'pikespots', joekuningas: 'pikespots', tursk: 'mottle', luts: 'mottle', saga: 'mottle', lest: 'flatspots', kiisk: 'mottle', linask: 'none', harjus: 'grayspots', jarvelohe: 'scales2' };
+const SP_PAT = { lohe: 'xspots', meriforell: 'xspots', vikerforell: 'trout', vihmaforell: 'trout', paalia: 'char', kuningkarp: 'koi', haug: 'pikespots', jaahaug: 'pikespots', tormihaug: 'pikespots', joekuningas: 'pikespots', tursk: 'mottle', luts: 'mottle', saga: 'mottle', lest: 'flatspots', kiisk: 'mottle', linask: 'none', harjus: 'grayspots', jarvelohe: 'scales2', makrell: 'mackerel', laternkala: 'photo', kirveskala: 'photo', merihark: 'mottle', emakala: 'mottle', merikurat: 'mottle', tuun: 'none', mookkala: 'none' };
 const GHOST = { igijaavaim: 1, merivaim: 1, udukala: 1, uduhobe: 1, kristallahven: 1 };
 function hexA(h, a) { if (!h || h[0] !== '#') return h; if (h.length === 4) h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]; return `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})` }
 function mixC(a2, b2, k) { if (!a2 || !b2 || a2.length < 7 || b2.length < 7) return a2; return '#' + [1, 3, 5].map(i => Math.round(parseInt(a2.slice(i, i + 2), 16) * (1 - k) + parseInt(b2.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('') }
@@ -2976,7 +2995,7 @@ function drawFishReal(c, L, look, t, sid) {
   if (a.flat) return drawFlat(c, L, a, body, back, belly, fin, t, detail, lw);
   if (a.eel) return drawEel(c, L, a, body, back, belly, fin, t, detail, lw, look, sid);
   if (ghost) c.globalAlpha *= .82;
-  const hh = a.H * L, xs = -L * .47, xp = L * .3, bl = xp - xs, wig = Math.sin(t * 6) * L * .035;
+  const hh = a.H * L, xs = -L * .47 + (a.bill ? a.bill * L * .75 : 0), xp = L * .3, bl = xp - xs, wig = Math.sin(t * 6) * L * .035;
   const prof = u => { if (u < a.p) { const v = u / a.p; return .04 + .96 * Math.pow(Math.sin(v * Math.PI / 2), a.head * .85) } const v = (u - a.p) / (1 - a.p); return a.ped + (1 - a.ped) * Math.pow(Math.cos(v * Math.PI / 2), 1.25) };
   const topY = u => -hh * prof(u) * (a.flatTop ? .92 : a.hump) + (a.flatTop ? 0 : hh * .04 * Math.sin(u * Math.PI));
   const botY = u => hh * prof(u) * a.belly;
@@ -3010,6 +3029,8 @@ function drawFishReal(c, L, look, t, sid) {
   switch (a.dors) {
     case 'perch': dorsal(.26, .5, hh * .75, L * .02, { spiny: 9, spot: 1 }); dorsal(.53, .7, hh * .55, L * .03); break;
     case 'perch2': dorsal(.25, .48, hh * .7, L * .02, { spiny: 10 }); dorsal(.51, .72, hh * .6, L * .03); break;
+    case 'tuna': dorsal(.3, .44, hh * .5, L * .02, { spiny: 7 }); dorsal(.52, .62, hh * .95, L * .07, { trail: 1 }); break;
+    case 'sword': dorsal(.16, .3, hh * 1.25, L * .05, { trail: 1 }); break;
     case 'tall': dorsal(.4, .55, hh * .85, L * .05); break;
     case 'long': dorsal(.3, .72, hh * .45, L * .03); break;
     case 'round': dorsal(.42, .6, hh * .6, L * .02, { round: 1 }); break;
@@ -3028,6 +3049,7 @@ function drawFishReal(c, L, look, t, sid) {
     case 'catfish': anal(.42, .96, hh * .4, L * .01); break;
     case 'cod': anal(.42, .62, hh * .5, L * .015, { round: 1 }); anal(.65, .84, hh * .45, L * .015, { round: 1 }); break;
     case 'trail': anal(.5, .7, hh * 1.1, L * .12, { trail: 1, alpha: .75 }); break;
+    case 'tuna': anal(.56, .64, hh * .9, L * .07, { trail: 1 }); break;
     default: anal(.66, .8, hh * .55, L * .025);
   }
   // kõhuuim
@@ -3047,6 +3069,8 @@ function drawFishReal(c, L, look, t, sid) {
   if (pat === 'pikespots') { for (let i = 0; i < 26; i++) { const u = .25 + rnd(i, 1) * .7, yy = topY(u) * (.85 - rnd(i, 2) * 1.5); ell(c, X(u), yy, L * .016, hh * .07, hexA(shade(belly, .2), .55)) } }
   if (pat === 'xspots') { c.strokeStyle = 'rgba(20,20,30,.55)'; c.lineWidth = Math.max(.8, L * .007); c.beginPath(); for (let i = 0; i < 22; i++) { const u = .15 + rnd(i, 1) * .75, yy = topY(u) * (.25 + rnd(i, 2) * .65), s2 = L * .008; c.moveTo(X(u) - s2, yy - s2); c.lineTo(X(u) + s2, yy + s2); c.moveTo(X(u) + s2, yy - s2); c.lineTo(X(u) - s2, yy + s2) } c.stroke() }
   if (pat === 'trout' || pat === 'char' || pat === 'spots' || pat === 'grayspots') { const red = pat === 'trout' || pat === 'char'; for (let i = 0; i < 30; i++) { const u = .12 + rnd(i, 1) * .82, yy = topY(u) * (1 - rnd(i, 2) * 1.3); circ(c, X(u), yy, L * (pat === 'char' ? .011 : .009), pat === 'char' ? 'rgba(255,240,200,.65)' : red && i % 4 === 0 ? 'rgba(220,60,50,.8)' : 'rgba(20,20,20,.5)') } }
+  if (pat === 'mackerel') { c.strokeStyle = hexA(shade(back, -.45), .75); c.lineWidth = Math.max(1, L * .012); for (let i = 0; i < 16; i++) { const u = .25 + i * .045; c.beginPath(); c.moveTo(X(u), topY(u)); c.quadraticCurveTo(X(u) + L * .025, topY(u) * .6, X(u) - L * .005, topY(u) * .2); c.stroke() } }
+  if (pat === 'photo') { for (let i = 0; i < 14; i++) { const u = .12 + i * .06, yy = botY(u) * .72; circ(c, X(u), yy, L * .012, hexA(look.g || '#7ad8ff', .35)); circ(c, X(u), yy, L * .006, hexA('#e8ffff', .95)) } }
   if (pat === 'mottle') for (let i = 0; i < 18; i++) { const u = .05 + rnd(i, 1) * .9; ell(c, X(u), topY(u) * (1 - rnd(i, 2) * 1.2), L * (.02 + rnd(i, 3) * .03), hh * (.1 + rnd(i, 4) * .15), hexA(shade(back, -.3), .35)) }
   if (look.b) { c.fillStyle = hexA(look.b, .55); c.beginPath(); for (let i = 0; i <= N; i++) { const u = i / N; c.lineTo(X(u), topY(u) * .12 - hh * .05) } for (let i = N; i >= 0; i--) { const u = i / N; c.lineTo(X(u), topY(u) * -.12 + hh * .14) } c.fill() }
   // soomused
@@ -3067,10 +3091,17 @@ function drawFishReal(c, L, look, t, sid) {
   c.strokeStyle = hexA(shade(back, -.5), .55); c.lineWidth = lw; c.stroke();
   // rinnauim (keha peal, poolläbipaistev)
   { const x0 = X(gu) + L * .03, y0 = hh * .25, sw = Math.sin(t * 5) * L * .01; finShape(c, [x0, y0 - hh * .08, x0 + L * .08 + sw, y0 + hh * .05, x0 + L * .11 + sw, y0 + hh * .3, x0 + L * .05, y0 + hh * .32, x0, y0 + hh * .12], finC, .62, detail ? 6 : 0, [x0, y0 - hh * .08, x0, y0 + hh * .12]) }
+  if (a.finlets && detail) for (let i = 0; i < 6; i++) { const u = .7 + i * .045; poly(c, [X(u) - L * .008, topY(u) + 1, X(u) + L * .01, topY(u) - hh * .14, X(u) + L * .014, topY(u) + 1], hexA(fin, .95)); poly(c, [X(u) - L * .008, botY(u) - 1, X(u) + L * .01, botY(u) + hh * .14, X(u) + L * .014, botY(u) - 1], hexA(fin, .95)) }
+  if (a.bill) { const by = (topY(0) + botY(0)) / 2 - hh * .05, g2 = c.createLinearGradient(0, by - hh * .1, 0, by + hh * .1); g2.addColorStop(0, back); g2.addColorStop(1, shade(back, .3)); c.beginPath(); c.moveTo(X(.03), by - hh * .14); c.lineTo(xs - a.bill * L * .75, by); c.lineTo(X(.03), by + hh * .1); c.closePath(); c.fillStyle = g2; c.fill(); c.strokeStyle = hexA(shade(back, -.5), .5); c.lineWidth = lw; c.stroke() }
+  if (a.angler) { const mx2 = X(0), top0 = topY(.02); c.beginPath(); c.moveTo(mx2 - L * .01, top0 + hh * .2); c.quadraticCurveTo(X(.18), hh * .25, mx2 - L * .02, botY(.04) * .9); c.closePath(); c.fillStyle = '#1a0e0a'; c.fill();
+    c.fillStyle = '#f4f0e0'; for (let i = 0; i < 7; i++) { const k = i / 6, tx = mx2 - L * .012 + k * L * .03, ty = top0 + hh * .2 + k * (botY(.04) * .9 - top0 - hh * .2); poly(c, [tx, ty, tx + L * .03, ty + hh * .05, tx, ty + hh * .1], '#f4f0e0') }
+    const sx = X(.12), sy = topY(.12), lx = mx2 - L * .1, ly = topY(0) - hh * .9 + Math.sin(t * 2) * hh * .1; c.strokeStyle = hexA(shade(back, .2), .95); c.lineWidth = Math.max(1, L * .008); c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(sx - L * .02, ly - hh * .5, lx, ly); c.stroke();
+    glowAt(c, lx, ly, L * .09, look.g || '#a0fff0', .7 + Math.sin(t * 3) * .2); circ(c, lx, ly, L * .022, '#eafff8') }
   // suu
   const mx = X(0), my = (topY(0) + botY(0)) / 2 + hh * (a.under ? .35 : a.whiskers ? .05 : .08);
   c.strokeStyle = 'rgba(20,10,10,.6)'; c.lineWidth = Math.max(.8, L * .009); c.lineCap = 'round'; c.beginPath();
-  if (a.under) { c.moveTo(X(.12), botY(.12) * .8); c.lineTo(X(.17), botY(.17) * .8) }
+  if (a.angler || a.bill) { }
+  else if (a.under) { c.moveTo(X(.12), botY(.12) * .8); c.lineTo(X(.17), botY(.17) * .8) }
   else { c.moveTo(mx + L * .004, my - hh * .02); c.quadraticCurveTo(mx + L * (a.jaw || .04) * .5, my + hh * .03, mx + L * (a.jaw || .04), my + hh * .07) }
   c.stroke();
   if (a.teeth && detail) { c.fillStyle = '#fffbea'; for (let i = 0; i < 4; i++) { const tx = mx + L * (.015 + i * .018); poly(c, [tx, my - .5, tx + L * .006, my + L * .012, tx + L * .012, my - .5], '#fffbea') } }
@@ -3141,9 +3172,10 @@ function metalGrad(c, x0, y0, x1, y1, col) { const g = c.createLinearGradient(x0
 function gemGrad(c, x, y, r, col) { const g = c.createRadialGradient(x - r * .35, y - r * .4, r * .05, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(.25, shade(col, .35)); g.addColorStop(.75, col); g.addColorStop(1, shade(col, -.5)); return g }
 function glowAt(c, x, y, r, col, a = .55) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, hexA(col, a)); g.addColorStop(1, hexA(col, 0)); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2) }
 function sparkle(c, x, y, r, col = '#ffffff') { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill() }
-function drawRod(c, S, id, t) {
+function drawRod(c, S, id, t, upg = 0, ench = '', elvl = 0) {
   const st = ROD_ST[id] || ROD_ST.algaja, x0 = -S * .42, y0 = S * .36, x1 = S * .44, y1 = -S * .4, len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0);
   if (st.glow) glowAt(c, 0, 0, S * .6, st.glow, .35);
+  if (ench && ENCH_COL[ench]) { glowAt(c, 0, 0, S * (.45 + elvl * .1), ENCH_COL[ench], .25 + elvl * .1 + Math.sin(t * 2) * .05) }
   // nöör ja konks
   c.strokeStyle = 'rgba(240,240,240,.7)'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(x1 + S * .02, y1 + S * .35, x1 - S * .02, y1 + S * .5 + Math.sin(t * 2) * S * .01); c.stroke();
   const hx = x1 - S * .02, hy = y1 + S * .5; c.strokeStyle = '#c8ccd0'; c.lineWidth = Math.max(1, S * .012); c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx, hy + S * .05); c.arc(hx - S * .025, hy + S * .05, S * .025, 0, Math.PI * .9); c.stroke();
@@ -3174,7 +3206,9 @@ function drawRod(c, S, id, t) {
     c.strokeStyle = 'rgba(255,255,255,.35)'; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(rx, ry, rr * (.6 + i * .1), 0, 6.283); c.stroke() }
     c.strokeStyle = shade(st.reel, -.4); c.lineWidth = Math.max(1, S * .01); c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + rr * .9, ry + rr * .6); c.stroke(); circ(c, rx + rr * .9, ry + rr * .6, S * .014, st.handle);
   }
+  if (upg) for (let i = 0; i < upg; i++) { const x = hl + len * .03 + i * S * .025; rect(c, x, -w0 * .62, S * .01, w0 * 1.24, '#ffd060'); rect(c, x, -w0 * .62, S * .004, w0 * 1.24, '#fff4c0') }
   c.restore();
+  if (ench && ENCH_COL[ench]) for (let i = 0; i < 3 + elvl * 3; i++) { const k = (t * .35 + i / (3 + elvl * 3)) % 1, u = .25 + th(i, 3, 4) * .75; sparkle(c, x0 + (x1 - x0) * u + Math.sin(i + t) * S * .03, y0 + (y1 - y0) * u - k * S * .12, S * .028 * (1 - k) * (1 + elvl * .3), hexA(ENCH_COL[ench], 1 - k)) }
   // valgusvirvendus ritval
   const sh = (t * .3) % 1; glowAt(c, x0 + (x1 - x0) * sh, y0 + (y1 - y0) * sh, S * .05, '#ffffff', .25);
   if (st.stars || st.glow) for (let i = 0; i < 4; i++) { const k = (t * .2 + i / 4) % 1, px = x0 + (x1 - x0) * (.3 + th(i, 1, 2) * .7), py = y0 + (y1 - y0) * (.3 + th(i, 1, 2) * .7) - S * .05; sparkle(c, px, py - k * S * .1, S * (.03 * (1 - k)), hexA(st.glow, 1 - k)) }
@@ -3269,17 +3303,88 @@ function drawJunk(c, S, id, t) {
   if (tier === 'kuld') { for (let i = 0; i < 4; i++) { const x = -r * .5 + i * r * .32; ell(c, x, r * .68, r * .12, r * .05, '#ffd040'); ell(c, x, r * .66, r * .1, r * .035, '#fff0a0') } for (let i = 0; i < 3; i++) { const k = (t * .4 + i / 3) % 1; sparkle(c, -r * .5 + i * r * .5, -r * .6 - k * r * .4, r * .12 * (1 - k)) } }
   c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(.6, S * .006); c.strokeRect(-r * .8, -r * .1, r * 1.6, r * .7);
 }
-function drawGear(c, x, y, S, kind, id, t = 1) { c.save(); c.translate(x, y); if (kind === 'rod') drawRod(c, S, id, t); else if (kind === 'bait') drawBait(c, S, id, t); else if (kind === 'item') drawItem(c, S, id, t); else drawJunk(c, S, id, t); c.restore() }
+function drawGear(c, x, y, S, kind, id, t = 1, ex) { c.save(); c.translate(x, y); if (kind === 'rod') drawRod(c, S, id, t, ...(ex || [])); else if (kind === 'boat') drawBoat(c, S, id, t); else if (kind === 'bait') drawBait(c, S, id, t); else if (kind === 'item') drawItem(c, S, id, t); else drawJunk(c, S, id, t); c.restore() }
 function paintGear(root) {
   root.querySelectorAll('canvas[data-gear]').forEach(cv2 => {
     const w = cv2.clientWidth || 56, h = cv2.clientHeight || 44, d = Math.min(3, (devicePixelRatio || 1) * 1.5); cv2.width = w * d; cv2.height = h * d;
-    const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id] = cv2.dataset.gear.split(':');
+    const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id, ...ex] = cv2.dataset.gear.split(':'); if (cv2.classList.contains('wscv') || cv2.classList.contains('boatcv')) { animGear.add(cv2) }
     if (!cv2.classList.contains('gi')) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
-    drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, 1);
+    drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, 1, kind === 'rod' ? [+ex[0] || 0, ex[1] || '', +ex[2] || 0] : null);
   });
 }
+// töökoja suured pildid liiguvad
+const animGear = new Set();
+function animGearTick(t) { for (const cv2 of animGear) { if (!cv2.isConnected) { animGear.delete(cv2); continue } const w = cv2.clientWidth, h = cv2.clientHeight, d = cv2.width / Math.max(1, w), c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id, ...ex] = cv2.dataset.gear.split(':'); const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h); drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, t, kind === 'rod' ? [+ex[0] || 0, ex[1] || '', +ex[2] || 0] : null) } }
 function gearCv(kind, id, cls = 'gearcv') { return `<canvas class="${cls}" data-gear="${kind}:${id}" aria-hidden="true"></canvas>` }
 function itemIcon(id) { return gearCv('item', id, 'gi') + ' ' + esc(FD.item[id] ? FD.item[id].name : id) }
+
+/* ---------- Töökoda: õngede täiustamine, võlud ja paadid ---------- */
+const ENCH_COL = { onn: '#7af0a0', tugevus: '#ff9a50', kiirus: '#7ad0ff', aare: '#ffd060', kuu: '#c8c0ff', torm: '#a0b8ff', hiid: '#ff7aa0' };
+const ENCH_IC = { onn: '🍀', tugevus: '💪', kiirus: '⚡', aare: '🗝️', kuu: '🌙', torm: '⛈️', hiid: '🐋' };
+const UPG_ITEMS = [null, { karp: 3 }, { karp: 5, parl: 1 }, { parl: 2, merevaik: 2 }, { ruun: 2, sormus: 1 }, { mustparl: 1, kristall: 1 }];
+function rodUpgCost(rodId, lvl) { const r = FD.rod[rodId]; return { gold: Math.max(150, Math.round((r ? +r.price : 0) * .25)) * lvl, items: UPG_ITEMS[lvl] || {} } }
+function modOf(rodId) { return (FS.rod_mods || {})[rodId] || { upg: 0, ench: null, ench_lvl: 0 } }
+function rodStats(rodId) {
+  const r = FD.rod[rodId], m = modOf(rodId), e = m.ench && FD.ench[m.ench], v = e && m.ench_lvl ? +e.vals[m.ench_lvl - 1] : 0;
+  let st = +r.strength * (1 + .1 * m.upg), cb = +r.catch_bonus + .01 * m.upg, rb = +r.reel_bonus + .02 * m.upg;
+  if (e && e.id === 'tugevus') st *= 1 + v; if (e && e.id === 'onn') cb += v;
+  return { st, cb, rb, m, e, v };
+}
+function enchEffect(e, lvl) { const v = +e.vals[lvl - 1]; return { onn: `haruldased +${Math.round(v * 100)}%`, tugevus: `tugevus +${Math.round(v * 100)}%`, kiirus: `kala võtab ${Math.round(v * 100)}% kiiremini`, aare: `kirstud ×${fmt1(v)}`, kuu: `öösel haruldased +${Math.round(v * 100)}%`, torm: `ilmakalu ${Math.round(v * 100)}% eelistusega`, hiid: `hiidkalad ×${fmt1(v)}` }[e.id] }
+function costHtml(cost) {
+  const items = Object.entries(cost.items || {});
+  return `<span style="color:${FS.gold >= cost.gold ? 'var(--ok)' : 'var(--bad)'}">${fmt(cost.gold)} kulda</span>${items.map(([k, q]) => { const have = (FS.items || {})[k] || 0; return ` · <span style="color:${have >= q ? 'var(--ok)' : 'var(--bad)'}">${itemIcon(k)} ${Math.min(have, q)}/${q}</span>` }).join('')}`;
+}
+function canPay(cost) { return FS.gold >= cost.gold && Object.entries(cost.items || {}).every(([k, q]) => ((FS.items || {})[k] || 0) >= q) }
+function stars(n) { return `<span class="upstars">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>` }
+function tabTookoda() {
+  if (!FV.wsRod || !(FS.rods || []).includes(FV.wsRod)) FV.wsRod = FS.rod;
+  const rid = FV.wsRod, r = FD.rod[rid], S2 = rodStats(rid), m = S2.m;
+  let h = `<div class="fv-card"><h2>Töökoda</h2><p class="lead">Siin saad oma õngi täiustada ja neile võlusid lisada. Täiustamine teeb õnge tugevamaks ja paremaks. Võlu annab õngele maagilise omaduse. Kõik õnged hoiavad oma täiustused ka siis, kui vahetad õnge.</p>
+    <div class="chips" style="margin-bottom:8px">${FD.rods.filter(x => (FS.rods || []).includes(x.id)).map(x => `<button type="button" class="chip ${x.id === rid ? 'on' : ''}" data-fa="wsrod" data-arg="${x.id}">${gearCv('rod', x.id, 'gi')} ${esc(x.name)}${modOf(x.id).upg ? ' +' + modOf(x.id).upg : ''}</button>`).join('')}</div>
+    <div class="wsrod"><canvas class="wscv" data-gear="rod:${rid}:${m.upg}:${m.ench || ''}:${m.ench_lvl || 0}"></canvas>
+    <div class="wsinfo"><h3>${esc(r.name)} ${m.upg ? '+' + m.upg : ''}</h3>${stars(m.upg)}
+      ${S2.e ? `<div class="ench-tag" style="--ec:${ENCH_COL[S2.e.id]}">${ENCH_IC[S2.e.id]} ${esc(S2.e.name)} ${'I'.repeat(m.ench_lvl)} · ${enchEffect(S2.e, m.ench_lvl)}</div>` : '<small class="lead">Võlu pole veel lisatud</small>'}
+      <dl class="kv"><dt>Tugevus</dt><dd>${fmt1(S2.st)} kg${S2.st > +r.strength ? ` <small class="lead">(alus ${fmt1(+r.strength)})</small>` : ''}</dd><dt>Püügiboonus</dt><dd>+${Math.round(S2.cb * 100)}%</dd><dt>Väljatoomine</dt><dd>+${Math.round(S2.rb * 100)}%</dd></dl>
+      ${rid === FS.rod ? '<span class="pill ok">Kasutusel</span>' : `<button class="btn sm ghost" type="button" data-fa="rod" data-arg="${rid}">Võta kasutusele</button>`}</div></div>`;
+  if (m.upg < 5) { const cost = rodUpgCost(rid, m.upg + 1); h += `<div class="srow" style="margin-top:10px"><div><b>Täiusta: +${m.upg + 1}</b><small>Annab: tugevus +10%, püügiboonus +1%, väljatoomine +2%</small><small>${costHtml(cost)}</small></div><button class="btn" type="button" data-fa="upgrade" data-arg="${rid}" ${canPay(cost) ? '' : 'disabled'}>Täiusta</button></div>` }
+  else h += '<p class="lead" style="margin-top:10px"><b>See õng on täielikult täiustatud! ★★★★★</b></p>';
+  h += `</div><div class="fv-card"><h2>Võlud</h2><p class="lead">Igal õngel saab olla üks võlu. Uus võlu asendab vana. Kõrgemad astmed on tugevamad: I aste avaneb 8., II aste 18. ja III aste 30. kalapüügi tasemel.</p><div class="enchs">`;
+  for (const e of FD.enchants) {
+    const cur = m.ench === e.id ? m.ench_lvl : 0;
+    h += `<div class="ench ${cur ? 'on' : ''}" style="--ec:${ENCH_COL[e.id]}"><div class="eh"><span class="ei">${ENCH_IC[e.id]}</span><div><b>${esc(e.name)}</b><small>${esc(e.descr)}</small></div></div>${[1, 2, 3].map(t2 => { const cost = { gold: e.costs[t2 - 1].gold, items: e.costs[t2 - 1].items }, lvlNeed = [8, 18, 30][t2 - 1], has = cur >= t2, lockL = FS.level < lvlNeed;
+      return `<div class="et ${has ? 'has' : ''}"><div><b>${'I'.repeat(t2)} aste</b> · ${enchEffect(e, t2)}<small>${lockL ? `🔒 Avaneb ${lvlNeed}. tasemel` : costHtml(cost)}</small></div>${has ? '<span class="pill ok">Olemas</span>' : `<button class="btn sm" type="button" data-fa="enchant" data-arg="${rid}:${e.id}:${t2}" ${!lockL && canPay(cost) ? '' : 'disabled'}>Võlu</button>`}</div>` }).join('')}</div>`;
+  }
+  h += `</div></div><div class="fv-card"><h2>Paadid</h2><p class="lead">Paadiga pääsed uutesse merepüügikohtadesse. Paadid ostetakse järjest: enne puupaat, siis mootorpaat ja lõpuks kalalaev. Iga paat teeb ka merel püüdmise kiiremaks.</p><div class="boats">`;
+  for (const b of FD.boats) {
+    const own = (FS.boats || []).includes(b.id), spot = FD.spots.find(s => s.boat === b.id), cost = { gold: b.price, items: b.items }, prevOk = FD.boats.filter(x => x.sort < b.sort).every(x => (FS.boats || []).includes(x.id)), lockL = FS.level < b.min_level;
+    h += `<div class="boat ${own ? 'own' : ''}"><canvas class="boatcv" data-gear="boat:${b.id}"></canvas><div><b>${esc(b.name)}</b> ${own ? '<span class="pill ok">Sinu oma</span>' : ''}<small>${esc(b.descr)}</small>${spot ? `<small>Avab: <b>${esc(spot.name)}</b> (kalapüügi ${spot.min_level}. tase)</small>` : ''}
+      ${own ? '' : `<small>${lockL ? `🔒 Avaneb ${b.min_level}. tasemel` : !prevOk ? '🔒 Osta enne eelmine paat' : costHtml(cost)}</small><button class="btn sm" type="button" data-fa="boat" data-arg="${b.id}" ${!lockL && prevOk && canPay(cost) ? '' : 'disabled'}>Osta paat</button>`}</div></div>`;
+  }
+  return h + '</div></div>';
+}
+function drawBoat(c, S, id, t) {
+  const bob = Math.sin(t * 1.5) * S * .015, w = S * .9;
+  // vesi
+  const wg = c.createLinearGradient(0, S * .1, 0, S * .5); wg.addColorStop(0, '#3a8aa8'); wg.addColorStop(1, '#13394a'); c.fillStyle = wg; c.fillRect(-S, S * .12, S * 2, S);
+  c.save(); c.translate(0, bob);
+  if (id === 'paat') {
+    c.beginPath(); c.moveTo(-w * .5, -S * .02); c.lineTo(w * .5, -S * .06); c.quadraticCurveTo(w * .42, S * .16, w * .25, S * .2); c.lineTo(-w * .35, S * .2); c.quadraticCurveTo(-w * .5, S * .12, -w * .5, -S * .02); c.fillStyle = metalGrad(c, 0, -S * .06, 0, S * .2, '#9a6436'); c.fill();
+    c.strokeStyle = 'rgba(50,25,10,.55)'; c.lineWidth = Math.max(.6, S * .006); for (let i = 1; i < 4; i++) { c.beginPath(); c.moveTo(-w * .48, -S * .02 + i * S * .055); c.lineTo(w * .46, -S * .06 + i * S * .055); c.stroke() }
+    rect(c, -w * .52, -S * .045, w * 1.04, S * .03, '#6a3e1e'); c.strokeStyle = '#c8a070'; c.lineWidth = S * .018; c.lineCap = 'round'; c.beginPath(); c.moveTo(-w * .05, -S * .05); c.lineTo(w * .35, S * .24); c.stroke(); ell(c, w * .36, S * .25, S * .04, S * .015, '#c8a070');
+  } else if (id === 'kaater') {
+    c.beginPath(); c.moveTo(-w * .5, -S * .04); c.lineTo(w * .52, -S * .08); c.quadraticCurveTo(w * .4, S * .12, w * .2, S * .18); c.lineTo(-w * .45, S * .18); c.closePath(); c.fillStyle = metalGrad(c, 0, -S * .08, 0, S * .18, '#e8eef2'); c.fill();
+    rect(c, -w * .5, S * .06, w, S * .05, '#c83a2a'); c.beginPath(); c.moveTo(-w * .25, -S * .05); c.lineTo(-w * .2, -S * .2); c.lineTo(w * .12, -S * .2); c.lineTo(w * .2, -S * .06); c.fillStyle = '#d8e0e8'; c.fill(); rect(c, -w * .15, -S * .17, w * .25, S * .07, '#3a5a7a');
+    rect(c, -w * .58, -S * .02, S * .06, S * .15, '#2a2a2a'); for (let i = 0; i < 4; i++) { const k = (t * 1.2 + i / 4) % 1; circ(c, -w * .6 - k * S * .25, S * .17, S * .02 * (1 - k) + 1, `rgba(255,255,255,${.6 * (1 - k)})`) }
+  } else {
+    c.beginPath(); c.moveTo(-w * .55, -S * .06); c.lineTo(w * .55, -S * .1); c.quadraticCurveTo(w * .45, S * .16, w * .25, S * .2); c.lineTo(-w * .5, S * .2); c.closePath(); c.fillStyle = metalGrad(c, 0, -S * .1, 0, S * .2, '#2a4a7a'); c.fill(); rect(c, -w * .55, S * .1, w * 1.06, S * .04, '#c83a2a');
+    rect(c, -w * .45, -S * .26, w * .35, S * .2, '#e8e8e0'); for (let i = 0; i < 3; i++) rect(c, -w * .42 + i * w * .1, -S * .22, w * .06, S * .05, '#3a5a7a'); rect(c, -w * .35, -S * .36, S * .05, S * .1, '#c83a2a');
+    c.strokeStyle = '#6a6a6a'; c.lineWidth = Math.max(1, S * .012); c.beginPath(); c.moveTo(w * .15, -S * .07); c.lineTo(w * .2, -S * .45); c.lineTo(w * .48, -S * .1); c.stroke(); c.beginPath(); c.moveTo(w * .2, -S * .4); c.lineTo(w * .4, -S * .05); c.strokeStyle = 'rgba(220,220,220,.6)'; c.lineWidth = Math.max(.5, S * .004); c.stroke();
+    for (let i = 0; i < 3; i++) { const k = (t * .5 + i / 3) % 1; circ(c, -w * .33 + k * S * .05, -S * .38 - k * S * .2, S * .03 + k * S * .04, `rgba(200,200,210,${.5 * (1 - k)})`) }
+  }
+  c.restore();
+  for (let i = 0; i < 5; i++) { const x = -S + ((t * 15 + i * S * .45) % (S * 2)); c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.beginPath(); c.moveTo(x, S * .22 + (i % 2) * S * .08); c.lineTo(x + S * .12, S * .22 + (i % 2) * S * .08); c.stroke() }
+}
 
 function paintFishCanvases(root) {
   root.querySelectorAll('canvas[data-fl]').forEach(cv2 => {
@@ -3313,14 +3418,14 @@ function fvHeader() {
       <div class="fv-stat"><small>Püütud kalu</small><b class="num">${fmt(FS.total)}</b></div>
       <div class="fv-stat"><small>Suurim kala</small><b>${big}</b></div>
       <div class="fv-stat"><small>Haruldasi kalu</small><b class="num">${fmt(rare)}</b></div>
-      <div class="fv-stat"><small>Õngeritv</small><b>${rod ? gearCv('rod', rod.id, 'gi') + ' ' + rod.name : ''} ${FS.rod_broken ? '<span style="color:var(--bad)">· katki</span>' : ''}</b></div>
+      <div class="fv-stat"><small>Õngeritv</small><b>${rod ? gearCv('rod', rod.id, 'gi') + ' ' + rod.name + (FS.gear && FS.gear.upg ? ' +' + FS.gear.upg : '') + (FS.gear && FS.gear.ench ? ' ' + (ENCH_IC[FS.gear.ench] || '') : '') : ''} ${FS.rod_broken ? '<span style="color:var(--bad)">· katki</span>' : ''}</b></div>
       <div class="fv-stat"><small>Sööt</small><b>${bait ? gearCv('bait', bait.id, 'gi') + ' ' + bait.name + baitCnt : ''}</b></div></div>`;
 }
 function weatherChips() {
   const w = WTH2[FS.weather] || ['', ''];
   return `<span class="chip" title="${w[1]}">${w[0]}</span>${WFISH[FS.weather] ? `<span class="chip wfish" title="Need kalad ujuvad ainult selle ilmaga">🌦️ ${WFISH[FS.weather]}</span>` : ''}${FS.is_night ? '<span class="chip" title="Öised kalad on väljas">🌙 Öö</span>' : '<span class="chip">☀️ Päev</span>'}${FS.is_winter ? '<span class="chip" title="Talvised kalad on väljas">❄️ Talv</span>' : ''}${FS.luck ? `<span class="chip" title="Kuldkala õnnistus">🍀 Õnn ${FS.luck}</span>` : ''}`;
 }
-const FTABS = { puuk: 'Püük', saak: 'Saak', maja: 'Kalamaja', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', voistlus: 'Võistlused', uudised: 'Uudised' };
+const FTABS = { puuk: 'Püük', saak: 'Saak', maja: 'Kalamaja', tookoda: 'Töökoda', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', voistlus: 'Võistlused', uudised: 'Uudised' };
 function fvBadges() {
   const b = {};
   b.saak = (FS.inventory || []).filter(x => !x.trophy).length || 0;
@@ -3334,7 +3439,7 @@ function renderFV(force) {
   if (!FV.open || !FS) return;
   if (!force && FV.busyUI) return;
   const b = fvBadges();
-  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised, maja: tabMaja }[FV.tab]()}</div>`;
+  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised, maja: tabMaja, tookoda: tabTookoda }[FV.tab]()}</div>`;
   const root = $('#fvIn'), st = $('#fishView').scrollTop;
   root.innerHTML = html;
   const slot = root.querySelector('#fvSceneSlot'); if (slot) slot.replaceWith(sceneCv);
@@ -3349,7 +3454,7 @@ function tabPuuk() {
   const owned = FD.baits.filter(b => b.price === 0 || (b.consumable ? ((FS.baits || {})[b.id] || 0) > 0 : (FS.baits || {})[b.id] !== undefined) || b.id === FS.bait);
   const odds = FV.odds;
   const active = !['idle', 'result', 'lost'].includes(FV.phase);
-  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const lock = FS.level < s.min_level; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : ''}${s.name}</b><small>${lock ? `Avaneb ${s.min_level}. tasemel` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
+  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), lock = FS.level < s.min_level || noBoat; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
     <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
   h += `<div class="fv-card"><div id="fvSceneSlot"></div>
     <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
@@ -3484,7 +3589,7 @@ function resultCard() {
 }
 
 /* ---------- stseen ---------- */
-const SCN = { metsajarv: ['#3f7a3a', '#3a7a94', '#163848'], jogi: ['#4a7a3a', '#4a8aa4', '#1a4050'], kuninglik: ['#3a6a3a', '#2f6a8a', '#0e2e44'], meri: ['#c8b884', '#2a6a8a', '#0e2e44'], jaa: ['#e8f2f6', '#2a5a70', '#0e2a38'], salajane: ['#3a4a5a', '#4a3a7a', '#140e2a'] };
+const SCN = { metsajarv: ['#3f7a3a', '#3a7a94', '#163848'], jogi: ['#4a7a3a', '#4a8aa4', '#1a4050'], kuninglik: ['#3a6a3a', '#2f6a8a', '#0e2e44'], meri: ['#c8b884', '#2a6a8a', '#0e2e44'], jaa: ['#e8f2f6', '#2a5a70', '#0e2a38'], salajane: ['#3a4a5a', '#4a3a7a', '#140e2a'], saarestik: ['#7a7468', '#2a7090', '#0c2c42'], avameri: ['#1a5a8a', '#1e5f8e', '#06203a'], sugavik: ['#0a1a2a', '#0e2a44', '#02060e'] };
 let sparks = [];
 function sparkleScene(col) { for (let i = 0; i < 40; i++) sparks.push({ x: .6, y: .5, vx: rnd(-.4, .4), vy: rnd(-.6, .1), life: rnd(.6, 1.2), col }) }
 let lastSc = 0;
@@ -3497,12 +3602,13 @@ function sceneLoop(ts) {
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1150 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
   if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
   if (aqCv.isConnected) drawAquarium(t);
+  if (animGear.size) animGearTick(t);
   if (!sceneCv.isConnected) return;
   const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
   if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
   const c = sceneCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
   const [shore, wTop, wBot] = SCN[FV.spot] || SCN.metsajarv, night = FS && FS.is_night, h = hgt;
-  const sg = c.createLinearGradient(0, 0, 0, h * .32); sg.addColorStop(0, night ? '#0b1530' : FV.spot === 'salajane' ? '#5a4a8a' : '#8fc8e4'); sg.addColorStop(1, night ? '#1e2c58' : FV.spot === 'salajane' ? '#a898c8' : '#d6ecf2');
+  const sg = c.createLinearGradient(0, 0, 0, h * .32); sg.addColorStop(0, night ? '#0b1530' : FV.spot === 'salajane' ? '#5a4a8a' : FV.spot === 'sugavik' ? '#1a2a48' : '#8fc8e4'); sg.addColorStop(1, night ? '#1e2c58' : FV.spot === 'salajane' ? '#a898c8' : FV.spot === 'sugavik' ? '#3a4a6a' : '#d6ecf2');
   c.fillStyle = sg; c.fillRect(0, 0, w, h * .32);
   if (night) for (let i = 0; i < 40; i++) circ(c, th(i, 1, 3) * w, th(i, 2, 3) * h * .28, th(i, 3, 3) * 1.3 + .3, `rgba(255,255,240,${.4 + .4 * Math.abs(Math.sin(t + i))})`);
   if (night) circ(c, w * .82, h * .1, 12, '#f2ecd0');
@@ -3510,16 +3616,25 @@ function sceneLoop(ts) {
   if (FV.spot === 'kuninglik') { c.fillStyle = night ? '#1a2238' : '#6a7a8a'; c.fillRect(w * .62, h * .12, w * .2, h * .16); for (let i = 0; i < 4; i++) c.fillRect(w * .62 + i * w * .055, h * .09, w * .03, h * .04); c.fillRect(w * .66, h * .02, w * .04, h * .12); poly(c, [w * .655, h * .02, w * .68, -h * .04, w * .705, h * .02], '#3a5f8c') }
   if (FV.spot === 'jogi' || FV.spot === 'metsajarv' || FV.spot === 'salajane') for (let i = 0; i < 18; i++) { const x = i / 18 * w + th(i, 4, 1) * 20, hh = h * (.1 + th(i, 5, 1) * .08); poly(c, [x - 14, h * .3, x + 14, h * .3, x, h * .3 - hh], night ? '#0e2018' : FV.spot === 'salajane' ? '#3a3a5a' : '#2b5a3a') }
   if (FV.spot === 'jaa') for (let i = 0; i < 6; i++) poly(c, [i * w / 5 - 40, h * .3, i * w / 5 + 60, h * .3, i * w / 5 + 10, h * .12], '#c8dae2');
-  rect(c, 0, h * .26, w, h * .07, shore);
+  if (FV.spot === 'saarestik') for (let i = 0; i < 4; i++) { const x = w * (.08 + i * .27), iw = w * (.12 + th(i, 2, 8) * .08); c.beginPath(); c.moveTo(x - iw / 2, h * .32); c.quadraticCurveTo(x - iw * .3, h * .2, x, h * .2); c.quadraticCurveTo(x + iw * .35, h * .21, x + iw / 2, h * .32); c.fillStyle = night ? '#1a2028' : '#6a6a62'; c.fill(); for (let k = 0; k < 4; k++) { const px = x - iw * .25 + k * iw * .15, ph2 = h * (.06 + th(i, k, 9) * .05); poly(c, [px - 6, h * .215, px + 6, h * .215, px, h * .2 - ph2], night ? '#0e1a14' : '#2b4a32') } }
+  if (FV.spot === 'avameri') { const sx = ((t * 6) % (w + 200)) - 100, col = night ? 'rgba(20,26,40,.8)' : 'rgba(70,80,100,.55)'; poly(c, [sx, h * .305, sx + 34, h * .305, sx + 28, h * .318, sx + 5, h * .318], col); poly(c, [sx + 16, h * .3, sx + 16, h * .2, sx + 30, h * .3], night ? 'rgba(30,36,50,.8)' : 'rgba(240,240,240,.7)'); poly(c, [sx + 14, h * .3, sx + 14, h * .23, sx + 5, h * .3], night ? 'rgba(30,36,50,.8)' : 'rgba(230,230,230,.6)') }
+  if (FV.spot === 'avameri' || FV.spot === 'sugavik') rect(c, 0, h * .3, w, h * .03, wTop); else rect(c, 0, h * .26, w, h * .07, shore);
   const wg = c.createLinearGradient(0, h * .32, 0, h); wg.addColorStop(0, wTop); wg.addColorStop(1, wBot); c.fillStyle = wg; c.fillRect(0, h * .32, w, h * .68);
   if (FV.spot === 'jaa') { c.fillStyle = '#e8f4f8'; c.fillRect(0, h * .32, w, h * .68); c.beginPath(); c.ellipse(w * .6, h * .56, w * .17, h * .13, 0, 0, 6.29); c.fillStyle = '#1f4e62'; c.fill(); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.stroke() }
-  const flow = FV.spot === 'jogi' ? 70 : FV.spot === 'meri' ? 30 : 14;
+  if (FV.spot === 'sugavik') for (let i = 0; i < 26; i++) { const x = (th(i, 1, 11) * w + Math.sin(t * .3 + i) * 20), y = h * (.4 + th(i, 2, 11) * .58) + Math.sin(t * .7 + i * 2) * 6, a = .3 + .5 * Math.abs(Math.sin(t * .8 + i)); circ(c, x, y, 1.2 + th(i, 3, 11) * 1.8, `rgba(120,230,255,${a})`) }
+  const flow = FV.spot === 'jogi' ? 70 : FV.spot === 'meri' || FV.spot === 'avameri' ? 30 : FV.spot === 'sugavik' ? 8 : 14;
   for (let i = 0; i < 9; i++) { const yy = h * (.38 + i * .07) + Math.sin(t * 1.3 + i) * 2, xx = ((t * flow * (i % 2 ? 1 : .6) + i * 97) % (w + 80)) - 40; c.strokeStyle = 'rgba(255,255,255,.13)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + 40, yy); c.stroke() }
   if (FV.spot === 'salajane') for (let i = 0; i < 3; i++) { const fx = ((t * 12 * (i + 1) + i * 200) % (w + 300)) - 150, g = c.createRadialGradient(fx, h * .5, 0, fx, h * .5, 160); g.addColorStop(0, 'rgba(220,200,255,.22)'); g.addColorStop(1, 'rgba(220,200,255,0)'); c.fillStyle = g; c.fillRect(fx - 160, h * .5 - 160, 320, 320) }
   // ilm
   if (FS && (FS.weather === 'vihm' || FS.weather === 'torm')) { c.strokeStyle = 'rgba(210,230,255,.45)'; c.lineWidth = 1; for (let i = 0; i < (FS.weather === 'torm' ? 120 : 70); i++) { const x = (th(i, 7, 1) * w + t * 60) % w, y = (th(i, 8, 1) * h + t * 400 * (.8 + th(i, 9, 1) * .4)) % h; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 4, y + 12); c.stroke() } }
   if (FS && FS.weather === 'udu') { c.fillStyle = 'rgba(230,236,234,.22)'; c.fillRect(0, 0, w, h) }
   if (night) { c.fillStyle = 'rgba(8,16,44,.35)'; c.fillRect(0, 0, w, h) }
+  // paat merel
+  if (FD.spot[FV.spot] && FD.spot[FV.spot].boat) {
+    const own = (FS.boats || []), bid = own.includes('laev') ? 'laev' : own.includes('kaater') ? 'kaater' : 'paat', col = bid === 'laev' ? '#2a4a7a' : bid === 'kaater' ? '#e8eef2' : '#9a6436', rock = Math.sin(t * 1.4) * 3;
+    c.save(); c.translate(0, rock); c.beginPath(); c.moveTo(-20, h * .8); c.lineTo(w * .3, h * .86); c.quadraticCurveTo(w * .26, h * .98, w * .18, h + 10); c.lineTo(-20, h + 10); c.closePath(); c.fillStyle = metalGrad(c, 0, h * .8, 0, h, col); c.fill();
+    rect(c, -20, h * .8, w * .32, 6, bid === 'paat' ? '#6a3e1e' : '#c83a2a'); c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1.5; c.stroke(); c.restore();
+  }
   // õng, nöör, ujuk
   const bx = w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
   const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
@@ -3694,11 +3809,13 @@ function newsText(n) {
     case 'chest': return `${who} leidis kuldse aardekirstu ja ${fmt(d.gold || 0)} kulda!`;
     case 'comp': return `${who} võitis võistluse „${COMPN[d.comp] ? COMPN[d.comp][0] : d.comp}“!`;
     case 'level': return `${who} jõudis kalapüügi ${d.level}. tasemele!`;
+    case 'enchant': return `${who} lisas õngele ${esc(d.rod || '')} võimsa võlu: ${esc(d.ench || '')} III!`;
+    case 'boat': return `${who} ostis uue paadi: ${esc(d.boat || '')}!`;
     case 'house': return `${who} täiendas kalamaja: nüüd on tal ${esc(d.name || '')} (tase ${d.level})!`;
   }
   return who;
 }
-const NEWS_IC = { house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
+const NEWS_IC = { enchant: '✨', boat: '⛵', house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
 function newsAgo(at) { const m = Math.floor((Date.now() - new Date(at)) / 60000); if (m < 1) return 'just nüüd'; if (m < 60) return m + ' min tagasi'; const h = Math.floor(m / 60); if (h < 24) return h + ' h tagasi'; return new Date(at).toLocaleDateString('et-EE', { day: 'numeric', month: 'long' }) }
 function newsHtml(max) {
   if (!NEWS.list) return '<p class="lead">Laadin uudiseid…</p>';
@@ -3907,7 +4024,8 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'close': closeFishView(); break;
     case 'tab': FV.tab = arg; if (arg === 'maja') { AQ.visit = null; AQ.list = null } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
-    case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
+    case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return }
+      if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
     case 'cut': if (FV.phase === 'reel') doLose('Lasid kala lahti. Õng jäi terveks.'); break;
@@ -3930,6 +4048,10 @@ document.addEventListener('click', async e => {
     case 'deliver': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_order_deliver', { p_idx: +arg }); toast(`Kokk on õnnelik! +${r.gold} kulda, +${r.xp} kogemust, +${r.fame} kuulsust ja +${r.food} toitu kuningriiki.`, 'gold', 'fish'); await refreshFS(); FV.orders = await rpc('fish_orders_today'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'claim': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_claim_prizes'); if (!r.prizes.length) toast('Uusi võidupreemiaid pole. Ole parim ja proovi uuesti!', 'info'); r.prizes.forEach(p => toast(`${COMPN[p.comp][0]}: ${p.place}. koht! +${p.gold} kulda, +${p.xp} kogemust${p.title ? `, tiitel „${p.title}“` : ''}`, 'gold', 'fame')); await refreshFS(); FV.comps = await rpc('fish_competitions'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'reloadComp': FV.comps = null; renderFV(true); loadSide(); break;
+    case 'wsrod': FV.wsRod = arg; renderFV(true); break;
+    case 'upgrade': { if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_rod_upgrade', { p_rod: arg }); toast(`${FD.rod[arg].name} on nüüd +${r.upg}! Õng on tugevam ja parem.`, 'gold', 'fish'); sparkleScene('#ffd060'); await refreshFS(); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
+    case 'enchant': { if (FV.busy) return; const [rd, en, tr] = arg.split(':'), cur = modOf(rd); if (cur.ench && cur.ench !== en && !confirm(`Uus võlu asendab õnge praeguse võlu (${FD.ench[cur.ench].name}). Kas jätkad?`)) return; FV.busy = true; try { const r = await rpc('fish_enchant', { p_rod: rd, p_ench: en, p_tier: +tr }); toast(`${FD.rod[rd].name} sai võlu: ${r.name} ${'I'.repeat(r.tier)}!`, 'gold', 'fish'); await refreshFS(); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
+    case 'boat': { if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_boat_buy', { p_boat: arg }); toast(`Palju õnne! Sul on nüüd ${r.name}. Uus püügikoht on avatud!`, 'gold', 'fish'); await refreshFS(); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
     case 'house': { const r = await aqCall('fish_house_upgrade', {}, r => `Valmis: ${r.name}! Kalamaja tase ${r.level}.`); renderFV(true); break }
     case 'aqput': { const r = await aqCall('fish_aquarium_put', { p_catch: +arg }, () => 'Kala ujub nüüd sinu akvaariumis.'); if (r && FV.tab === 'puuk') FV.result = null; renderFV(true); break }
     case 'aqputSel': { const id = [...FV.sel][0]; if (!id) break; const r = await aqCall('fish_aquarium_put', { p_catch: id }, () => 'Kala ujub nüüd sinu akvaariumis.'); if (r) FV.sel.delete(id); renderFV(true); break }
