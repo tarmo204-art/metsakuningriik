@@ -247,6 +247,22 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- 2e. Laiendus 4: kalaturg
+alter table public.fish_catches add column if not exists bought boolean not null default false;
+create table if not exists public.fish_market (
+  id bigserial primary key, seller uuid not null references auth.users(id) on delete cascade,
+  catch_id bigint not null references public.fish_catches(id) on delete cascade,
+  species text not null, rarity int not null, weight numeric not null, giant boolean not null default false,
+  price int not null check (price > 0), base int not null, fee int not null default 0,
+  status text not null default 'open' check (status in ('open','sold','cancelled','expired')),
+  buyer uuid references auth.users(id) on delete set null, new_catch bigint,
+  created_at timestamptz not null default now(), closed_at timestamptz
+);
+create unique index if not exists fish_market_one_open on public.fish_market(catch_id) where status = 'open';
+create index if not exists fish_market_open on public.fish_market(status, id desc);
+alter table public.fish_market enable row level security;
+revoke all on public.fish_market from anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- 3. Algandmed
 -- ---------------------------------------------------------------------
@@ -566,12 +582,12 @@ declare
 begin
   select * into f from public.fishers where user_id = u;
   select coalesce(max(weight),0), coalesce(max(rarity),0), bool_or(species = 'kuldkala'), bool_or(giant), count(distinct spot)
-    into maxw, maxr, hasgold, hasgiant, nspots from public.fish_catches where user_id = u;
-  select count(distinct c.species) into ncommon from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and s.rarity = 1;
+    into maxw, maxr, hasgold, hasgiant, nspots from public.fish_catches where user_id = u and not bought;
+  select count(distinct c.species) into ncommon from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and not c.bought and s.rarity = 1;
   select count(*) into ncommon_all from public.fish_species where rarity = 1;
-  select count(distinct species) into nall from public.fish_catches where user_id = u;
+  select count(distinct species) into nall from public.fish_catches where user_id = u and not bought;
   select count(*) into nall_total from public.fish_species;
-  select count(distinct c.species) into nweather from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and s.weather is not null;
+  select count(distinct c.species) into nweather from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and not c.bought and s.weather is not null;
   select count(*) into nweather_all from public.fish_species where weather is not null;
   select exists (select 1 from public.fish_casts where user_id = u and kind = 'chest' and junk = 'kuld' and state = 'landed') into goldchest;
   select coalesce(sum(qty), 0) into nitems from public.fisher_items where user_id = u;
@@ -592,7 +608,7 @@ begin
       when 'paadimees' then cardinality(f.boats) >= 1 when 'kapten' then cardinality(f.boats) >= 3
       when 'taiustaja' then exists (select 1 from public.fisher_rods where user_id = u and upg >= 5)
       when 'volur' then exists (select 1 from public.fisher_rods where user_id = u and ench_lvl >= 3)
-      when 'suvamees' then not exists (select 1 from public.fish_species s where 'sugavik' = any(s.spots) and s.rarity >= 3 and not exists (select 1 from public.fish_catches c where c.user_id = u and c.species = s.id))
+      when 'suvamees' then not exists (select 1 from public.fish_species s where 'sugavik' = any(s.spots) and s.rarity >= 3 and not exists (select 1 from public.fish_catches c where c.user_id = u and not c.bought and c.species = s.id))
       else false end;
     if ok then
       insert into public.fish_unlocked(user_id, ach) values (u, a.id) on conflict do nothing;
@@ -711,11 +727,11 @@ begin
   -- vanad pooleli jäänud viskamised loetakse kaotatuks
   update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked') and created_at < now() - interval '3 minutes';
   select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx)), '{}') into book
-    from (select species, count(*) n, max(weight) mx from fish_catches where user_id = u group by species) x;
+    from (select species, count(*) n, max(weight) mx from fish_catches where user_id = u and not bought group by species) x;
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
-  select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u group by rarity) x;
+  select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
-           'giant', giant, 'trophy', status = 'trophy', 'at', caught_at) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
     into inv from fish_catches where user_id = u and status in ('kept','trophy');
   select count(*) into inbox from kingdom_inbox where user_id = u;
   select coalesce(jsonb_object_agg(item, qty), '{}') into v_items from fisher_items where user_id = u and qty > 0;
@@ -730,6 +746,7 @@ begin
     'items', v_items, 'quests_done', f.quests_done, 'badges', fx_badges(u),
     'gear', fx_gear(u), 'boats', to_jsonb(f.boats),
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
+    'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes);
 end $$;
 
@@ -902,13 +919,13 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'escaped', 'name', s.name, 'rarity', s.rarity);
   end if;
 
-  select max(weight) into prevmax from fish_catches where user_id = u and species = s.id;
+  select max(weight) into prevmax from fish_catches where user_id = u and species = s.id and not bought;
   newsp := prevmax is null;
   update fish_casts set state = 'landed' where id = c.id;
   insert into fish_catches(user_id, species, rarity, weight, spot, giant, night, weather)
   values (u, s.id, s.rarity, c.weight, c.spot, c.giant, v_night, wthr) returning id into cid;
   -- uudised erakordsetest püükidest
-  if s.rarity >= 3 and not exists (select 1 from fish_catches where species = s.id and id <> cid) then
+  if s.rarity >= 3 and not exists (select 1 from fish_catches where species = s.id and id <> cid and not bought) then
     perform fx_news(u, 'first', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
   elsif s.rarity >= 5 then
     perform fx_news(u, 'catch', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
@@ -950,7 +967,7 @@ begin
   sold := coalesce(sold, 0);
   avgw := (s.min_w + s.max_w) / 2;
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
-       * (1 + coalesce((fx_house(u)).sell_bonus, 0));
+       * (1 + coalesce((fx_house(u)).sell_bonus, 0)) * (case when c.bought then 0.6 else 1 end);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return greatest(1, round(v));
@@ -1132,7 +1149,7 @@ returns table(user_id uuid, place int, species text, weight numeric, rarity int,
            count(*) over (partition by c.user_id) as cnt,
            row_number() over (partition by c.user_id order by
              case when p_comp = 'rare' then c.rarity else 0 end desc, c.weight desc, c.caught_at asc) as rn
-    from public.fish_catches c where c.caught_at >= p_from and c.caught_at < p_to
+    from public.fish_catches c where c.caught_at >= p_from and c.caught_at < p_to and not c.bought
   ), best as (select * from base where rn = 1)
   select b.user_id,
          (row_number() over (order by
@@ -1228,7 +1245,7 @@ declare f public.fishers; nsp int; nall int; res jsonb := '[]'; b record; v nume
 begin
   select * into f from public.fishers where user_id = u;
   if f.user_id is null then return '[]'; end if;
-  select count(distinct species) into nsp from public.fish_catches where user_id = u;
+  select count(distinct species) into nsp from public.fish_catches where user_id = u and not bought;
   select count(*) into nall from public.fish_species;
   for b in select * from (values
       ('puudja','Püüdja','Püütud kalu', f.total::numeric, 50, 500, 5000),
@@ -1265,13 +1282,13 @@ end $$;
 -- Ülesannete edenemine arvutatakse serveris päris püükidest (klient ei saa seda mõjutada)
 create or replace function public.fx_quest_progress(u uuid, k text, prm text, since timestamptz) returns numeric language sql stable as $$
   select (case k
-    when 'count' then (select count(*) from public.fish_catches where user_id = u and caught_at >= since)
-    when 'rarity' then (select count(*) from public.fish_catches where user_id = u and caught_at >= since and rarity >= prm::int)
-    when 'spot' then (select count(*) from public.fish_catches where user_id = u and caught_at >= since and spot = prm)
-    when 'species' then (select count(*) from public.fish_catches where user_id = u and caught_at >= since and species = prm)
-    when 'weight' then (select coalesce(sum(weight), 0) from public.fish_catches where user_id = u and caught_at >= since)
-    when 'night' then (select count(*) from public.fish_catches where user_id = u and caught_at >= since and night)
-    when 'weather' then (select count(*) from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and c.caught_at >= since and s.weather is not null)
+    when 'count' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since)
+    when 'rarity' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since and rarity >= prm::int)
+    when 'spot' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since and spot = prm)
+    when 'species' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since and species = prm)
+    when 'weight' then (select coalesce(sum(weight), 0) from public.fish_catches where user_id = u and not bought and caught_at >= since)
+    when 'night' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since and night)
+    when 'weather' then (select count(*) from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and not c.bought and c.caught_at >= since and s.weather is not null)
     when 'chest' then (select count(*) from public.fish_casts where user_id = u and created_at >= since and kind = 'chest' and state = 'landed')
     else 0 end)::numeric
 $$;
@@ -1593,6 +1610,110 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6e. Laiendus 4: mängijatevaheline kalaturg
+-- ---------------------------------------------------------------------
+-- Kala baasväärtus turu hinnapiiride jaoks (ei sõltu päeva müügist)
+create or replace function public.fx_base_value(p_species text, p_weight numeric) returns int language sql stable as $$
+  select greatest(1, round(s.price * least(2, 0.6 + 0.4 * p_weight / ((s.min_w + s.max_w) / 2))))::int from public.fish_species s where s.id = p_species
+$$;
+
+-- Aegunud kuulutused (72 h) lähevad tagasi müüjale
+create or replace function public.fx_market_expire() returns void language plpgsql as $$
+declare l record;
+begin
+  for l in select * from public.fish_market where status = 'open' and created_at < now() - interval '72 hours' for update skip locked loop
+    update public.fish_market set status = 'expired', closed_at = now() where id = l.id;
+    update public.fish_catches set status = 'kept' where id = l.catch_id and status = 'market';
+  end loop;
+end $$;
+
+create or replace function public.fish_market_list(p_catch bigint, p_price int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); c fish_catches; v_base int; n int; lid bigint;
+begin
+  perform fx_fisher(u);
+  perform 1 from fishers where user_id = u for update;
+  select * into c from fish_catches where id = p_catch and user_id = u and status in ('kept','trophy') for update;
+  if c.id is null then raise exception 'Seda kala ei leitud sinu saagist'; end if;
+  select count(*) into n from fish_market where seller = u and status = 'open';
+  if n >= 10 then raise exception 'Sul võib korraga olla turul kuni 10 kala'; end if;
+  v_base := fx_base_value(c.species, c.weight);
+  if p_price is null or p_price < greatest(1, ceil(v_base * 0.5)) or p_price > v_base * 5 then
+    raise exception 'Hind peab olema vahemikus % kuni % kulda', greatest(1, ceil(v_base * 0.5))::int, v_base * 5;
+  end if;
+  update fish_catches set status = 'market' where id = c.id;
+  insert into fish_market(seller, catch_id, species, rarity, weight, giant, price, base)
+  values (u, c.id, c.species, c.rarity, c.weight, c.giant, p_price, v_base) returning id into lid;
+  return jsonb_build_object('id', lid, 'price', p_price, 'base', v_base);
+end $$;
+
+create or replace function public.fish_market_cancel(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); l fish_market;
+begin
+  select * into l from fish_market where id = p_id and seller = u for update;
+  if l.id is null or l.status <> 'open' then raise exception 'Kuulutust ei leitud või see on juba müüdud'; end if;
+  update fish_market set status = 'cancelled', closed_at = now() where id = l.id;
+  update fish_catches set status = 'kept' where id = l.catch_id and status = 'market';
+  return jsonb_build_object('ok', true);
+end $$;
+
+-- Ost on üks tehing: kuulutus lukustatakse, raha ja kala liiguvad korraga või üldse mitte
+create or replace function public.fish_market_buy(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); l fish_market; c fish_catches; v_fee int; bg int; nid bigint; nm text;
+begin
+  perform fx_fisher(u);
+  perform fx_market_expire();
+  select * into l from fish_market where id = p_id for update;
+  if l.id is null or l.status <> 'open' then raise exception 'See kala on juba müüdud või turult eemaldatud'; end if;
+  if l.seller = u then raise exception 'Oma kala ei saa osta'; end if;
+  -- lukusta mõlema mängija read alati samas järjekorras
+  perform 1 from fishers where user_id in (u, l.seller) order by user_id for update;
+  select gold into bg from fishers where user_id = u;
+  if bg < l.price then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', l.price; end if;
+  select * into c from fish_catches where id = l.catch_id and user_id = l.seller and status = 'market' for update;
+  if c.id is null then raise exception 'Kala pole enam saadaval'; end if;
+  v_fee := ceil(l.price * 0.05);
+  update fishers set gold = gold - l.price where user_id = u;
+  update fishers set gold = gold + l.price - v_fee where user_id = l.seller;
+  update fish_catches set status = 'traded' where id = c.id;
+  insert into fish_catches(user_id, species, rarity, weight, spot, giant, night, weather, status, bought)
+  values (u, c.species, c.rarity, c.weight, c.spot, c.giant, c.night, c.weather, 'kept', true) returning id into nid;
+  update fish_market set status = 'sold', buyer = u, closed_at = now(), fee = v_fee, new_catch = nid where id = l.id;
+  select name into nm from fish_species where id = c.species;
+  if l.rarity >= 5 or l.price >= 10000 then perform fx_news(u, 'trade', jsonb_build_object('species', c.species, 'weight', c.weight, 'rarity', c.rarity, 'price', l.price)); end if;
+  return jsonb_build_object('ok', true, 'catch_id', nid, 'species', c.species, 'name', nm, 'price', l.price);
+end $$;
+
+create or replace function public.fish_market_browse(p_rarity int default null, p_species text default null, p_sort text default 'new')
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); res jsonb;
+begin
+  perform fx_market_expire();
+  select coalesce(jsonb_agg(x), '[]') into res from (
+    select m.id, m.species, m.rarity, m.weight, m.giant, m.price, m.base, m.created_at as at, m.seller = u as mine,
+      case when p.hidden and m.seller <> u then 'Salapärane kalur' else coalesce(p.name, 'Kalur') end as seller
+    from fish_market m left join profiles p on p.id = m.seller
+    where m.status = 'open' and (p_rarity is null or m.rarity = p_rarity) and (p_species is null or m.species = p_species)
+    order by case when p_sort = 'cheap' then m.price end asc nulls last,
+             case when p_sort = 'value' then m.price::numeric / greatest(1, m.base) end asc nulls last,
+             case when p_sort = 'rare' then m.rarity end desc nulls last,
+             m.id desc
+    limit 120) x;
+  return res;
+end $$;
+
+create or replace function public.fish_market_mine() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_market_expire();
+  return jsonb_build_object(
+    'open', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'giant', giant, 'price', price, 'base', base, 'at', created_at) order by id desc)
+       from fish_market where seller = u and status = 'open'), '[]'),
+    'history', coalesce((select jsonb_agg(x order by x.at desc) from (
+       select m.id, m.species, m.rarity, m.weight, m.price, m.fee, m.status, m.closed_at as at, case when m.seller = u then 'sold' else 'bought' end as side
+       from fish_market m where (m.seller = u or m.buyer = u) and m.status in ('sold','expired') order by m.closed_at desc limit 25) x), '[]'));
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -1602,7 +1723,8 @@ do $$ declare r record; begin
               'fish_market','fish_use','fish_sell_all','fish_shop','fish_orders_today','fish_order_deliver','kingdom_claim',
               'fish_competitions','fish_claim_prizes','fish_item_sell','fish_quests','fish_quest_claim','kingdom_news',
               'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like',
-              'fish_rod_upgrade','fish_enchant','fish_boat_buy')) loop
+              'fish_rod_upgrade','fish_enchant','fish_boat_buy',
+              'fish_market_list','fish_market_cancel','fish_market_buy','fish_market_browse','fish_market_mine')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
