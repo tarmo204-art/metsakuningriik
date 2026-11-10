@@ -278,7 +278,10 @@ create table if not exists public.kingdom_contrib_day (
   user_id uuid not null references auth.users(id) on delete cascade, day date not null, amount int not null default 0, primary key (user_id, day)
 );
 do $$ declare t text; begin
-  foreach t in array array['kingdom_gifts','kingdom_monument','kingdom_monument_contrib','kingdom_contrib_day'] loop
+  create table if not exists public.kingdom_contrib_resday (
+    user_id uuid not null references auth.users(id) on delete cascade, day date not null, res text not null, amount int not null default 0, primary key (user_id, day, res)
+  );
+  foreach t in array array['kingdom_gifts','kingdom_monument','kingdom_monument_contrib','kingdom_contrib_day','kingdom_contrib_resday'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
   end loop;
@@ -1802,7 +1805,7 @@ begin
     'top', coalesce((select jsonb_agg(x) from (select case when p.hidden and c.user_id <> u then 'Salapärane valitseja' else p.kingdom end as kingdom, c.total, c.user_id = u as me
         from kingdom_monument_contrib c join profiles p on p.id = c.user_id where c.stage = m.stage order by c.total desc limit 10) x), '[]'),
     'mine', coalesce((select total from kingdom_monument_contrib where stage = m.stage and user_id = u), 0),
-    'today', coalesce((select amount from kingdom_contrib_day where user_id = u and day = fx_today()), 0), 'cap', 2000,
+    'today', coalesce((select jsonb_object_agg(res, amount) from kingdom_contrib_resday where user_id = u and day = fx_today()), '{}'), 'cap', 2000,
     'contributors', (select count(*) from kingdom_monument_contrib where stage = m.stage));
 end $$;
 
@@ -1816,13 +1819,13 @@ begin
   if not (m.need ? p_res) then raise exception 'Sellel etapil seda ressurssi ei vajata'; end if;
   select * into sv from saves where user_id = u for update;
   if sv.user_id is null then raise exception 'Salvesta enne kuningriik (oota paar sekundit)'; end if;
-  select coalesce(amount, 0) into today from kingdom_contrib_day where user_id = u and day = fx_today(); today := coalesce(today, 0);
+  select coalesce(amount, 0) into today from kingdom_contrib_resday where user_id = u and day = fx_today() and res = p_res; today := coalesce(today, 0);
   v_have := coalesce((sv.data -> 'res' ->> p_res)::numeric, 0);
   left_need := (m.need ->> p_res)::numeric - coalesce((m.have ->> p_res)::numeric, 0);
   amt := least(p_amt, floor(v_have)::int, floor(left_need)::int, 2000 - today);
-  if amt < 1 then raise exception '%', case when 2000 - today < 1 then 'Tänane panuse piir (2000) on täis' when left_need < 1 then 'Seda ressurssi on juba piisavalt' else 'Kuningriigil pole seda ressurssi piisavalt' end; end if;
+  if amt < 1 then raise exception '%', case when 2000 - today < 1 then 'Selle ressursi tänane panuse piir (2000) on täis. Homme saad jälle anda!' when left_need < 1 then 'Seda ressurssi on juba piisavalt' else 'Kuningriigil pole seda ressurssi piisavalt' end; end if;
   update saves set data = jsonb_set(data, array['res', p_res], to_jsonb(v_have - amt)) where user_id = u;
-  insert into kingdom_contrib_day(user_id, day, amount) values (u, fx_today(), amt) on conflict (user_id, day) do update set amount = kingdom_contrib_day.amount + amt;
+  insert into kingdom_contrib_resday(user_id, day, res, amount) values (u, fx_today(), p_res, amt) on conflict (user_id, day, res) do update set amount = kingdom_contrib_resday.amount + amt;
   insert into kingdom_monument_contrib(user_id, stage, total) values (u, m.stage, amt) on conflict (user_id, stage) do update set total = kingdom_monument_contrib.total + amt;
   update kingdom_monument km set have = jsonb_set(km.have, array[p_res], to_jsonb(coalesce((km.have ->> p_res)::numeric, 0) + amt)) where stage = m.stage returning * into m;
   -- etapp valmis?
