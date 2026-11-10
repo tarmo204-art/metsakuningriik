@@ -9,9 +9,22 @@ const toastSeen = {};
 function toast(msg, kind = 'info', icon) {
   if (SILENT) { silentLog.push(msg); return }
   const box = $('#toasts'); const el = document.createElement('div');
-  el.className = 'toast ' + kind; el.innerHTML = (icon ? ic(icon) : '') + '<span>' + esc(msg) + '</span>';
-  box.appendChild(el); while (box.children.length > 4) box.firstChild.remove();
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }, 4200);
+  // pealkiri = esimene lause, ülejäänu väiksemalt; preemiad (+50 kulda) esile tõstetud
+  const m = String(msg), cut = m.search(/[!?.](\s|$)/), hasBody = cut > 0 && cut < m.length - 3 && cut < 90;
+  const title = hasBody ? m.slice(0, cut + 1) : m, body = hasBody ? m.slice(cut + 1).trim() : '';
+  const fmtT = t => esc(t).replace(/([+−-]\d[\d\s,.]*(?:\s?(?:kulda|kuulsust|kogemust|puitu|kivi|marju|toitu|vett|aardekaart|kg))?)/g, '<b class="tnum">$1</b>');
+  const sym = { good: '✓', bad: '!', info: 'i', gold: '★' }[kind] || 'i';
+  const dur = Math.min(11000, 5500 + m.length * 45);
+  el.className = 'toast ' + kind;
+  el.innerHTML = `<span class="tic">${icon && ICON[icon] ? ic(icon) : `<i>${sym}</i>`}</span><span class="ttx"><span class="tt">${fmtT(title)}</span>${body ? `<span class="tb">${fmtT(body)}</span>` : ''}</span><button class="tx" type="button" aria-label="Sulge teade">×</button><span class="tbar" style="animation-duration:${dur}ms"></span>`;
+  box.appendChild(el); while (box.children.length > (isMobile() ? 3 : 4)) box.firstChild.remove();
+  let left = dur, t0 = Date.now(), timer = null;
+  const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 450) };
+  const arm = () => { t0 = Date.now(); timer = setTimeout(close, left) };
+  el.addEventListener('pointerenter', () => { clearTimeout(timer); left -= Date.now() - t0; el.classList.add('hold') });
+  el.addEventListener('pointerleave', () => { el.classList.remove('hold'); arm() });
+  el.querySelector('.tx').addEventListener('click', e => { e.stopPropagation(); close() });
+  arm();
 }
 function toastOnce(key, msg, kind) { const n = Date.now(); if (toastSeen[key] && n - toastSeen[key] < 20000) return; toastSeen[key] = n; toast(msg, kind) }
 function info(msg) { const el = $('#mapInfo'); if (el) el.textContent = msg; UI.infoT = Date.now() }
