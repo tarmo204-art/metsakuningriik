@@ -116,6 +116,15 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .expstory{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:center}.expstory canvas{width:120px;height:80px;border-radius:10px}.expstory p{font-style:italic}
 .reqbig{display:grid;grid-template-columns:70px minmax(0,1fr);gap:12px;align-items:center}.reqbig canvas{width:70px;height:80px;border-radius:12px}
 .rew.big{font-size:16px}
+.advbtn{position:absolute;left:8px;top:8px;z-index:6;display:flex;align-items:center;gap:6px;padding:6px 12px 6px 8px;border-radius:999px;border:1px solid rgba(242,181,82,.6);background:rgba(14,26,20,.82);color:#f4ead0;font:700 13px system-ui;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.advbtn span{font-size:18px}.advbtn i{font-style:normal;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#e2513f;color:#fff;font-size:12px;display:grid;place-items:center}
+.advbtn.pulse{animation:advPulse 2.2s ease-in-out infinite}@keyframes advPulse{0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.3)}50%{box-shadow:0 0 0 6px rgba(242,181,82,.25),0 4px 14px rgba(0,0,0,.3)}}
+@media (max-width:640px){.advbtn b{display:none}.advbtn{padding:6px 8px}}
+.advhd{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center}.advem{font-size:42px;text-align:center}
+.advlist{display:grid;gap:6px}.advit{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border-radius:12px;background:rgba(0,0,0,.22);border-left:3px solid rgba(127,196,224,.6)}
+.advit.hot{border-left-color:#f2b552;background:linear-gradient(90deg,rgba(242,181,82,.12),rgba(0,0,0,.22))}.advit .aic{font-size:22px;text-align:center}.advit small{display:block;color:var(--lichen,#b8c9a8);font-size:12.5px;margin-top:2px}
+.advsoon{display:grid;gap:4px}.advsoon>div{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:9px;background:rgba(0,0,0,.15);font-size:13.5px}.advsoon .aic{text-align:center}.advsoon b{color:#ffd286;white-space:nowrap}
+@media (max-width:520px){.advit{grid-template-columns:30px minmax(0,1fr)}.advit .btn{grid-column:2;justify-self:start}}
 .sndbtn{position:absolute;right:8px;top:8px;z-index:6;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(14,26,20,.75);font-size:17px;cursor:pointer;display:grid;place-items:center;padding:0}
 .sndbtn:hover{background:rgba(30,50,40,.9)}.sndrow{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center;margin:6px 0}.sndrow input{width:100%;accent-color:#f2b552}
 .moncv{width:100%;aspect-ratio:2/1;border-radius:12px;display:block;margin:8px 0}

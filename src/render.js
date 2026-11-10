@@ -81,32 +81,116 @@ function buildGround() {
     }
     if (S.view === 'maed' && th(x, y, 55) > .7) { ell(c, bx + s * .5, by + s * .6, s * .3, s * .14, 'rgba(120,125,115,.35)') }
   }
-  // shores
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (!isW(x, y)) continue;
-    const bx = x * s, by = y * s, sand = 'rgba(214,201,150,.85)';
-    c.fillStyle = sand;
-    if (!isW(x, y - 1)) c.fillRect(bx - 1, by - s * .1, s + 2, s * .16);
-    if (!isW(x, y + 1)) c.fillRect(bx - 1, by + s * .92, s + 2, s * .16);
-    if (!isW(x - 1, y)) c.fillRect(bx - s * .1, by - 1, s * .16, s + 2);
-    if (!isW(x + 1, y)) c.fillRect(bx + s * .92, by - 1, s * .16, s + 2);
-  }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y)) {
-    const bx = x * s, by = y * s, inset = s * .02;
-    const ix = !isW(x - 1, y) ? s * .05 : -1, iy = !isW(x, y - 1) ? s * .05 : -1, ix2 = !isW(x + 1, y) ? s * .05 : -1, iy2 = !isW(x, y + 1) ? s * .05 : -1;
-    const frozen = snowyR || sk === 'talv';
-    const g = c.createLinearGradient(0, by, 0, by + s); g.addColorStop(0, frozen ? '#cfe8f2' : '#3f8fb0'); g.addColorStop(1, frozen ? '#aed5e6' : '#2f7898');
-    c.fillStyle = g; c.fillRect(bx + ix + inset, by + iy, s - ix - ix2 - inset, s - iy - iy2);
-    // reeds near shore
-    if ((!isW(x - 1, y) || !isW(x + 1, y)) && th(x, y, 77) > .55 && (S.view === 'jarv' || S.view === 'kodu')) {
-      const rx = !isW(x - 1, y) ? bx + s * .12 : bx + s * .88;
-      for (let k = 0; k < 4; k++) { c.strokeStyle = '#4c6b2c'; c.lineWidth = Math.max(1, s / 30); c.beginPath(); c.moveTo(rx + k * s * .03, by + s * .7); c.lineTo(rx + k * s * .04 - s * .03, by + s * .3); c.stroke() }
-      ell(c, rx, by + s * .33, s * .02, s * .06, '#6b4a2a');
-    }
-  }
+  // veekogud: sujuv kaldajoon, sügavus, piirkonna järgi kallas ja taimed
+  buildWater(c, tiles, s, seed, snowyR || sk === 'talv');
 }
 
 /* ---------- objects ---------- */
+/* ---------- realistlikud veekogud ---------- */
+const WSTYLE = {
+  kodu: { sh: [56, 150, 170], dp: [18, 70, 98], shore: [214, 198, 148], lily: 1, reed: 1 },
+  pime: { sh: [52, 108, 98], dp: [14, 40, 42], shore: [96, 82, 58], reed: 1, moss: 1 },
+  jarv: { sh: [70, 168, 186], dp: [16, 72, 108], shore: [222, 206, 154], lily: 1, reed: 1 },
+  maed: { sh: [86, 196, 204], dp: [20, 92, 120], shore: [150, 152, 146], rocks: 1 },
+  org: { sh: [96, 178, 196], dp: [40, 50, 120], shore: [170, 160, 190], lily: 1, glow: 1 },
+  iidne: { sh: [50, 120, 100], dp: [12, 46, 44], shore: [104, 90, 62], reed: 1, moss: 1 },
+  raba: { sh: [128, 120, 74], dp: [62, 52, 30], shore: [110, 120, 62], moss: 1, reed: 1 },
+  meri: { sh: [80, 184, 200], dp: [16, 64, 120], shore: [232, 214, 162], foam: 1 },
+  pohjala: { sh: [150, 200, 220], dp: [50, 100, 140], shore: [200, 206, 210], rocks: 1 },
+  haldja: { sh: [140, 200, 220], dp: [70, 60, 140], shore: [220, 200, 230], lily: 1, glow: 1 },
+};
+let waterMask = null, waterShore = [], waterKey = '';
+function buildWater(c, tiles, s, seed, frozen) {
+  const st = WSTYLE[S.view] || WSTYLE.kodu, isW = (x, y) => x >= 0 && y >= 0 && x < W && y < H && tiles[y * W + x].t === 'water';
+  const cw = Math.round(W * s * DPR), ch = Math.round(H * s * DPR);
+  // 1) uduse servaga mask -> sujuv kaldajoon
+  const m0 = document.createElement('canvas'); m0.width = cw; m0.height = ch; const mc = m0.getContext('2d'); mc.fillStyle = '#fff';
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y)) {
+    // äärel olev vesi ulatub kaardi servast välja, et serv ei hägustuks
+    const ex = x === 0 ? -s : 0, ey = y === 0 ? -s : 0, ew = (x === W - 1 ? s : 0) - ex, eh = (y === H - 1 ? s : 0) - ey;
+    mc.fillRect((x * s + ex) * DPR, (y * s + ey) * DPR, (s + ew) * DPR, (s + eh) * DPR);
+  }
+  // hägusta kogu mask korraga, et ruutude vahele ei jääks õmblusi
+  const m = document.createElement('canvas'); m.width = cw; m.height = ch; const mbc = m.getContext('2d');
+  mbc.filter = `blur(${Math.max(2, s * DPR * .32)}px)`; mbc.drawImage(m0, 0, 0);
+  const src = mbc.getImageData(0, 0, cw, ch).data;
+  const out = c.createImageData ? new ImageData(cw, ch) : null; if (!out) return;
+  const o = out.data, mask = document.createElement('canvas'); mask.width = cw; mask.height = ch; const mkc = mask.getContext('2d'), md = mkc.createImageData(cw, ch), mdd = md.data;
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) };
+  const nz = (x, y) => { const v = Math.sin(x * .021 + y * .013) + Math.sin(x * .007 - y * .019 + 2) + Math.sin((x + y) * .031); return v / 3 };
+  waterShore = [];
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const i = (y * cw + x) * 4, v = src[i + 3] / 255; if (v < .2) continue;
+    const n = nz(x, y), vv = v + n * .025;
+    const wat = sm(.47, .53, vv), sand = sm(.3, .42, vv) * (1 - wat), depth = sm(.55, 1.0, vv) * (.75 + .25 * (n * .5 + .5));
+    let r, g, b;
+    if (frozen) { const k = .88 + n * .06; r = (200 + 30 * (1 - depth)) * k; g = (226 + 20 * (1 - depth)) * k; b = 240 * k }
+    else { r = st.sh[0] + (st.dp[0] - st.sh[0]) * depth; g = st.sh[1] + (st.dp[1] - st.sh[1]) * depth; b = st.sh[2] + (st.dp[2] - st.sh[2]) * depth; const k = 1 + n * .05; r *= k; g *= k; b *= k }
+    // kaldariba: liiv/muda/kivi, märg serv tumedam
+    const wet = sm(.38, .47, vv) * (1 - wat), sc = st.shore, sk2 = 1 - wet * .28 + n * .05;
+    const a = Math.max(wat, sand);
+    const mix = wat / Math.max(.001, a);
+    o[i] = (r * mix + sc[0] * sk2 * (1 - mix)); o[i + 1] = (g * mix + sc[1] * sk2 * (1 - mix)); o[i + 2] = (b * mix + sc[2] * sk2 * (1 - mix)); o[i + 3] = 255 * a;
+    mdd[i + 3] = 255 * wat;
+    if (wat > .45 && wat < .55 && ((x * 7 + y * 13) % 97 === 0)) waterShore.push([x / DPR / s, y / DPR / s]);
+  }
+  mkc.putImageData(md, 0, 0); waterMask = mask;
+  const lay = document.createElement('canvas'); lay.width = cw; lay.height = ch; lay.getContext('2d').putImageData(out, 0, 0);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(lay, 0, 0); c.restore();
+  if (frozen) { // jääpraod
+    c.save(); c.beginPath(); c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = Math.max(1, s / 40);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y) && th(x, y, 41) > .55) { let px = (x + th(x, y, 42)) * s, py = (y + th(y, x, 43)) * s; c.moveTo(px, py); for (let k = 0; k < 3; k++) { px += (th(x, k, 44) - .5) * s * .7; py += (th(k, y, 45) - .5) * s * .5; c.lineTo(px, py) } }
+    c.stroke(); c.restore(); return;
+  }
+  // taimed ja kivid kalda ääres
+  const nearShore = (x, y) => isW(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => !isW(x + a, y + b) && x + a >= 0 && y + b >= 0 && x + a < W && y + b < H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!isW(x, y)) continue;
+    const edge = nearShore(x, y), bx = x * s, by = y * s;
+    if (st.lily && !edge && th(x, y, 61) > .62) for (let k = 0; k < 2; k++) { const lx = bx + (.25 + th(x, k, 62) * .5) * s, ly = by + (.3 + th(k, y, 63) * .45) * s, lr = s * (.09 + th(x + k, y, 64) * .05); c.fillStyle = '#3f7a3a'; c.beginPath(); c.moveTo(lx, ly); c.arc(lx, ly, lr, .4, Math.PI * 2 - .1); c.closePath(); c.fill(); c.fillStyle = 'rgba(160,220,120,.35)'; c.beginPath(); c.arc(lx - lr * .25, ly - lr * .25, lr * .4, 0, 6.283); c.fill(); if (th(x, y, 65 + k) > .7) { circ(c, lx + lr * .2, ly - lr * .2, s * .035, '#f4e0ec'); circ(c, lx + lr * .2, ly - lr * .2, s * .015, '#ffd060') } }
+    if (edge && (st.reed || st.moss)) for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (isW(x + a, y + b) || x + a < 0 || y + b < 0 || x + a >= W || y + b >= H || th(x + a, y + b, 66) < .4) continue;
+      const rx = bx + s * (.5 + a * .38), ry = by + s * (.5 + b * .38);
+      if (st.reed) for (let k = 0; k < 5; k++) { const ox = (th(x, k, 67) - .5) * s * .35, oy = (th(k, y, 68) - .5) * s * .2, hgt = s * (.25 + th(x + k, y, 69) * .2); c.strokeStyle = k % 2 ? '#5a7a34' : '#4a6a2a'; c.lineWidth = Math.max(1, s / 32); c.beginPath(); c.moveTo(rx + ox, ry + oy); c.quadraticCurveTo(rx + ox + s * .03, ry + oy - hgt * .6, rx + ox - s * .02, ry + oy - hgt); c.stroke(); if (k === 2) ell(c, rx + ox - s * .02, ry + oy - hgt * .9, s * .02, s * .06, '#6b4a2a') }
+      if (st.moss) for (let k = 0; k < 4; k++) circ(c, rx + (th(x, k, 70) - .5) * s * .4, ry + (th(k, y, 71) - .5) * s * .3, s * (.05 + th(k, x, 72) * .04), k % 2 ? 'rgba(90,120,50,.8)' : 'rgba(120,150,60,.75)');
+    }
+    if (st.rocks && edge && th(x, y, 73) > .5) { const rx = bx + s * th(x, y, 74), ry = by + s * th(y, x, 75); ell(c, rx, ry + s * .04, s * .13, s * .07, 'rgba(0,0,0,.25)'); ell(c, rx, ry, s * .12, s * .08, '#8a8e8c'); ell(c, rx - s * .03, ry - s * .02, s * .06, s * .03, '#b0b4b2') }
+  }
+}
+// liikuv veepind: peegeldused, helkivad lained, vahujoon merel, vool ojas
+let waterFx = null;
+function drawWaterFx(c, s, sky, night) {
+  if (!waterMask) return;
+  const frozen = REGIONS[S.view].snowy || season().k === 'talv', st = WSTYLE[S.view] || WSTYLE.kodu;
+  const cw = waterMask.width, ch = waterMask.height;
+  if (!waterFx || waterFx.width !== cw || waterFx.height !== ch) { waterFx = document.createElement('canvas'); waterFx.width = cw; waterFx.height = ch }
+  const f = waterFx.getContext('2d'); f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over'; f.clearRect(0, 0, cw, ch); f.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const Wd = W * s, Hd = H * s, t = tnow;
+  // taeva peegeldus
+  const g = f.createLinearGradient(0, 0, 0, Hd); g.addColorStop(0, night > .5 ? 'rgba(40,60,120,.22)' : 'rgba(210,240,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)'); f.fillStyle = g; f.fillRect(0, 0, Wd, Hd);
+  if (frozen) { for (let i = 0; i < 6; i++) { const x = ((t * .02 + i / 6) % 1) * Wd; const gl = f.createLinearGradient(x - s, 0, x + s, Hd); gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(.5, 'rgba(255,255,255,.18)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); f.fillStyle = gl; f.fillRect(x - s, 0, s * 2, Hd) } }
+  else {
+    // pehmed lainejooned
+    const flow = S.view === 'meri' ? 1.6 : 1, stream = REGIONS[S.view].gen && REGIONS[S.view].gen.water === 'stream';
+    f.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+      const bx = th(i, 1, 9) * Wd, by = th(i, 2, 9) * Hd, ph = th(i, 3, 9) * 6.28;
+      const x = stream ? bx + Math.sin(t + ph) * s * .05 : bx + Math.sin(t * .4 * flow + ph) * s * .25, y = stream ? (by + t * s * .6) % Hd : by + Math.sin(t * .6 + ph) * s * .05;
+      const a = (.18 + .14 * Math.sin(t * 1.3 + ph)) * (night > .5 ? .6 : 1), len = s * (.18 + th(i, 4, 9) * .25);
+      f.strokeStyle = `rgba(235,250,255,${a})`; f.lineWidth = Math.max(1, s / 34); f.beginPath(); if (stream) { f.moveTo(x, y); f.lineTo(x, y + len) } else { f.moveTo(x, y); f.quadraticCurveTo(x + len / 2, y - s * .03, x + len, y) } f.stroke();
+    }
+    // päikese/kuu helk
+    const sx = Wd * (.62 + .1 * Math.sin(t * .05)), sy = Hd * .45;
+    for (let i = 0; i < 26; i++) { const x = sx + (th(i, 5, 2) - .5) * s * 3, y = sy + (th(i, 6, 2) - .5) * s * 2.5, a = Math.max(0, Math.sin(t * 3 + i * 1.7)) * (night > .5 ? .35 : .55); if (a < .05) continue; f.fillStyle = `rgba(255,${night > .5 ? 250 : 245},${night > .5 ? 220 : 200},${a})`; f.fillRect(x, y, s * .12, Math.max(1, s / 40)) }
+    if (st.glow) for (let i = 0; i < 8; i++) { const x = th(i, 7, 3) * Wd, y = th(i, 8, 3) * Hd, r = s * (.3 + .15 * Math.sin(t + i)); const gg = f.createRadialGradient(x, y, 0, x, y, r); gg.addColorStop(0, 'rgba(180,255,240,.25)'); gg.addColorStop(1, 'rgba(180,255,240,0)'); f.fillStyle = gg; f.fillRect(x - r, y - r, r * 2, r * 2) }
+  }
+  // ainult vee peale
+  f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'destination-in'; f.drawImage(waterMask, 0, 0); f.globalCompositeOperation = 'source-over';
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(waterFx, 0, 0); c.restore();
+  // vahujoon rannas
+  if (!frozen && (st.foam || S.view === 'jarv')) for (const [x, y] of waterShore) { const a = (.35 + .35 * Math.sin(t * 1.8 + x * 3 + y * 2)) * (st.foam ? 1 : .5); circ(c, x * s, y * s, s * (.05 + .03 * Math.sin(t * 2 + x)), `rgba(255,255,255,${a})`) }
+}
+
 function drawTree(c, kind, stage, x, y, s, sway) {
   const sc = [0.3, 0.5, 0.75, 1][stage];
   shadow(c, x, y, s * .34 * sc + s * .05, s * .1 * sc + s * .03);
@@ -722,12 +806,9 @@ function frame(ts) {
   const tiles = S.regions[S.view].tiles;
   // animated water
   const frozenW = REGIONS[S.view].snowy || season().k === 'talv';
+  drawWaterFx(c, s, sky, night);
   if (!frozenW) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (tiles[y * W + x].t === 'water') {
-    for (let k = 0; k < 2; k++) {
-      const wy = y * s + s * (.3 + k * .4) + Math.sin(tnow * 1.5 + x + k) * s * .04, wx = x * s + s * (.2 + .3 * ((Math.sin(tnow * .7 + y * 2 + k * 3) + 1) / 2));
-      c.strokeStyle = 'rgba(220,245,255,.35)'; c.lineWidth = Math.max(1, s / 30); c.beginPath(); c.moveTo(wx, wy); c.lineTo(wx + s * .22, wy); c.stroke();
-    }
-    if (S.weather.t === 'vihm' && Math.random() < .03) parts.push({ x: x + Math.random(), y: y + Math.random(), ring: true, life: .6, col: '#d8f4ff' });
+    if ((S.weather.t === 'vihm' && Math.random() < .03) || Math.random() < .0015) parts.push({ x: x + Math.random(), y: y + Math.random(), ring: true, life: .9, col: '#d8f4ff' });
   }
   // hover highlight
   if (hover && hover.x >= 0) {

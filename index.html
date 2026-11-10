@@ -116,6 +116,15 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .expstory{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:center}.expstory canvas{width:120px;height:80px;border-radius:10px}.expstory p{font-style:italic}
 .reqbig{display:grid;grid-template-columns:70px minmax(0,1fr);gap:12px;align-items:center}.reqbig canvas{width:70px;height:80px;border-radius:12px}
 .rew.big{font-size:16px}
+.advbtn{position:absolute;left:8px;top:8px;z-index:6;display:flex;align-items:center;gap:6px;padding:6px 12px 6px 8px;border-radius:999px;border:1px solid rgba(242,181,82,.6);background:rgba(14,26,20,.82);color:#f4ead0;font:700 13px system-ui;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.advbtn span{font-size:18px}.advbtn i{font-style:normal;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#e2513f;color:#fff;font-size:12px;display:grid;place-items:center}
+.advbtn.pulse{animation:advPulse 2.2s ease-in-out infinite}@keyframes advPulse{0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.3)}50%{box-shadow:0 0 0 6px rgba(242,181,82,.25),0 4px 14px rgba(0,0,0,.3)}}
+@media (max-width:640px){.advbtn b{display:none}.advbtn{padding:6px 8px}}
+.advhd{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center}.advem{font-size:42px;text-align:center}
+.advlist{display:grid;gap:6px}.advit{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border-radius:12px;background:rgba(0,0,0,.22);border-left:3px solid rgba(127,196,224,.6)}
+.advit.hot{border-left-color:#f2b552;background:linear-gradient(90deg,rgba(242,181,82,.12),rgba(0,0,0,.22))}.advit .aic{font-size:22px;text-align:center}.advit small{display:block;color:var(--lichen,#b8c9a8);font-size:12.5px;margin-top:2px}
+.advsoon{display:grid;gap:4px}.advsoon>div{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:9px;background:rgba(0,0,0,.15);font-size:13.5px}.advsoon .aic{text-align:center}.advsoon b{color:#ffd286;white-space:nowrap}
+@media (max-width:520px){.advit{grid-template-columns:30px minmax(0,1fr)}.advit .btn{grid-column:2;justify-self:start}}
 .sndbtn{position:absolute;right:8px;top:8px;z-index:6;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(14,26,20,.75);font-size:17px;cursor:pointer;display:grid;place-items:center;padding:0}
 .sndbtn:hover{background:rgba(30,50,40,.9)}.sndrow{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center;margin:6px 0}.sndrow input{width:100%;accent-color:#f2b552}
 .moncv{width:100%;aspect-ratio:2/1;border-radius:12px;display:block;margin:8px 0}
@@ -1296,32 +1305,116 @@ function buildGround() {
     }
     if (S.view === 'maed' && th(x, y, 55) > .7) { ell(c, bx + s * .5, by + s * .6, s * .3, s * .14, 'rgba(120,125,115,.35)') }
   }
-  // shores
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (!isW(x, y)) continue;
-    const bx = x * s, by = y * s, sand = 'rgba(214,201,150,.85)';
-    c.fillStyle = sand;
-    if (!isW(x, y - 1)) c.fillRect(bx - 1, by - s * .1, s + 2, s * .16);
-    if (!isW(x, y + 1)) c.fillRect(bx - 1, by + s * .92, s + 2, s * .16);
-    if (!isW(x - 1, y)) c.fillRect(bx - s * .1, by - 1, s * .16, s + 2);
-    if (!isW(x + 1, y)) c.fillRect(bx + s * .92, by - 1, s * .16, s + 2);
-  }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y)) {
-    const bx = x * s, by = y * s, inset = s * .02;
-    const ix = !isW(x - 1, y) ? s * .05 : -1, iy = !isW(x, y - 1) ? s * .05 : -1, ix2 = !isW(x + 1, y) ? s * .05 : -1, iy2 = !isW(x, y + 1) ? s * .05 : -1;
-    const frozen = snowyR || sk === 'talv';
-    const g = c.createLinearGradient(0, by, 0, by + s); g.addColorStop(0, frozen ? '#cfe8f2' : '#3f8fb0'); g.addColorStop(1, frozen ? '#aed5e6' : '#2f7898');
-    c.fillStyle = g; c.fillRect(bx + ix + inset, by + iy, s - ix - ix2 - inset, s - iy - iy2);
-    // reeds near shore
-    if ((!isW(x - 1, y) || !isW(x + 1, y)) && th(x, y, 77) > .55 && (S.view === 'jarv' || S.view === 'kodu')) {
-      const rx = !isW(x - 1, y) ? bx + s * .12 : bx + s * .88;
-      for (let k = 0; k < 4; k++) { c.strokeStyle = '#4c6b2c'; c.lineWidth = Math.max(1, s / 30); c.beginPath(); c.moveTo(rx + k * s * .03, by + s * .7); c.lineTo(rx + k * s * .04 - s * .03, by + s * .3); c.stroke() }
-      ell(c, rx, by + s * .33, s * .02, s * .06, '#6b4a2a');
-    }
-  }
+  // veekogud: sujuv kaldajoon, sügavus, piirkonna järgi kallas ja taimed
+  buildWater(c, tiles, s, seed, snowyR || sk === 'talv');
 }
 
 /* ---------- objects ---------- */
+/* ---------- realistlikud veekogud ---------- */
+const WSTYLE = {
+  kodu: { sh: [56, 150, 170], dp: [18, 70, 98], shore: [214, 198, 148], lily: 1, reed: 1 },
+  pime: { sh: [52, 108, 98], dp: [14, 40, 42], shore: [96, 82, 58], reed: 1, moss: 1 },
+  jarv: { sh: [70, 168, 186], dp: [16, 72, 108], shore: [222, 206, 154], lily: 1, reed: 1 },
+  maed: { sh: [86, 196, 204], dp: [20, 92, 120], shore: [150, 152, 146], rocks: 1 },
+  org: { sh: [96, 178, 196], dp: [40, 50, 120], shore: [170, 160, 190], lily: 1, glow: 1 },
+  iidne: { sh: [50, 120, 100], dp: [12, 46, 44], shore: [104, 90, 62], reed: 1, moss: 1 },
+  raba: { sh: [128, 120, 74], dp: [62, 52, 30], shore: [110, 120, 62], moss: 1, reed: 1 },
+  meri: { sh: [80, 184, 200], dp: [16, 64, 120], shore: [232, 214, 162], foam: 1 },
+  pohjala: { sh: [150, 200, 220], dp: [50, 100, 140], shore: [200, 206, 210], rocks: 1 },
+  haldja: { sh: [140, 200, 220], dp: [70, 60, 140], shore: [220, 200, 230], lily: 1, glow: 1 },
+};
+let waterMask = null, waterShore = [], waterKey = '';
+function buildWater(c, tiles, s, seed, frozen) {
+  const st = WSTYLE[S.view] || WSTYLE.kodu, isW = (x, y) => x >= 0 && y >= 0 && x < W && y < H && tiles[y * W + x].t === 'water';
+  const cw = Math.round(W * s * DPR), ch = Math.round(H * s * DPR);
+  // 1) uduse servaga mask -> sujuv kaldajoon
+  const m0 = document.createElement('canvas'); m0.width = cw; m0.height = ch; const mc = m0.getContext('2d'); mc.fillStyle = '#fff';
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y)) {
+    // äärel olev vesi ulatub kaardi servast välja, et serv ei hägustuks
+    const ex = x === 0 ? -s : 0, ey = y === 0 ? -s : 0, ew = (x === W - 1 ? s : 0) - ex, eh = (y === H - 1 ? s : 0) - ey;
+    mc.fillRect((x * s + ex) * DPR, (y * s + ey) * DPR, (s + ew) * DPR, (s + eh) * DPR);
+  }
+  // hägusta kogu mask korraga, et ruutude vahele ei jääks õmblusi
+  const m = document.createElement('canvas'); m.width = cw; m.height = ch; const mbc = m.getContext('2d');
+  mbc.filter = `blur(${Math.max(2, s * DPR * .32)}px)`; mbc.drawImage(m0, 0, 0);
+  const src = mbc.getImageData(0, 0, cw, ch).data;
+  const out = c.createImageData ? new ImageData(cw, ch) : null; if (!out) return;
+  const o = out.data, mask = document.createElement('canvas'); mask.width = cw; mask.height = ch; const mkc = mask.getContext('2d'), md = mkc.createImageData(cw, ch), mdd = md.data;
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) };
+  const nz = (x, y) => { const v = Math.sin(x * .021 + y * .013) + Math.sin(x * .007 - y * .019 + 2) + Math.sin((x + y) * .031); return v / 3 };
+  waterShore = [];
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const i = (y * cw + x) * 4, v = src[i + 3] / 255; if (v < .2) continue;
+    const n = nz(x, y), vv = v + n * .025;
+    const wat = sm(.47, .53, vv), sand = sm(.3, .42, vv) * (1 - wat), depth = sm(.55, 1.0, vv) * (.75 + .25 * (n * .5 + .5));
+    let r, g, b;
+    if (frozen) { const k = .88 + n * .06; r = (200 + 30 * (1 - depth)) * k; g = (226 + 20 * (1 - depth)) * k; b = 240 * k }
+    else { r = st.sh[0] + (st.dp[0] - st.sh[0]) * depth; g = st.sh[1] + (st.dp[1] - st.sh[1]) * depth; b = st.sh[2] + (st.dp[2] - st.sh[2]) * depth; const k = 1 + n * .05; r *= k; g *= k; b *= k }
+    // kaldariba: liiv/muda/kivi, märg serv tumedam
+    const wet = sm(.38, .47, vv) * (1 - wat), sc = st.shore, sk2 = 1 - wet * .28 + n * .05;
+    const a = Math.max(wat, sand);
+    const mix = wat / Math.max(.001, a);
+    o[i] = (r * mix + sc[0] * sk2 * (1 - mix)); o[i + 1] = (g * mix + sc[1] * sk2 * (1 - mix)); o[i + 2] = (b * mix + sc[2] * sk2 * (1 - mix)); o[i + 3] = 255 * a;
+    mdd[i + 3] = 255 * wat;
+    if (wat > .45 && wat < .55 && ((x * 7 + y * 13) % 97 === 0)) waterShore.push([x / DPR / s, y / DPR / s]);
+  }
+  mkc.putImageData(md, 0, 0); waterMask = mask;
+  const lay = document.createElement('canvas'); lay.width = cw; lay.height = ch; lay.getContext('2d').putImageData(out, 0, 0);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(lay, 0, 0); c.restore();
+  if (frozen) { // jääpraod
+    c.save(); c.beginPath(); c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = Math.max(1, s / 40);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isW(x, y) && th(x, y, 41) > .55) { let px = (x + th(x, y, 42)) * s, py = (y + th(y, x, 43)) * s; c.moveTo(px, py); for (let k = 0; k < 3; k++) { px += (th(x, k, 44) - .5) * s * .7; py += (th(k, y, 45) - .5) * s * .5; c.lineTo(px, py) } }
+    c.stroke(); c.restore(); return;
+  }
+  // taimed ja kivid kalda ääres
+  const nearShore = (x, y) => isW(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => !isW(x + a, y + b) && x + a >= 0 && y + b >= 0 && x + a < W && y + b < H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!isW(x, y)) continue;
+    const edge = nearShore(x, y), bx = x * s, by = y * s;
+    if (st.lily && !edge && th(x, y, 61) > .62) for (let k = 0; k < 2; k++) { const lx = bx + (.25 + th(x, k, 62) * .5) * s, ly = by + (.3 + th(k, y, 63) * .45) * s, lr = s * (.09 + th(x + k, y, 64) * .05); c.fillStyle = '#3f7a3a'; c.beginPath(); c.moveTo(lx, ly); c.arc(lx, ly, lr, .4, Math.PI * 2 - .1); c.closePath(); c.fill(); c.fillStyle = 'rgba(160,220,120,.35)'; c.beginPath(); c.arc(lx - lr * .25, ly - lr * .25, lr * .4, 0, 6.283); c.fill(); if (th(x, y, 65 + k) > .7) { circ(c, lx + lr * .2, ly - lr * .2, s * .035, '#f4e0ec'); circ(c, lx + lr * .2, ly - lr * .2, s * .015, '#ffd060') } }
+    if (edge && (st.reed || st.moss)) for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (isW(x + a, y + b) || x + a < 0 || y + b < 0 || x + a >= W || y + b >= H || th(x + a, y + b, 66) < .4) continue;
+      const rx = bx + s * (.5 + a * .38), ry = by + s * (.5 + b * .38);
+      if (st.reed) for (let k = 0; k < 5; k++) { const ox = (th(x, k, 67) - .5) * s * .35, oy = (th(k, y, 68) - .5) * s * .2, hgt = s * (.25 + th(x + k, y, 69) * .2); c.strokeStyle = k % 2 ? '#5a7a34' : '#4a6a2a'; c.lineWidth = Math.max(1, s / 32); c.beginPath(); c.moveTo(rx + ox, ry + oy); c.quadraticCurveTo(rx + ox + s * .03, ry + oy - hgt * .6, rx + ox - s * .02, ry + oy - hgt); c.stroke(); if (k === 2) ell(c, rx + ox - s * .02, ry + oy - hgt * .9, s * .02, s * .06, '#6b4a2a') }
+      if (st.moss) for (let k = 0; k < 4; k++) circ(c, rx + (th(x, k, 70) - .5) * s * .4, ry + (th(k, y, 71) - .5) * s * .3, s * (.05 + th(k, x, 72) * .04), k % 2 ? 'rgba(90,120,50,.8)' : 'rgba(120,150,60,.75)');
+    }
+    if (st.rocks && edge && th(x, y, 73) > .5) { const rx = bx + s * th(x, y, 74), ry = by + s * th(y, x, 75); ell(c, rx, ry + s * .04, s * .13, s * .07, 'rgba(0,0,0,.25)'); ell(c, rx, ry, s * .12, s * .08, '#8a8e8c'); ell(c, rx - s * .03, ry - s * .02, s * .06, s * .03, '#b0b4b2') }
+  }
+}
+// liikuv veepind: peegeldused, helkivad lained, vahujoon merel, vool ojas
+let waterFx = null;
+function drawWaterFx(c, s, sky, night) {
+  if (!waterMask) return;
+  const frozen = REGIONS[S.view].snowy || season().k === 'talv', st = WSTYLE[S.view] || WSTYLE.kodu;
+  const cw = waterMask.width, ch = waterMask.height;
+  if (!waterFx || waterFx.width !== cw || waterFx.height !== ch) { waterFx = document.createElement('canvas'); waterFx.width = cw; waterFx.height = ch }
+  const f = waterFx.getContext('2d'); f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over'; f.clearRect(0, 0, cw, ch); f.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const Wd = W * s, Hd = H * s, t = tnow;
+  // taeva peegeldus
+  const g = f.createLinearGradient(0, 0, 0, Hd); g.addColorStop(0, night > .5 ? 'rgba(40,60,120,.22)' : 'rgba(210,240,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)'); f.fillStyle = g; f.fillRect(0, 0, Wd, Hd);
+  if (frozen) { for (let i = 0; i < 6; i++) { const x = ((t * .02 + i / 6) % 1) * Wd; const gl = f.createLinearGradient(x - s, 0, x + s, Hd); gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(.5, 'rgba(255,255,255,.18)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); f.fillStyle = gl; f.fillRect(x - s, 0, s * 2, Hd) } }
+  else {
+    // pehmed lainejooned
+    const flow = S.view === 'meri' ? 1.6 : 1, stream = REGIONS[S.view].gen && REGIONS[S.view].gen.water === 'stream';
+    f.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+      const bx = th(i, 1, 9) * Wd, by = th(i, 2, 9) * Hd, ph = th(i, 3, 9) * 6.28;
+      const x = stream ? bx + Math.sin(t + ph) * s * .05 : bx + Math.sin(t * .4 * flow + ph) * s * .25, y = stream ? (by + t * s * .6) % Hd : by + Math.sin(t * .6 + ph) * s * .05;
+      const a = (.18 + .14 * Math.sin(t * 1.3 + ph)) * (night > .5 ? .6 : 1), len = s * (.18 + th(i, 4, 9) * .25);
+      f.strokeStyle = `rgba(235,250,255,${a})`; f.lineWidth = Math.max(1, s / 34); f.beginPath(); if (stream) { f.moveTo(x, y); f.lineTo(x, y + len) } else { f.moveTo(x, y); f.quadraticCurveTo(x + len / 2, y - s * .03, x + len, y) } f.stroke();
+    }
+    // päikese/kuu helk
+    const sx = Wd * (.62 + .1 * Math.sin(t * .05)), sy = Hd * .45;
+    for (let i = 0; i < 26; i++) { const x = sx + (th(i, 5, 2) - .5) * s * 3, y = sy + (th(i, 6, 2) - .5) * s * 2.5, a = Math.max(0, Math.sin(t * 3 + i * 1.7)) * (night > .5 ? .35 : .55); if (a < .05) continue; f.fillStyle = `rgba(255,${night > .5 ? 250 : 245},${night > .5 ? 220 : 200},${a})`; f.fillRect(x, y, s * .12, Math.max(1, s / 40)) }
+    if (st.glow) for (let i = 0; i < 8; i++) { const x = th(i, 7, 3) * Wd, y = th(i, 8, 3) * Hd, r = s * (.3 + .15 * Math.sin(t + i)); const gg = f.createRadialGradient(x, y, 0, x, y, r); gg.addColorStop(0, 'rgba(180,255,240,.25)'); gg.addColorStop(1, 'rgba(180,255,240,0)'); f.fillStyle = gg; f.fillRect(x - r, y - r, r * 2, r * 2) }
+  }
+  // ainult vee peale
+  f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'destination-in'; f.drawImage(waterMask, 0, 0); f.globalCompositeOperation = 'source-over';
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(waterFx, 0, 0); c.restore();
+  // vahujoon rannas
+  if (!frozen && (st.foam || S.view === 'jarv')) for (const [x, y] of waterShore) { const a = (.35 + .35 * Math.sin(t * 1.8 + x * 3 + y * 2)) * (st.foam ? 1 : .5); circ(c, x * s, y * s, s * (.05 + .03 * Math.sin(t * 2 + x)), `rgba(255,255,255,${a})`) }
+}
+
 function drawTree(c, kind, stage, x, y, s, sway) {
   const sc = [0.3, 0.5, 0.75, 1][stage];
   shadow(c, x, y, s * .34 * sc + s * .05, s * .1 * sc + s * .03);
@@ -1937,12 +2030,9 @@ function frame(ts) {
   const tiles = S.regions[S.view].tiles;
   // animated water
   const frozenW = REGIONS[S.view].snowy || season().k === 'talv';
+  drawWaterFx(c, s, sky, night);
   if (!frozenW) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (tiles[y * W + x].t === 'water') {
-    for (let k = 0; k < 2; k++) {
-      const wy = y * s + s * (.3 + k * .4) + Math.sin(tnow * 1.5 + x + k) * s * .04, wx = x * s + s * (.2 + .3 * ((Math.sin(tnow * .7 + y * 2 + k * 3) + 1) / 2));
-      c.strokeStyle = 'rgba(220,245,255,.35)'; c.lineWidth = Math.max(1, s / 30); c.beginPath(); c.moveTo(wx, wy); c.lineTo(wx + s * .22, wy); c.stroke();
-    }
-    if (S.weather.t === 'vihm' && Math.random() < .03) parts.push({ x: x + Math.random(), y: y + Math.random(), ring: true, life: .6, col: '#d8f4ff' });
+    if ((S.weather.t === 'vihm' && Math.random() < .03) || Math.random() < .0015) parts.push({ x: x + Math.random(), y: y + Math.random(), ring: true, life: .9, col: '#d8f4ff' });
   }
   // hover highlight
   if (hover && hover.x >= 0) {
@@ -3601,6 +3691,97 @@ function sndBtn() {
   b.textContent = SND.on ? '🔊' : '🔇'; b.title = SND.on ? 'Heli on sees. Klõpsa, et vaigistada.' : 'Heli on väljas. Klõpsa, et sisse lülitada.'; b.setAttribute('aria-label', b.title);
 }
 setTimeout(sndBtn, 300);
+
+/* ================= KUNINGA NÕUANDJA: mis on tegemata (ja kuidas), mis on tulekul ================= */
+function advTodo() {
+  const out = [], R = RATES || computeRates(), add = (pri, ic, t, how, go, lbl) => out.push({ pri, ic, t, how, go, lbl });
+  const bt = t => S.buildings.filter(b => b.type === t && (!b.done || b.up)).length;
+  // kiired võidud
+  if (dailyState().can) add(9, '🎁', 'Päevapreemia ootab', 'Iga päev saad tasuta kingituse. Mida rohkem päevi järjest, seda suurem.', 'tab:kuningriik', 'Võta');
+  const qd = QUESTS.filter(q => !S.quests[q.id] && q.get(S) >= q.goal).length;
+  if (qd) add(9, '📜', `${qd} ülesannet on täidetud`, 'Preemiad ootavad vahekaardil Ülesanded.', 'tab:ylesanded', 'Võta preemiad');
+  if (S.life) {
+    const ex = S.life.exp.filter(x => Date.now() >= x.end).length;
+    if (ex) add(9, '🧭', `${ex} maadeuurija${ex > 1 ? 't' : ''} on tagasi`, 'Vaata, milliseid aardeid nad tõid.', 'tab:seiklused', 'Vaata saaki');
+    const rq = S.life.req.filter(q => S.res[q.k] >= q.amt);
+    if (rq.length) add(8, '🙋', `${rq[0].who}${rq.length > 1 ? ' ja teised' : ''} ootavad abi`, `Sul on olemas, mida ${rq[0].who} vajab (${rq[0].amt} ${RES[rq[0].k].g}). Abi teeb elanikud õnnelikuks.`, 'tab:kuningriik', 'Aita');
+    if (S.life.ev) { const E = EVENTS[S.life.ev.k]; add(10, E.ic, E.n + ' käib praegu', E.d, S.life.ev.reg && S.life.ev.reg !== S.view ? 'view:' + S.life.ev.reg : '', S.life.ev.reg && S.life.ev.reg !== S.view ? 'Mine' : '') }
+    if (S.life.exp.length < expSlots() && S.level >= 1) { const E = EXPEDS.filter(e => S.level >= e.lvl && canAfford(e.cost)).pop(); if (E) add(4, '🧭', 'Maadeuurija ootab tööd', `Saada ta retkele „${E.n}“. Ta tuleb tagasi ${fmtTime(expDur(E) / 1000)} pärast kauba ja aaretega, ka siis, kui mäng on kinni.`, 'tab:seiklused', 'Saada') }
+  }
+  if (S.raid) add(10, '🐺', 'Hundid on Kodumetsas!', 'Klõpsa huntidel, et nad minema peletada, enne kui nad südaööl toitu varastavad. Vahitorn kaitseb neist jäädavalt.', 'view:kodu', 'Peleta');
+  if (S.merchant) add(6, '🛒', 'Rändkaupmees on külas', `Tal on häid pakkumisi. Ta lahkub ${fmtTime(S.merchant.until - S.time)} pärast.`, 'tab:turg', 'Vaata');
+  // probleemid
+  const stalled = S.buildings.filter(b => R.status[b.id] && R.status[b.id].s === 'stall');
+  if (stalled.length) { const b = stalled[0], why = R.status[b.id].why; let fix = 'Vaata hoonet, et näha, mis puudu on.'; if (/kuld/i.test(why)) fix = 'Kuld on otsas. Müü turul kaupa või ehita elumaju, mis maksavad makse.'; else if (/vesi/i.test(why)) fix = 'Vesi on otsas. Ehita kaev või too ämbriga tiigist vett.'; else if (/puit/i.test(why)) fix = 'Puit on otsas. Langeta puid või ehita metsamaja.'; else if (/kivi/i.test(why)) fix = 'Kivi on otsas. Raiu kive või ehita kivimurd.'; add(9, '⚠️', `${BUILD[b.type].n} seisab${stalled.length > 1 ? ` (ja veel ${stalled.length - 1})` : ''}`, `${why}. ${fix}`, 'tab:ehita', 'Ehita') }
+  const full = RES_KEYS.filter(k => k !== 'gold' && S.res[k] >= R.cap - .5);
+  if (full.length) add(7, '📦', 'Ladu on täis: ' + full.map(k => RES[k].n.toLowerCase()).join(', '), 'Tootmine raisku läheb. Müü üleliigne turul või ehita elumaju, turg või loss, et laomahtu suurendada.', bt('turg') ? 'tab:turg' : 'tab:ehita', bt('turg') ? 'Müü' : 'Ehita');
+  if (R.residents > 0 && R.net.food < 0 && S.res.food < 30) add(9, '🍞', 'Toit saab varsti otsa', `Elanikud söövad ${fmt1(-R.net.food)} toitu minutis. Ehita põld${S.level < 3 ? ' (avaneb 3. tasemel)' : ''} või valmista lõkkel marjadest toitu.`, 'tab:kuningriik', 'Küpseta');
+  if (R.net.gold < 0 && S.res.gold < 40) add(8, '💰', 'Kuld kahaneb', 'Ülalpidamine maksab rohkem, kui sisse tuleb. Ehita elumaju või müü turul kaupa.', 'tab:ehita', 'Ehita');
+  if (!R.guard && S.level >= 3) add(3, '🗼', 'Öösiti käivad hundid', `Vahitorn${S.level < 6 ? ' (avaneb 6. tasemel)' : ''} või sõbralik hunt kaitseb kuningriiki.`, S.level >= 6 ? 'build:vahitorn' : 'tab:loomad', S.level >= 6 ? 'Ehita' : 'Loomad');
+  // järgmised sammud
+  const first = BUILD_ORDER.find(k => BUILD[k].lvl <= S.level && !(S.st.built[k] || bt(k)) && !S.buildings.some(b => b.type === k));
+  if (first) { const D = BUILD[first]; add(canAfford(D.cost) ? 6 : 3, '🏗️', `Ehita esimene ${D.n.toLowerCase()}`, `${D.d} Vaja: ${rewardText(D.cost).replace(/\+/g, '')}.${canAfford(D.cost) ? '' : ' Kogu enne puudu olev kaup kaardilt.'}`, 'build:' + first, 'Ehita') }
+  const reg = REGION_ORDER.find(k => !S.regions[k] && regionReq(k).every(x => x.ok));
+  if (reg) add(7, '🗺️', `Uus piirkond on avatav: ${REGIONS[reg].n}`, REGIONS[reg].d, 'tab:kaart', 'Ava');
+  const up = UPG_ORDER.find(k => upgRank(k) < UPG[k].max && S.level >= UPG[k].lvl && S.fame >= upgFame(k) && canAfford(upgCost(k)));
+  if (up) add(5, '👑', `Nõukogu pakub: ${UPG[up].n}`, UPG[up].d, 'tab:noukogu', 'Vaata');
+  if ((S.maps || 0) > 0 && !S.hunt) add(5, '🗺️', 'Sul on aardekaart', 'Alusta aardejahti vahekaardil Seiklused. Kaart näitab, millisesse piirkonda aare on maetud.', 'tab:seiklused', 'Otsi aaret');
+  if (S.hunt) add(6, '⛏️', 'Aardejaht käib', `Aare on piirkonnas ${REGIONS[S.hunt.region].n}. Vali labidas ja kaeva.`, 'hunt', 'Mine kaevama');
+  const ripe = Object.values(S.regions[S.view].tiles).filter(t => t.t === 'bush' && t.ripe).length;
+  if (S.level <= 3 && ripe >= 3) add(2, '🫐', `${ripe} põõsal on küpsed marjad`, 'Klõpsa põõsastel, et marju korjata. Marjadest saab lõkkel toitu.', 'tool:kogu', 'Korja');
+  return out.sort((a, b) => b.pri - a.pri);
+}
+function advSoon() {
+  const out = [], now = Date.now(), add = (sec, ic, t) => out.push({ sec, ic, t });
+  for (const b of S.buildings) if (b.done) add((b.done - now) / 1000, '🔨', `${BUILD[b.type].n}${b.up ? ' ' + (b.lvl + 1) + '. tasemele' : ''} valmib${b.region !== S.view ? ' (' + REGIONS[b.region].n + ')' : ''}`);
+  if (S.life) {
+    for (const x of S.life.exp) if (now < x.end) { const E = EXPEDS.find(e => e.id === x.id); add((x.end - now) / 1000, '🧭', `${x.who} naaseb retkelt „${E.n}“`) }
+    if (S.life.req.length < 3 && RATES && RATES.residents > 0) add((S.life.nextReq - now) / 1000, '🙋', 'Mõni elanik tuleb uue palvega');
+    const nx = RANKS[S.life.rank + 1]; if (nx) { const miss = rankReqs(S.life.rank + 1).filter(x => !x.ok); add(-1, '🏰', `Auaste „${nx.n}“: veel vaja ${miss.map(x => x.t + (x.g > 1 ? ` (${fmt(x.v)}/${x.g})` : '')).join(', ')}`) }
+  }
+  // järgmised tasemed
+  for (let l = S.level + 1; l <= S.level + 3; l++) { const u = unlocksBetween(l, l); if (u.length) add(-2 - l / 100, '⭐', `${l}. tasemel avaneb: ${u.join(', ')}`) }
+  const xpL = xpNeed(S.level) - S.xp; add(-3, '✨', `Järgmise tasemeni on veel ${fmt(xpL)} kogemust`);
+  // aeg ja aastaajad (üks päev = ${DAY} sekundit)
+  const p = (S.time % DAY) / DAY, se = season(), dleft = 3 - ((dayNum() - 1) % 3);
+  if (p < .7) add((.7 - p) * DAY, '🌙', `Öö saabub${!RATES.guard && S.level >= 3 ? ' – hundid võivad tulla!' : ''}`);
+  else add((1 - p) * DAY, '🌅', 'Uus päev algab');
+  const nextSe = SEASONS[(SEASONS.indexOf(se) + 1) % 4]; add((dleft - p) * DAY, '🍂', `${nextSe.n} algab: ${nextSe.fx}`);
+  if (S.merchant) add(S.merchant.until - S.time, '🛒', 'Rändkaupmees lahkub');
+  if (S.life && S.life.ev) add((S.life.ev.until - now) / 1000, EVENTS[S.life.ev.k].ic, EVENTS[S.life.ev.k].n + ' lõpeb');
+  return out.sort((a, b) => (a.sec < 0 ? 1e9 - a.sec : a.sec) - (b.sec < 0 ? 1e9 - b.sec : b.sec));
+}
+function openAdvisor() {
+  showModal(() => {
+    const todo = advTodo(), soon = advSoon();
+    return `<div class="advhd"><span class="advem">🦉</span><div><h2>Kuninga nõuandja</h2><p class="lead">Vana öökull Ülo hoiab silma peal ja ütleb, mida teha ning mis on tulekul.</p></div></div>
+      <div class="sec-h">Tee ära <small>${todo.length ? todo.length + ' asja' : 'kõik on korras'}</small></div>
+      ${todo.length ? `<div class="advlist">${todo.map(x => `<div class="advit ${x.pri >= 8 ? 'hot' : ''}"><span class="aic">${x.ic}</span><div><b>${esc(x.t)}</b><small>${esc(x.how)}</small></div>${x.go ? `<button class="btn sm" type="button" data-act="advGo" data-arg="${x.go}">${x.lbl || 'Näita'}</button>` : ''}</div>`).join('')}</div>` : '<p class="lead">Suurepärane! Praegu pole midagi pakilist. Kogu kaupa, ehita ja avasta uusi piirkondi.</p>'}
+      <div class="sec-h">Tulekul</div>
+      <div class="advsoon">${soon.map(x => `<div><span class="aic">${x.ic}</span><span>${esc(x.t)}</span><b class="num">${x.sec >= 0 ? fmtTime(x.sec) : ''}</b></div>`).join('')}</div>
+      <div class="mbtns"><button class="btn" type="button" data-act="closeModal">Selge!</button></div>`;
+  }, 'advmodal');
+}
+ACT.advGo = a => {
+  closeModal(); const [k, v] = a.split(':');
+  if (k === 'tab') { UI.tab = v; renderTabs(true); renderPanel(true); if (isMobile()) $('#panel').scrollIntoView({ behavior: 'smooth' }) }
+  else if (k === 'view') { setView(v); if (isMobile()) $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+  else if (k === 'build') { UI.tab = 'ehita'; renderTabs(true); renderPanel(true); ACT.build(v) }
+  else if (k === 'tool') { setTool(v); if (isMobile()) $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+  else if (k === 'hunt' && ACT.huntGo) ACT.huntGo();
+};
+ACT.advisor = () => openAdvisor();
+function advBtn() {
+  if (!S || !document.getElementById('mapWrap')) return;
+  let b = document.getElementById('advBtn');
+  if (!b) { b = document.createElement('button'); b.id = 'advBtn'; b.type = 'button'; b.className = 'advbtn'; b.dataset.act = 'advisor'; b.setAttribute('aria-label', 'Kuninga nõuandja'); document.getElementById('mapWrap').appendChild(b) }
+  const todo = advTodo(), hot = todo.filter(x => x.pri >= 6).length;
+  const html = `<span>🦉</span><b>Nõuandja</b>${hot ? `<i>${hot}</i>` : ''}`;
+  if (b.dataset.h !== html) { b.innerHTML = html; b.dataset.h = html; b.classList.toggle('pulse', hot > 0) }
+}
+setInterval(() => { if (typeof running !== 'undefined' && running && S) try { advBtn() } catch (e) { } }, 1000);
+// uus mängija saab nõuandja kohe alguses
+{ const _dn = doNewGame; doNewGame = function () { _dn(); setTimeout(() => toast('Tere! Mina olen nõuandja Ülo. Klõpsa kaardi nurgas nupul 🦉 Nõuandja, kui ei tea, mida edasi teha.', 'info'), 4000) } }
 
 /* ================= KALAPÜÜK (serveri kontrollitud) ================= */
 ICON.fish = '<svg viewBox="0 0 20 20"><path d="M2 10 C5 4.5, 12 4.5, 15 10 C12 15.5, 5 15.5, 2 10Z" fill="#7fbcd2"/><path d="M14 10 L19 6 L18 10 L19 14Z" fill="#5a9ab4"/><circle cx="5.5" cy="9" r="1" fill="#1a1a1a"/><path d="M8 7 Q9.5 10 8 13" stroke="#4f8aa4" stroke-width="1" fill="none"/></svg>';
