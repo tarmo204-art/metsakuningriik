@@ -252,7 +252,7 @@ function drawTile(c, t, px, py, s, night) {
 }
 
 /* ---------- buildings ---------- */
-function drawBuilding(c, type, px, py, s, o = {}) {
+function drawBuildingBase(c, type, px, py, s, o = {}) {
   const u = s / 20, X = v => px + v * u, Y = v => py + v * u, n = o.night || 0, t = tnow;
   const build = o.b && o.b.done && !o.b.up;
   if (build) c.globalAlpha = 0.45;
@@ -442,6 +442,78 @@ function drawBuilding(c, type, px, py, s, o = {}) {
     }
   }
 }
+// Hoone joonistamine: ehituse ajal kerkib maja tellingute vahel järk-järgult; tasemetega muutub maja uhkemaks
+function drawBuilding(c, type, px, py, s, o = {}) {
+  const b = o.b, u = s / 20, X = v => px + v * u, Y = v => py + v * u, t = tnow;
+  const building = b && b.done && !b.up;
+  if (!building) {
+    const lv = o.lvl || 1, sc = .88 + .06 * (Math.min(5, lv) - 1); // kõrgema tasemega hoone on suurem
+    c.save(); c.translate(X(10), Y(18)); c.scale(sc, sc); c.translate(-X(10), -Y(18));
+    drawBuildingBase(c, type, px, py, s, o); if (lv > 1) drawLvlDecor(c, type, X, Y, u, lv, t, o.night || 0);
+    c.restore(); if (b && b.done && b.up) drawWorker(c, X(17.6), Y(18.2), u, t, 1); return
+  }
+  const p = clamp((Date.now() - b.start) / (b.done - b.start), 0, 1), oo = Object.assign({}, o, { b: null, lvl: 1 });
+  // vundament ja ehituspaik
+  rect(c, X(2), Y(16.6), 16 * u, 1.6 * u, '#9a8a70'); for (let i = 0; i < 6; i++) rect(c, X(2.3 + i * 2.7), Y(16.8), 2.2 * u, 1.2 * u, '#b8a888');
+  // kontuur sellest, mis tuleb
+  c.save(); c.globalAlpha = .16; drawBuildingBase(c, type, px, py, s, oo); c.restore();
+  // valmis osa kerkib alt üles
+  if (p > .08) { const top = 18 - 26 * Math.min(1, (p - .08) / .85); c.save(); c.beginPath(); c.rect(X(-4), Y(top), 28 * u, (18 - top + 2) * u); c.clip(); drawBuildingBase(c, type, px, py, s, oo); c.restore();
+    c.strokeStyle = 'rgba(255,230,180,.5)'; c.lineWidth = .3 * u; c.setLineDash([u, u]); c.beginPath(); c.moveTo(X(1), Y(top)); c.lineTo(X(19), Y(top)); c.stroke(); c.setLineDash([]) }
+  // tellingud
+  const sc = '#a0653a', h0 = 18, h1 = Math.max(2, 18 - 18 * (p + .15));
+  c.strokeStyle = sc; c.lineWidth = .6 * u;
+  c.beginPath(); for (const x of [2.5, 10, 17.5]) { c.moveTo(X(x), Y(h0)); c.lineTo(X(x), Y(h1)) } for (let y = h0 - 3; y > h1; y -= 3.5) { c.moveTo(X(2.5), Y(y)); c.lineTo(X(17.5), Y(y)) } c.stroke();
+  c.strokeStyle = 'rgba(120,70,30,.7)'; c.lineWidth = .35 * u; c.beginPath(); for (let y = h0; y - 3.5 > h1; y -= 3.5) { c.moveTo(X(2.5), Y(y)); c.lineTo(X(10), Y(y - 3.5)); c.moveTo(X(10), Y(y)); c.lineTo(X(17.5), Y(y - 3.5)) } c.stroke();
+  // palgid ja kivid ootel
+  for (let i = 0; i < 3; i++) { rect(c, X(-1.5), Y(16.2 - i * .9), 4.5 * u, .8 * u, '#8a5a30'); circ(c, X(3), Y(16.6 - i * .9), .4 * u, '#e2b27a') }
+  ell(c, X(19.2), Y(17.6), 1.2 * u, .7 * u, '#9aa2a4'); ell(c, X(18.6), Y(17), .9 * u, .6 * u, '#b9c1c3');
+  drawWorker(c, X(12.5), Y(18.2), u, t, -1); if (p > .3) drawWorker(c, X(6), Y(Math.max(h1 + 3.4, 9)), u * .9, t + 1.3, 1);
+  if (Math.random() < .05) dust(b.x + .5, b.y + .8, true);
+  // edenemisriba
+  rect(c, X(2), Y(19), 16 * u, 1.4 * u, 'rgba(0,0,0,.55)'); rect(c, X(2.3), Y(19.3), 15.4 * u * p, .8 * u, '#f2b552');
+}
+function drawWorker(c, x, y, u, t, f) {
+  const sw = Math.sin(t * 7);
+  c.save(); c.translate(x, y); c.scale(f, 1);
+  ell(c, 0, 0, 2.4 * u, .7 * u, 'rgba(10,25,15,.3)');
+  c.strokeStyle = '#3a3a52'; c.lineWidth = .9 * u; c.lineCap = 'round'; c.beginPath(); c.moveTo(-.6 * u, -2.6 * u); c.lineTo(-.8 * u, 0); c.moveTo(.6 * u, -2.6 * u); c.lineTo(.8 * u, 0); c.stroke();
+  rect(c, -1.3 * u, -6 * u, 2.6 * u, 3.6 * u, '#c8642a'); rect(c, -1.3 * u, -4.6 * u, 2.6 * u, .4 * u, '#ffe08a');
+  circ(c, 0, -7.2 * u, 1.3 * u, '#f0caa0'); c.fillStyle = '#ffc020'; c.beginPath(); c.arc(0, -7.5 * u, 1.45 * u, Math.PI, 0); c.fill(); rect(c, -1.7 * u, -7.6 * u, 3.4 * u, .35 * u, '#e0a010');
+  c.save(); c.translate(1 * u, -5.4 * u); c.rotate(-.9 + sw * .9); c.strokeStyle = '#f0caa0'; c.lineWidth = .7 * u; c.beginPath(); c.moveTo(0, 0); c.lineTo(1.8 * u, 0); c.stroke();
+  rect(c, 1.6 * u, -.25 * u, 2.4 * u, .5 * u, '#8a5a30'); rect(c, 3.6 * u, -.9 * u, .9 * u, 1.8 * u, '#6a7078'); c.restore();
+  c.restore();
+}
+// tasemega lisanduvad kaunistused: lillekastid, kiviteed, laternad, lipud ja kuldsed ehted
+function drawLvlDecor(c, type, X, Y, u, lvl, t, n) {
+  const big = ['loss', 'vahitorn'].includes(type);
+  if (lvl >= 2) { // lillepeenar ja kivitee
+    for (let i = 0; i < 4; i++) { ell(c, X(8.6 + i * .9), Y(18.6 + (i % 2) * .3), .55 * u, .3 * u, '#b8b0a0') }
+    for (const bx of [2.2, 16]) { rect(c, X(bx), Y(17.1), 2.2 * u, .9 * u, '#7a5434'); for (let k = 0; k < 4; k++) circ(c, X(bx + .3 + k * .55), Y(16.9 - (k % 2) * .25), .38 * u, ['#e8506a', '#ffd060', '#c070f0', '#ff8a50'][(k + lvl) % 4]) }
+  }
+  if (lvl >= 3) { // laternapost
+    const lx = X(19.2); rect(c, lx - .2 * u, Y(11.5), .4 * u, 6.6 * u, '#3a3030'); rect(c, lx - .7 * u, Y(10.6), 1.4 * u, 1.2 * u, '#2a2424'); rect(c, lx - .5 * u, Y(10.8), u, .8 * u, n > .3 ? '#ffd070' : '#f4e8b0');
+    if (n > .3) { c.save(); c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(lx, Y(11.2), 0, lx, Y(11.2), 4 * u); g.addColorStop(0, `rgba(255,200,110,${.45 * n})`); g.addColorStop(1, 'rgba(255,200,110,0)'); c.fillStyle = g; c.fillRect(lx - 4 * u, Y(7.2), 8 * u, 8 * u); c.restore() }
+    if (!big) { rect(c, X(.2), Y(15.6), 1.6 * u, 2.4 * u, '#8a5a30'); rect(c, X(.2), Y(16.4), 1.6 * u, .3 * u, '#5a3a20'); ell(c, X(1), Y(15.6), .8 * u, .3 * u, '#a0703a') }
+  }
+  if (lvl >= 4) { // lipp katusel
+    const fx = big ? X(17.8) : X(10), fy = big ? Y(-6) : Y(type === 'kaev' ? 2.4 : 2.8);
+    rect(c, fx - .15 * u, fy - 4 * u, .3 * u, 4 * u, '#4a3a2a'); const w = Math.sin(t * 3) * .5;
+    c.fillStyle = lvl >= 5 ? '#ffc840' : '#3a6ad0'; c.beginPath(); c.moveTo(fx + .15 * u, fy - 4 * u); c.quadraticCurveTo(fx + 2 * u, fy - (4.2 + w) * u, fx + 3.6 * u, fy - (3.6 - w) * u); c.lineTo(fx + .15 * u, fy - 2.4 * u); c.fill();
+  }
+  if (lvl >= 5) { // kuldne sära
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) { const k = (t * .35 + i / 4) % 1, sx = X(3 + i * 4.5), sy = Y(14 - k * 12); c.fillStyle = `rgba(255,220,120,${.7 * (1 - k)})`; c.beginPath(); c.moveTo(sx, sy - .8 * u); c.quadraticCurveTo(sx, sy, sx + .8 * u, sy); c.quadraticCurveTo(sx, sy, sx, sy + .8 * u); c.quadraticCurveTo(sx, sy, sx - .8 * u, sy); c.quadraticCurveTo(sx, sy, sx, sy - .8 * u); c.fill() }
+    c.restore();
+    rect(c, X(2), Y(17.6), 16 * u, .4 * u, '#e8b030');
+  }
+  if (type === 'elumaja' && lvl >= 4) { // katuseaken ja aknakastid
+    poly(c, [X(7.6), Y(8.6), X(10), Y(5.8), X(12.4), Y(8.6)], '#a8402e'); rect(c, X(8.6), Y(7), 2.8 * u, 1.9 * u, n > .3 ? `rgba(255,220,130,${.6 + .4 * n})` : '#6f97a6');
+    for (const wx of [5.2, 12.2]) { rect(c, X(wx - .2), Y(13.8), 3 * u, .7 * u, '#7a5434'); for (let k = 0; k < 3; k++) circ(c, X(wx + .4 + k * .9), Y(13.7), .35 * u, k % 2 ? '#e8506a' : '#ffd060') }
+  }
+  if (type === 'metsamaja' && lvl >= 3) { for (let i = 0; i < 4; i++) { rect(c, X(-1 + i * .2), Y(13.2 + i * 1.1), 3 * u, .9 * u, '#8a5a30'); circ(c, X(2 + i * .2), Y(13.65 + i * 1.1), .45 * u, '#e2b27a') } }
+}
+
 function drawWagon(c, px, py, s, night) {
   const u = s / 20, X = v => px + v * u, Y = v => py + v * u;
   shadow(c, X(10), Y(18.2), 9 * u, 2 * u);

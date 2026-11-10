@@ -287,7 +287,7 @@ function catchUp(sec) {
 const tier = () => REGION_ORDER.indexOf(S.view) + 1;
 function treeYield(k) { return Math.round((k === 'tamm' ? 11 : k === 'mand' ? 7 : 5) * (1 + RATES.gather) * (1 + .4 * upgRank('kirves'))) }
 const offlineCapH = () => 4 + 2 * upgRank('valitsus');
-const buildTime = t => Math.max(2, Math.round(t * (1 - .2 * upgRank('ehitajad'))));
+const buildTime = t => Math.max(2, Math.round(t * 4 * (1 - .2 * upgRank('ehitajad'))));
 const merchantAt = (x, y) => S.merchant && S.view === 'kodu' && S.merchant.x === x && S.merchant.y === y;
 function interactTile(x, y) {
   if (merchantAt(x, y)) { openMerchant(); return }

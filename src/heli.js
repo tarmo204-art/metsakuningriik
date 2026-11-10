@@ -17,7 +17,7 @@ function sndInit() {
     const len = c.sampleRate * 2, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; SND.noise = buf;
     // pidevad taustahelid: vihm ja tuul
     const loop = (type, f, q) => { const s = c.createBufferSource(); s.buffer = buf; s.loop = true; const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = c.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(SND.ambG); s.start(); return { g, fl } };
-    SND.rain = loop('highpass', 1800, .5); SND.wind = loop('lowpass', 420, .7); SND.fire = loop('bandpass', 900, 1.2); SND.water = loop('bandpass', 600, .8);
+    SND.rain = loop('highpass', 1800, .5); SND.wind = loop('lowpass', 420, .7); SND.fire = loop('bandpass', 900, 1.2);
     sndVol(); return true;
   } catch (e) { SND.ctx = null; return false }
 }
@@ -47,7 +47,7 @@ const SFX = {
   chop: () => { noise(.12, { f: 1400, q: 2, vol: .45 }); tone(140, .14, { to: 70, vol: .35, type: 'triangle' }); noise(.25, { f: 3500, q: .8, vol: .06, at: .05, type: 'highpass' }) },
   stone: () => { tone(1100, .06, { to: 700, vol: .2, type: 'square', lp: 2500 }); noise(.07, { f: 3000, q: 3, vol: .3 }); tone(900, .05, { to: 600, vol: .12, type: 'square', lp: 2200, at: .08 }); noise(.06, { f: 2600, q: 3, vol: .18, at: .08 }) },
   pick: () => { tone(NOTE(84), .12, { vol: .16 }); tone(NOTE(88), .1, { vol: .1, at: .04 }); noise(.04, { f: 2000, q: 2, vol: .08 }) },
-  water: () => { for (let i = 0; i < 3; i++) tone(320 + i * 90, .09, { to: 700 + i * 150, vol: .14, at: i * .06 }); noise(.25, { f: 700, q: .7, vol: .12, type: 'lowpass' }) },
+  water: () => { noise(.3, { f: 900, to: 400, q: .6, vol: .16, type: 'lowpass' }) },
   coin: () => { tone(NOTE(88), .12, { vol: .16, type: 'triangle' }); tone(NOTE(95), .3, { vol: .16, type: 'triangle', at: .07 }) },
   chime: () => [76, 80, 83, 88].forEach((n, i) => tone(NOTE(n), .5, { vol: .1, at: i * .08, type: 'sine' })),
   bad: () => { tone(220, .25, { to: 150, vol: .14, type: 'triangle' }); tone(165, .3, { to: 120, vol: .1, type: 'triangle', at: .12 }) },
@@ -58,7 +58,7 @@ const SFX = {
   bite: () => { noise(.12, { f: 600, q: 1, vol: .3, type: 'lowpass' }); tone(NOTE(81), .25, { vol: .16, at: .02 }); tone(NOTE(88), .35, { vol: .14, at: .1 }) },
   ratchet: () => noise(.025, { f: 3200, q: 6, vol: .12 }),
   hit: () => { tone(NOTE(79), .1, { vol: .14, type: 'triangle' }); noise(.06, { f: 900, q: 1, vol: .15, type: 'lowpass' }) },
-  splash: () => { noise(.45, { f: 900, to: 300, q: .7, vol: .35, type: 'lowpass' }); for (let i = 0; i < 4; i++) tone(500 + Math.random() * 600, .06, { to: 1200, vol: .05, at: .05 + i * .05 }) },
+  splash: () => { noise(.45, { f: 900, to: 300, q: .7, vol: .3, type: 'lowpass' }) },
   catch: r => { SFX.splash(); const sc = [72, 76, 79, 84, 88, 91, 96]; for (let i = 0; i < 2 + (r || 1); i++) tone(NOTE(sc[i]), .4, { vol: .11, at: .25 + i * .08, type: 'triangle' }); if (r >= 5) for (let i = 0; i < 8; i++) tone(NOTE(96 + (i % 3) * 4), .25, { vol: .05, at: .9 + i * .06 }) },
   lost: () => { [67, 64, 60].forEach((n, i) => tone(NOTE(n), .3, { vol: .1, at: i * .12, type: 'triangle' })) },
   snap: () => { noise(.08, { f: 2500, q: 4, vol: .5 }); tone(400, .3, { to: 90, vol: .2, type: 'sawtooth', lp: 900 }) },
@@ -87,11 +87,11 @@ function ambientTick() {
   const inFish = typeof FV !== 'undefined' && FV.open;
   const w = S && S.weather ? S.weather.t : 'paike', fw = typeof FS !== 'undefined' && FS && FS.weather;
   const weather = inFish ? fw : w, night = typeof skyState === 'function' && S ? skyState().dark > .5 : false;
-  const rainV = weather === 'vihm' ? .35 : weather === 'torm' ? .55 : 0, windV = weather === 'torm' ? .5 : weather === 'udu' || weather === 'pilves' ? .18 : .08;
+  // tuul ja vihm ainult siis, kui ilm seda nõuab
+  const rainV = weather === 'vihm' ? .3 : weather === 'torm' ? .5 : 0, windV = weather === 'torm' ? .45 : weather === 'lumi' ? .12 : weather === 'pilves' ? .1 : weather === 'udu' ? .06 : 0;
   SND.rain.g.gain.setTargetAtTime(rainV, t, 1); SND.wind.g.gain.setTargetAtTime(windV * (1 + .4 * Math.sin(t * .3)), t, 1.5);
   const fireOn = S && S.life && S.life.ev && S.life.ev.k === 'tuli' && S.life.ev.reg === S.view && !inFish;
   SND.fire.g.gain.setTargetAtTime(fireOn ? .25 : 0, t, .4); if (fireOn && Math.random() < .5) sfx('fire');
-  SND.water.g.gain.setTargetAtTime(inFish ? .1 : 0, t, .8);
   if (!rainV && t > SND.nextBird && !night) { bird(); SND.nextBird = t + 2.5 + Math.random() * 6 }
   if (night && t > SND.nextCricket && weather !== 'lumi') { cricket(); SND.nextCricket = t + .6 + Math.random() * 1.6 }
   if (weather === 'torm' && Math.random() < .004) { noise(2.5, { f: 120, q: .5, vol: .6, type: 'lowpass', bus: SND.ambG }); }
@@ -121,13 +121,12 @@ function fishSndTick() {
   }
   if (p === 'reel' && performance.now() - SND.reelT > 90) { SND.reelT = performance.now(); sfx('ratchet') }
 }
-setInterval(() => { if (!SND.ctx) return; try { musicTick(); ambientTick(); fishSndTick() } catch (e) { } }, 60);
+setInterval(() => { if (!SND.ctx) return; try { ambientTick(); fishSndTick() } catch (e) { } }, 60);
 
 /* ---------- heli seaded ---------- */
 function soundCard() {
-  return `<div class="card"><div class="sec-h" style="margin:0">Heli <small>${SND.on ? 'sees' : 'väljas'}</small></div><p class="lead">Kõik helid ja muusika tehakse mängus endas. Telefonis peab heli jaoks olema vaikne režiim välja lülitatud.</p>
+  return `<div class="card"><div class="sec-h" style="margin:0">Heli <small>${SND.on ? 'sees' : 'väljas'}</small></div><p class="lead">Kõik helid tehakse mängus endas. Tuul ja vihm kostavad ainult vastava ilmaga. Telefonis peab heli jaoks olema vaikne režiim välja lülitatud.</p>
     <div class="sndrow"><label>Heliefektid</label><input type="range" min="0" max="100" value="${Math.round(SND.fx * 100)}" data-snd="fx"></div>
-    <div class="sndrow"><label>Muusika</label><input type="range" min="0" max="100" value="${Math.round(SND.mus * 100)}" data-snd="mus"></div>
     <div class="sndrow"><label>Loodushelid</label><input type="range" min="0" max="100" value="${Math.round(SND.amb * 100)}" data-snd="amb"></div>
     <button class="btn sm ${SND.on ? 'ghost' : ''}" type="button" data-act="sndToggle">${SND.on ? 'Lülita heli välja' : 'Lülita heli sisse'}</button></div>`;
 }
