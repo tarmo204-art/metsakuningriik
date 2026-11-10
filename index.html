@@ -3173,45 +3173,58 @@ function gemGrad(c, x, y, r, col) { const g = c.createRadialGradient(x - r * .35
 function glowAt(c, x, y, r, col, a = .55) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, hexA(col, a)); g.addColorStop(1, hexA(col, 0)); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2) }
 function sparkle(c, x, y, r, col = '#ffffff') { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill() }
 function drawRod(c, S, id, t, upg = 0, ench = '', elvl = 0) {
-  const st = ROD_ST[id] || ROD_ST.algaja, x0 = -S * .42, y0 = S * .36, x1 = S * .44, y1 = -S * .4, len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0);
-  if (st.glow) glowAt(c, 0, 0, S * .6, st.glow, .35);
-  if (ench && ENCH_COL[ench]) { glowAt(c, 0, 0, S * (.45 + elvl * .1), ENCH_COL[ench], .25 + elvl * .1 + Math.sin(t * 2) * .05) }
+  const x0 = -S * .42, y0 = S * .36, x1 = S * .44, y1 = -S * .4;
   // nöör ja konks
   c.strokeStyle = 'rgba(240,240,240,.7)'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(x1 + S * .02, y1 + S * .35, x1 - S * .02, y1 + S * .5 + Math.sin(t * 2) * S * .01); c.stroke();
   const hx = x1 - S * .02, hy = y1 + S * .5; c.strokeStyle = '#c8ccd0'; c.lineWidth = Math.max(1, S * .012); c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx, hy + S * .05); c.arc(hx - S * .025, hy + S * .05, S * .025, 0, Math.PI * .9); c.stroke();
+  drawRodBody(c, x0, y0, x1, y1, S, id, t, upg, ench, elvl, 0);
+}
+// Õnge keha kahe punkti vahel. bend painutab otsa (kala tõmbab). Tagastab ridva otsa asukoha.
+function drawRodBody(c, x0, y0, x1, y1, S, id, t, upg = 0, ench = '', elvl = 0, bend = 0) {
+  const st = ROD_ST[id] || ROD_ST.algaja, len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  if (st.glow) glowAt(c, mx, my, len * .5, st.glow, .3);
+  if (ench && ENCH_COL[ench]) glowAt(c, mx, my, len * (.38 + elvl * .08), ENCH_COL[ench], .22 + elvl * .08 + Math.sin(t * 2) * .05);
+  const hl = len * .26, w0 = S * .045, w1 = Math.max(1.2, S * .01);
+  const yo = x => x <= hl ? 0 : bend * Math.pow((x - hl) / (len - hl), 2);
+  const ca = Math.cos(ang), sa = Math.sin(ang), W = (x, y) => [x0 + x * ca - y * sa, y0 + x * sa + y * ca];
   c.save(); c.translate(x0, y0); c.rotate(ang);
-  const w0 = S * .045, w1 = S * .01;
-  // ritv
-  c.beginPath(); c.moveTo(len * .26, -w0 * .55); c.lineTo(len, -w1 / 2); c.lineTo(len, w1 / 2); c.lineTo(len * .26, w0 * .55); c.closePath();
-  if (st.shaft === 'rainbow') { const g = c.createLinearGradient(len * .26, 0, len, 0); ['#ff6a8a', '#ffb050', '#ffe860', '#7af0a0', '#6ab8ff', '#b08aff'].forEach((col, i) => g.addColorStop(i / 5, col)); c.fillStyle = g } else c.fillStyle = metalGrad(c, 0, -w0 * .55, 0, w0 * .55, st.shaft);
+  // ritv (painduv)
+  const N = 24, top = [], bot = [];
+  for (let i = 0; i <= N; i++) { const x = hl + (len - hl) * i / N, hw = (w0 * .55) * (1 - i / N) + (w1 / 2) * (i / N); top.push([x, yo(x) - hw]); bot.push([x, yo(x) + hw]) }
+  c.beginPath(); c.moveTo(top[0][0], top[0][1]); top.forEach(p => c.lineTo(p[0], p[1])); for (let i = bot.length - 1; i >= 0; i--) c.lineTo(bot[i][0], bot[i][1]); c.closePath();
+  if (st.shaft === 'rainbow') { const g = c.createLinearGradient(hl, 0, len, 0); ['#ff6a8a', '#ffb050', '#ffe860', '#7af0a0', '#6ab8ff', '#b08aff'].forEach((col, i) => g.addColorStop(i / 5, col)); c.fillStyle = g } else c.fillStyle = metalGrad(c, 0, -w0 * .55, 0, w0 * .55, st.shaft);
   c.fill(); c.strokeStyle = hexA(st.dark, .7); c.lineWidth = Math.max(.6, S * .005); c.stroke();
-  if (st.scales) { c.fillStyle = 'rgba(40,0,0,.35)'; for (let i = 0; i < 14; i++) { const x = len * (.3 + i * .045); c.beginPath(); c.arc(x, 0, w0 * (.45 - i * .02), -1.2, 1.2); c.fill() } }
-  if (st.runes) { c.strokeStyle = hexA(st.glow, .9); c.lineWidth = Math.max(.6, S * .006); c.beginPath(); for (let i = 0; i < 5; i++) { const x = len * (.35 + i * .1); c.moveTo(x, -w0 * .25); c.lineTo(x + S * .015, w0 * .2); c.lineTo(x + S * .03, -w0 * .2) } c.stroke() }
+  // läige piki ritva
+  c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = Math.max(.6, w0 * .18); c.beginPath(); for (let i = 0; i <= N; i++) { const x = hl + (len - hl) * i / N; i ? c.lineTo(x, yo(x) - w0 * .2 * (1 - i / N)) : c.moveTo(x, yo(x) - w0 * .2) } c.stroke();
+  if (st.scales) { c.fillStyle = 'rgba(40,0,0,.35)'; for (let i = 0; i < 14; i++) { const x = len * (.3 + i * .045); c.beginPath(); c.arc(x, yo(x), w0 * (.45 - i * .02), -1.2, 1.2); c.fill() } }
+  if (st.runes) { c.strokeStyle = hexA(st.glow, .9); c.lineWidth = Math.max(.6, S * .006); c.beginPath(); for (let i = 0; i < 5; i++) { const x = len * (.35 + i * .1), o = yo(x); c.moveTo(x, o - w0 * .25); c.lineTo(x + S * .015, o + w0 * .2); c.lineTo(x + S * .03, o - w0 * .2) } c.stroke() }
   // mähised ja juhtrõngad
-  if (st.wraps) for (let i = 0; i < (st.guides || 4); i++) { const x = len * (.32 + i * (.62 / (st.guides || 4))); rect(c, x - S * .006, -w0 * .5, S * .012, w0, st.wraps) }
-  if (st.guides) for (let i = 0; i < st.guides; i++) { const x = len * (.34 + i * (.62 / st.guides)), r = S * (.022 - i * .0018); c.strokeStyle = '#d8dce0'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x - r, -w0 * .3); c.lineTo(x, -w0 * .3 - r * 1.2); c.lineTo(x + r, -w0 * .3); c.stroke(); c.beginPath(); c.arc(x, -w0 * .3 - r * 1.6, r * .6, 0, 6.283); c.stroke() }
-  rect(c, len - S * .008, -w1, S * .012, w1 * 2, st.wraps || st.dark);
+  const ng = st.guides || 4;
+  if (st.wraps) for (let i = 0; i < ng; i++) { const x = len * (.32 + i * (.62 / ng)), hw = w0 * .5 * (1 - (x - hl) / (len - hl)) + w1 * .6; rect(c, x - S * .006, yo(x) - hw, S * .012, hw * 2, st.wraps) }
+  if (st.guides) for (let i = 0; i < st.guides; i++) { const x = len * (.34 + i * (.62 / st.guides)), o = yo(x), r = S * (.022 - i * .0018); c.strokeStyle = '#d8dce0'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x - r, o - w0 * .3); c.lineTo(x, o - w0 * .3 - r * 1.2); c.lineTo(x + r, o - w0 * .3); c.stroke(); c.beginPath(); c.arc(x, o - w0 * .3 - r * 1.6, r * .6, 0, 6.283); c.stroke() }
+  rect(c, len - S * .008, yo(len) - w1, S * .012, w1 * 2, st.wraps || st.dark);
   // käepide
-  const hl = len * .26;
   c.beginPath(); c.moveTo(0, -w0 * .7); c.lineTo(hl, -w0 * .6); c.lineTo(hl, w0 * .6); c.lineTo(0, w0 * .7); c.closePath(); c.fillStyle = metalGrad(c, 0, -w0, 0, w0, st.handle); c.fill();
-  if (st.cork) { c.fillStyle = 'rgba(90,60,30,.35)'; for (let i = 0; i < 18; i++) circ(c, th(i, 1, 3) * hl, (th(i, 2, 3) - .5) * w0 * 1.1, S * .004, 'rgba(90,60,30,.4)') }
+  if (st.cork) { for (let i = 0; i < 18; i++) circ(c, th(i, 1, 3) * hl, (th(i, 2, 3) - .5) * w0 * 1.1, S * .004, 'rgba(90,60,30,.4)') }
   c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(.6, S * .005); c.stroke();
   ell(c, 0, 0, S * .012, w0 * .75, shade(st.handle, -.4));
-  // rull
+  // rull (vänt keerleb, kui kala on otsas)
   if (st.reel) {
-    const rx = hl * .62, ry = w0 * 2.2, rr = S * .075;
+    const rx = hl * .62, ry = w0 * 2.2, rr = S * .075, spin = bend > 0 ? t * 9 : .6;
     rect(c, rx - S * .01, w0 * .4, S * .02, ry - rr * .8, shade(st.reel, -.3));
-    c.beginPath(); c.arc(rx, ry, rr, 0, 6.283); c.fillStyle = metalGrad(c, rx - rr, ry - rr, rx + rr, ry + rr, st.reel); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.stroke();
+    c.beginPath(); c.arc(rx, ry, rr, 0, 6.283); c.fillStyle = metalGrad(c, rx - rr, ry - rr, rx + rr, ry + rr, st.reel); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = Math.max(.6, S * .005); c.stroke();
     c.beginPath(); c.arc(rx, ry, rr * .55, 0, 6.283); c.fillStyle = shade(st.reel, -.25); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.35)'; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(rx, ry, rr * (.6 + i * .1), 0, 6.283); c.stroke() }
-    c.strokeStyle = shade(st.reel, -.4); c.lineWidth = Math.max(1, S * .01); c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + rr * .9, ry + rr * .6); c.stroke(); circ(c, rx + rr * .9, ry + rr * .6, S * .014, st.handle);
+    const ex = rx + Math.cos(spin) * rr * 1.05, ey = ry + Math.sin(spin) * rr * 1.05;
+    c.strokeStyle = shade(st.reel, -.4); c.lineWidth = Math.max(1, S * .01); c.beginPath(); c.moveTo(rx, ry); c.lineTo(ex, ey); c.stroke(); circ(c, ex, ey, S * .014, st.handle);
   }
   if (upg) for (let i = 0; i < upg; i++) { const x = hl + len * .03 + i * S * .025; rect(c, x, -w0 * .62, S * .01, w0 * 1.24, '#ffd060'); rect(c, x, -w0 * .62, S * .004, w0 * 1.24, '#fff4c0') }
   c.restore();
-  if (ench && ENCH_COL[ench]) for (let i = 0; i < 3 + elvl * 3; i++) { const k = (t * .35 + i / (3 + elvl * 3)) % 1, u = .25 + th(i, 3, 4) * .75; sparkle(c, x0 + (x1 - x0) * u + Math.sin(i + t) * S * .03, y0 + (y1 - y0) * u - k * S * .12, S * .028 * (1 - k) * (1 + elvl * .3), hexA(ENCH_COL[ench], 1 - k)) }
-  // valgusvirvendus ritval
-  const sh = (t * .3) % 1; glowAt(c, x0 + (x1 - x0) * sh, y0 + (y1 - y0) * sh, S * .05, '#ffffff', .25);
-  if (st.stars || st.glow) for (let i = 0; i < 4; i++) { const k = (t * .2 + i / 4) % 1, px = x0 + (x1 - x0) * (.3 + th(i, 1, 2) * .7), py = y0 + (y1 - y0) * (.3 + th(i, 1, 2) * .7) - S * .05; sparkle(c, px, py - k * S * .1, S * (.03 * (1 - k)), hexA(st.glow, 1 - k)) }
+  const tip = W(len, yo(len));
+  if (ench && ENCH_COL[ench]) for (let i = 0; i < 3 + elvl * 3; i++) { const k = (t * .35 + i / (3 + elvl * 3)) % 1, u = .25 + th(i, 3, 4) * .75, p = W(len * u, yo(len * u)); sparkle(c, p[0] + Math.sin(i + t) * S * .03, p[1] - k * S * .12, S * .028 * (1 - k) * (1 + elvl * .3), hexA(ENCH_COL[ench], 1 - k)) }
+  const sh = (t * .3) % 1, sp2 = W(len * sh, yo(len * sh)); glowAt(c, sp2[0], sp2[1], S * .05, '#ffffff', .22);
+  if (st.stars || st.glow) for (let i = 0; i < 4; i++) { const k = (t * .2 + i / 4) % 1, u = .3 + th(i, 1, 2) * .7, p = W(len * u, yo(len * u)); sparkle(c, p[0], p[1] - S * .05 - k * S * .1, S * (.03 * (1 - k)), hexA(st.glow, 1 - k)) }
+  return tip;
 }
 function drawBait(c, S, id, t) {
   const r = S * .36;
@@ -3640,14 +3653,11 @@ function sceneLoop(ts) {
   const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
   if (FV.phase === 'bite') bob = 9 + Math.sin(t * 32) * 5;
   if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
-  { const st = ROD_ST[FS.rod] || ROD_ST.algaja, g = c.createLinearGradient(-10, h * .98, w * .32, h * .07);
-    if (st.shaft === 'rainbow') ['#ff6a8a', '#ffb050', '#ffe860', '#7af0a0', '#6ab8ff', '#b08aff'].forEach((col, i) => g.addColorStop(i / 5, col)); else { g.addColorStop(0, shade(st.shaft, -.3)); g.addColorStop(1, shade(st.shaft, .2)) }
-    if (st.glow) { c.strokeStyle = hexA(st.glow, .25); c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke() }
-    c.strokeStyle = g; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke();
-    c.strokeStyle = st.handle; c.lineWidth = 8; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .05, h * .72); c.stroke();
-    if (st.reel) { const rx = w * .04, ry = h * .8; circ(c, rx + 8, ry + 6, 11, shade(st.reel, -.3)); circ(c, rx + 8, ry + 6, 8, st.reel); circ(c, rx + 8, ry + 6, 3, shade(st.reel, -.4)) } }
+  const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
+  const bend = FV.phase === 'reel' ? RS * (.12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
+  const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
   if (!casting || FV.phase === 'casting') {
-    c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(w * .32, h * .07); c.quadraticCurveTo(w * .5, h * .2, bx, by + bob - 6); c.stroke();
+    c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(tipP[0], tipP[1]); c.quadraticCurveTo((tipP[0] + bx) / 2 + w * .03, (tipP[1] + by) / 2 - h * .05 + (FV.phase === 'reel' ? h * .08 : 0), bx, by + bob - 6); c.stroke();
     if (FV.phase === 'bite' || FV.phase === 'reel') for (let i = 0; i < 3; i++) { c.strokeStyle = `rgba(255,255,255,${.55 - i * .15})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 28), 4 + ((t * 10 + i * 4) % 9), 0, 0, 6.29); c.stroke() }
     circ(c, bx, by + bob, 7, '#e8412e'); c.beginPath(); c.arc(bx, by + bob, 7, Math.PI, 0); c.fillStyle = '#fff'; c.fill(); rect(c, bx - 1, by + bob - 15, 2, 8, '#3a2a1a');
   }
