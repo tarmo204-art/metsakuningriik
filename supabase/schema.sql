@@ -263,6 +263,27 @@ create index if not exists fish_market_open on public.fish_market(status, id des
 alter table public.fish_market enable row level security;
 revoke all on public.fish_market from anon, authenticated;
 
+-- 2f. Kuningriikide koostöö
+create table if not exists public.kingdom_gifts (
+  sender uuid not null references auth.users(id) on delete cascade, receiver uuid not null references auth.users(id) on delete cascade,
+  day date not null, created_at timestamptz not null default now(), primary key (sender, receiver, day)
+);
+create table if not exists public.kingdom_monument (
+  stage int primary key, need jsonb, have jsonb not null default '{}', created_at timestamptz not null default now(), done_at timestamptz
+);
+create table if not exists public.kingdom_monument_contrib (
+  user_id uuid not null references auth.users(id) on delete cascade, stage int not null, total int not null default 0, primary key (user_id, stage)
+);
+create table if not exists public.kingdom_contrib_day (
+  user_id uuid not null references auth.users(id) on delete cascade, day date not null, amount int not null default 0, primary key (user_id, day)
+);
+do $$ declare t text; begin
+  foreach t in array array['kingdom_gifts','kingdom_monument','kingdom_monument_contrib','kingdom_contrib_day'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 3. Algandmed
 -- ---------------------------------------------------------------------
@@ -1714,6 +1735,110 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6f. Kuningriikide koostöö: külastused, sõprusekingid ja ühine monument
+-- ---------------------------------------------------------------------
+create or replace function public.kingdom_visit(p_user uuid) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare u uuid := fx_uid(); p profiles; sv saves; d jsonb;
+begin
+  select * into p from profiles where id = p_user;
+  select * into sv from saves where user_id = p_user;
+  if sv.user_id is null or (coalesce(p.hidden, false) and p_user <> u) then raise exception 'Seda kuningriiki ei saa külastada'; end if;
+  d := sv.data;
+  return jsonb_build_object('user', p_user, 'name', coalesce(p.name, d ->> 'name'), 'kingdom', coalesce(p.kingdom, d ->> 'kingdom'),
+    'level', sv.level, 'fame', sv.fame, 'regions', sv.regions, 'rank', coalesce((d -> 'life' ->> 'rank')::int, 0),
+    'tiles', d -> 'regions' -> 'kodu' -> 'tiles',
+    'buildings', coalesce((select jsonb_agg(jsonb_build_object('type', b ->> 'type', 'x', (b ->> 'x')::int, 'y', (b ->> 'y')::int, 'lvl', (b ->> 'lvl')::int))
+       from jsonb_array_elements(coalesce(d -> 'buildings', '[]')) b where b ->> 'region' = 'kodu'), '[]'),
+    'tamed', d -> 'st' -> 'tamed', 'relics', (select count(*) from jsonb_object_keys(coalesce(d -> 'life' -> 'relics', '{}'))),
+    'gifted', exists (select 1 from kingdom_gifts g where g.sender = u and g.receiver = p_user and g.day = fx_today()),
+    'me', p_user = u);
+end $$;
+
+-- Sõprusekink: 3 kinki päevas, igale kuningriigile kord päevas. Kink tuleb kuningriigi varamust (serveri loodud), nii et midagi ei saa kopeerida.
+create or replace function public.kingdom_gift_send(p_user uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); n int; p profiles; lvl int; sname text;
+begin
+  if p_user = u then raise exception 'Endale ei saa kinki saata'; end if;
+  select * into p from profiles where id = p_user;
+  if p.id is null or p.hidden or not exists (select 1 from saves where user_id = p_user) then raise exception 'Seda kuningriiki ei leitud'; end if;
+  perform 1 from profiles where id = u for update;
+  select count(*) into n from kingdom_gifts where sender = u and day = fx_today();
+  if n >= 3 then raise exception 'Täna oled juba 3 kinki saatnud. Homme saad jälle!'; end if;
+  insert into kingdom_gifts(sender, receiver, day) values (u, p_user, fx_today()) on conflict do nothing;
+  if not found then raise exception 'Sellele kuningriigile oled täna juba kingi saatnud'; end if;
+  select level into lvl from saves where user_id = p_user; select name into sname from profiles where id = u;
+  perform fx_inbox(p_user, jsonb_build_object('gold', 40 + least(60, coalesce(lvl, 1)) * 6, 'berries', 30, 'food', 30, 'fame', 5), 'sõprusekink: ' || coalesce(sname, 'sõber'));
+  perform fx_inbox(u, jsonb_build_object('fame', 4, 'xp', 15), 'heategu');
+  return jsonb_build_object('ok', true, 'left', 2 - n);
+end $$;
+
+create or replace function public.fx_mon_need(p_stage int) returns jsonb language sql immutable as $$
+  select (case ((p_stage - 1) % 5) + 1
+    when 1 then '{"wood":3000,"stone":3000}'::jsonb
+    when 2 then '{"stone":6000,"gold":4000}'::jsonb
+    when 3 then '{"wood":6000,"stone":6000,"food":3000}'::jsonb
+    when 4 then '{"stone":10000,"gold":10000,"food":5000}'::jsonb
+    else '{"wood":8000,"stone":8000,"gold":20000,"food":8000}'::jsonb end)
+$$;
+create or replace function public.fx_mon_current() returns public.kingdom_monument language plpgsql as $$
+declare m public.kingdom_monument;
+begin
+  select * into m from public.kingdom_monument where done_at is null order by stage limit 1;
+  if m.stage is null then
+    perform pg_advisory_xact_lock(hashtext('monument_new'));
+    select * into m from public.kingdom_monument where done_at is null order by stage limit 1;
+    if m.stage is not null then return m; end if;
+    insert into public.kingdom_monument(stage, need) select coalesce(max(stage), 0) + 1, null from public.kingdom_monument returning * into m;
+    update public.kingdom_monument set need = (select jsonb_object_agg(key, round(value::numeric * (1 + 0.5 * ((m.stage - 1) / 5)))) from jsonb_each_text(public.fx_mon_need(m.stage))) where stage = m.stage returning * into m;
+  end if;
+  return m;
+end $$;
+
+create or replace function public.monument_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); m kingdom_monument;
+begin
+  m := fx_mon_current();
+  return jsonb_build_object('stage', m.stage, 'need', m.need, 'have', m.have, 'done', (select count(*) from kingdom_monument where done_at is not null),
+    'top', coalesce((select jsonb_agg(x) from (select case when p.hidden and c.user_id <> u then 'Salapärane valitseja' else p.kingdom end as kingdom, c.total, c.user_id = u as me
+        from kingdom_monument_contrib c join profiles p on p.id = c.user_id where c.stage = m.stage order by c.total desc limit 10) x), '[]'),
+    'mine', coalesce((select total from kingdom_monument_contrib where stage = m.stage and user_id = u), 0),
+    'today', coalesce((select amount from kingdom_contrib_day where user_id = u and day = fx_today()), 0), 'cap', 2000,
+    'contributors', (select count(*) from kingdom_monument_contrib where stage = m.stage));
+end $$;
+
+-- Panus võetakse serveris hoitud salvestusest, nii et lisada saab ainult seda, mis kuningriigil päriselt on
+create or replace function public.monument_contribute(p_res text, p_amt int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); m kingdom_monument; sv saves; v_have numeric; left_need numeric; got numeric; today int; amt int; c record; tot numeric; g int; f int;
+begin
+  if p_res not in ('wood','stone','food','gold') or p_amt is null or p_amt < 1 then raise exception 'Vale panus'; end if;
+  perform pg_advisory_xact_lock(hashtext('monument'));
+  m := fx_mon_current();
+  if not (m.need ? p_res) then raise exception 'Sellel etapil seda ressurssi ei vajata'; end if;
+  select * into sv from saves where user_id = u for update;
+  if sv.user_id is null then raise exception 'Salvesta enne kuningriik (oota paar sekundit)'; end if;
+  select coalesce(amount, 0) into today from kingdom_contrib_day where user_id = u and day = fx_today(); today := coalesce(today, 0);
+  v_have := coalesce((sv.data -> 'res' ->> p_res)::numeric, 0);
+  left_need := (m.need ->> p_res)::numeric - coalesce((m.have ->> p_res)::numeric, 0);
+  amt := least(p_amt, floor(v_have)::int, floor(left_need)::int, 2000 - today);
+  if amt < 1 then raise exception '%', case when 2000 - today < 1 then 'Tänane panuse piir (2000) on täis' when left_need < 1 then 'Seda ressurssi on juba piisavalt' else 'Kuningriigil pole seda ressurssi piisavalt' end; end if;
+  update saves set data = jsonb_set(data, array['res', p_res], to_jsonb(v_have - amt)) where user_id = u;
+  insert into kingdom_contrib_day(user_id, day, amount) values (u, fx_today(), amt) on conflict (user_id, day) do update set amount = kingdom_contrib_day.amount + amt;
+  insert into kingdom_monument_contrib(user_id, stage, total) values (u, m.stage, amt) on conflict (user_id, stage) do update set total = kingdom_monument_contrib.total + amt;
+  update kingdom_monument km set have = jsonb_set(km.have, array[p_res], to_jsonb(coalesce((km.have ->> p_res)::numeric, 0) + amt)) where stage = m.stage returning * into m;
+  -- etapp valmis?
+  if not exists (select 1 from jsonb_each_text(m.need) n where coalesce((m.have ->> n.key)::numeric, 0) < n.value::numeric) then
+    update kingdom_monument set done_at = now() where stage = m.stage;
+    select sum(total) into tot from kingdom_monument_contrib where stage = m.stage;
+    for c in select * from kingdom_monument_contrib where stage = m.stage loop
+      g := round(200 * (((m.stage - 1) % 5) + 1) + c.total * 0.6)::int; f := 25 * (((m.stage - 1) % 5) + 1) + least(200, round(c.total / 50))::int;
+      perform fx_inbox(c.user_id, jsonb_build_object('gold', g, 'fame', f, 'xp', 100 * (((m.stage - 1) % 5) + 1)), 'monumendi ' || m.stage || '. etapp valmis');
+    end loop;
+    perform fx_news(u, 'monument', jsonb_build_object('stage', m.stage));
+  end if;
+  return jsonb_build_object('ok', true, 'amount', amt, 'res', p_res, 'stage_done', m.done_at is not null or exists (select 1 from kingdom_monument where stage = m.stage and done_at is not null));
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -1724,7 +1849,8 @@ do $$ declare r record; begin
               'fish_competitions','fish_claim_prizes','fish_item_sell','fish_quests','fish_quest_claim','kingdom_news',
               'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like',
               'fish_rod_upgrade','fish_enchant','fish_boat_buy',
-              'fish_market_list','fish_market_cancel','fish_market_buy','fish_market_browse','fish_market_mine')) loop
+              'fish_market_list','fish_market_cancel','fish_market_buy','fish_market_browse','fish_market_mine',
+              'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

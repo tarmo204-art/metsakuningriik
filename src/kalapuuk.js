@@ -1067,13 +1067,14 @@ function newsText(n) {
     case 'chest': return `${who} leidis kuldse aardekirstu ja ${fmt(d.gold || 0)} kulda!`;
     case 'comp': return `${who} võitis võistluse „${COMPN[d.comp] ? COMPN[d.comp][0] : d.comp}“!`;
     case 'level': return `${who} jõudis kalapüügi ${d.level}. tasemele!`;
+    case 'monument': return `${who} viis lõpule sõpruse monumendi ${d.stage}. etapi! Kõik panustajad said preemia.`;
     case 'enchant': return `${who} lisas õngele ${esc(d.rod || '')} võimsa võlu: ${esc(d.ench || '')} III!`;
     case 'boat': return `${who} ostis uue paadi: ${esc(d.boat || '')}!`;
     case 'house': return `${who} täiendas kalamaja: nüüd on tal ${esc(d.name || '')} (tase ${d.level})!`;
   }
   return who;
 }
-const NEWS_IC = { enchant: '✨', boat: '⛵', house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
+const NEWS_IC = { monument: '🏛️', enchant: '✨', boat: '⛵', house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
 function newsAgo(at) { const m = Math.floor((Date.now() - new Date(at)) / 60000); if (m < 1) return 'just nüüd'; if (m < 60) return m + ' min tagasi'; const h = Math.floor(m / 60); if (h < 24) return h + ' h tagasi'; return new Date(at).toLocaleDateString('et-EE', { day: 'numeric', month: 'long' }) }
 function newsHtml(max) {
   if (!NEWS.list) return '<p class="lead">Laadin uudiseid…</p>';

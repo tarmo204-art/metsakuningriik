@@ -461,6 +461,7 @@ function smoke(c, x, y, u, t, col = '#d8dcd6') {
 
 /* ---------- animals ---------- */
 function drawAnimal(c, a, x, y, s, night) {
+  if (a.folk || a.deer) return drawFolk(c, a, x, y, s, night);
   const f = a.f || 1, m = a.moving ? 1 : 0, ph = a.ph || 0, sp = a.sp;
   if (ANIMALS[sp].fly) {
     const flap = Math.sin(ph) * s * .09, col = S.view === 'jarv' ? '#4a5a3a' : S.view === 'org' ? '#e0d6ff' : '#2b2b30';
@@ -641,6 +642,7 @@ function frame(ts) {
   if (!S || document.getElementById('game').hidden) { lastFrame = ts; return }
   const dt = Math.min(.1, (ts - lastFrame) / 1000 || 0); lastFrame = ts; tnow = ts / 1000;
   updateEnts(dt);
+  if (typeof updateLife === 'function') updateLife(dt);
   buildGround();
   const c = cx, s = TS, sky = skyState(), night = sky.dark;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -666,7 +668,7 @@ function frame(ts) {
     c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1.5; c.strokeRect(hover.x * s + 1.5, hover.y * s + 1.5, s - 3, s - 3);
   }
   // rows: tiles then walkers
-  const walkers = ents.filter(a => !a.fly).sort((a, b) => a.y - b.y);
+  const walkers = ents.filter(a => !a.fly).concat(typeof folkList === 'function' ? folkList() : []).sort((a, b) => a.y - b.y);
   let wi = 0;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) drawTile(c, tiles[y * W + x], x * s, y * s, s, night);
@@ -684,6 +686,7 @@ function frame(ts) {
   }
   while (wi < walkers.length) { const a = walkers[wi++]; drawAnimal(c, a, a.x * s, a.y * s, s, night) }
   drawHunt(c, s);
+  if (typeof drawLifeOverlay === 'function') drawLifeOverlay(c, s);
   // particles
   for (const p of parts) {
     p.life -= dt;

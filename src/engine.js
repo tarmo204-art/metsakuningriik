@@ -416,7 +416,7 @@ function unlockRegion(k) {
   setView(k);
 }
 const turgLvl = () => S.buildings.filter(b => b.type === 'turg' && (!b.done || b.up)).reduce((a, b) => a + b.lvl, 0);
-const sellUnit = k => MBASE[k] * S.market[k].m * (1 + 0.08 * turgLvl()) * (1 + .1 * upgRank('kaubateed'));
+const sellUnit = k => MBASE[k] * S.market[k].m * (1 + 0.08 * turgLvl()) * (1 + .1 * upgRank('kaubateed')) * (typeof lifeSellMult === 'function' ? lifeSellMult() : 1);
 const buyUnit = k => MBASE[k] * S.market[k].m * 1.75 * (1 - .06 * upgRank('kaubateed'));
 function sell(k, q) {
   if (!hasActive('turg')) return;

@@ -103,6 +103,26 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .tool{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--moss);color:var(--birch);border-radius:12px;padding:8px 13px;font-weight:700;font-size:14px}
 .tool svg{width:18px;height:18px}
 .tool.on{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+.evbanner{position:absolute;left:8px;right:8px;bottom:8px;z-index:5;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;border-radius:14px;background:rgba(14,26,20,.88);border:1px solid rgba(242,181,82,.55);box-shadow:0 6px 20px rgba(0,0,0,.35);backdrop-filter:blur(4px)}
+.evbanner .evic{font-size:26px}.evbanner .evtx{display:grid;gap:1px;min-width:0}.evbanner b{font-size:14px;color:var(--amber-2,#ffd286)}.evbanner small{font-size:12px;color:var(--lichen,#b8c9a8)}.evbanner .evd{white-space:normal}
+.evbanner .evbtn{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}.evbanner .evask{font-size:12px;display:flex;gap:4px;flex-wrap:wrap}.evbanner .evask .ic{width:14px;height:14px}
+@media (max-width:640px){.evbanner{grid-template-columns:auto minmax(0,1fr);bottom:4px;left:4px;right:4px;padding:6px 8px}.evbanner .evbtn{grid-column:1/-1;justify-content:flex-start}.evbanner .evd{display:none}}
+.rankcard{background:linear-gradient(160deg,rgba(242,181,82,.14),rgba(0,0,0,.18))}.rankhead{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;align-items:center}.rankem{font-size:38px;text-align:center}
+.rankreq{display:flex;gap:6px;flex-wrap:wrap}.rankreq span{font-size:12.5px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.25)}.rankreq span.ok{background:rgba(127,209,106,.18);color:#bfe8b0}
+.relics{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;margin-top:6px}.relic{display:grid;gap:2px;justify-items:center;text-align:center;padding:6px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid color-mix(in srgb,var(--rc) 40%,transparent)}
+.relic canvas{width:56px;height:56px}.relic b{font-size:12px}.relic small{font-size:11px;color:var(--lichen,#b8c9a8)}.relic.no{opacity:.6}
+.relicnew{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:center;padding:10px;border-radius:12px;margin:8px 0;background:linear-gradient(160deg,color-mix(in srgb,var(--rc) 22%,transparent),rgba(0,0,0,.2));border:1px solid var(--rc)}.relicnew canvas{width:72px;height:72px}.relicnew small{display:block}
+.expgo{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;align-items:start}.expgo canvas{width:76px;height:52px;border-radius:8px}
+.expstory{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:center}.expstory canvas{width:120px;height:80px;border-radius:10px}.expstory p{font-style:italic}
+.reqbig{display:grid;grid-template-columns:70px minmax(0,1fr);gap:12px;align-items:center}.reqbig canvas{width:70px;height:80px;border-radius:12px}
+.rew.big{font-size:16px}
+.moncv{width:100%;aspect-ratio:2/1;border-radius:12px;display:block;margin:8px 0}
+.monrow{display:grid;grid-template-columns:130px minmax(0,1fr) auto;gap:8px;align-items:center;margin:6px 0}.monres{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.monres small{font-size:12px;color:var(--lichen,#b8c9a8);width:100%}
+.monbtn{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.montop{margin:4px 0;padding-left:22px}.montop li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:13.5px}.montop li.me{color:var(--amber-2,#ffd286);font-weight:700}
+.klist{display:grid;gap:6px}.krow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2)}.krow small{display:block}.kbtn{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.visitcv{width:100%;display:block;border-radius:12px;margin:8px 0}
+@media (max-width:640px){.monrow{grid-template-columns:1fr}.monbtn{justify-content:flex-start}}
 .mapinfo{flex:1;min-width:180px;font-size:13px;color:var(--lichen);padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.2);min-height:32px;display:flex;align-items:center}
 
 .panel{min-height:0;min-width:0;display:flex;flex-direction:column;background:var(--moss);border:1px solid var(--line);border-radius:16px;overflow:hidden}
