@@ -2822,6 +2822,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .shop{display:grid;gap:8px}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22)}
 .srow.locked{opacity:.55}
+.srow.gearrow{grid-template-columns:auto minmax(0,1fr) auto}.gearcv{width:72px;height:54px;border-radius:10px;display:block}
+.gi{width:20px;height:20px;vertical-align:-5px;display:inline-block}.itm .gi{width:18px;height:18px}
+@media (max-width:520px){.srow.gearrow{grid-template-columns:auto minmax(0,1fr)}.srow.gearrow>:nth-child(3){grid-column:1/-1;justify-self:end}.gearcv{width:56px;height:44px}}
 .srow small{display:block;color:#9cb8c4;font-size:12.5px}
 .book{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
 .bcell{display:grid;gap:2px;padding:8px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid transparent;min-width:0}
@@ -2904,17 +2907,7 @@ async function loadSide() {
 /* ---------- joonistamine ---------- */
 function drawLook(c, x, y, L, look, t = 0, dir = 1, junk) {
   c.save(); c.translate(x, y); c.scale(dir, 1);
-  if (junk) {
-    if (junk === 'saabas') { poly(c, [-L * .3, -L * .35, -L * .05, -L * .35, -L * .05, L * .05, L * .35, L * .1, L * .35, L * .25, -L * .3, L * .25], '#5a3e2a'); rect(c, -L * .3, L * .18, L * .65, L * .07, '#2a1a10') }
-    else if (junk === 'pudel') { ell(c, 0, 0, L * .3, L * .12, 'rgba(140,200,170,.75)'); rect(c, L * .26, -L * .05, L * .14, L * .1, 'rgba(140,200,170,.75)'); rect(c, L * .38, -L * .055, L * .05, L * .11, '#8a5a34'); rect(c, -L * .15, -L * .06, L * .3, L * .12, '#e8d3a2') }
-    else if (junk === 'purk') { rect(c, -L * .15, -L * .25, L * .3, L * .45, '#a9b1b3'); ell(c, 0, -L * .25, L * .15, L * .05, '#d0d6d8'); rect(c, -L * .15, -L * .1, L * .3, L * .12, '#c8473a') }
-    else if (junk === 'karp') { c.beginPath(); c.moveTo(0, L * .2); c.lineTo(-L * .3, -L * .1); c.quadraticCurveTo(0, -L * .4, L * .3, -L * .1); c.closePath(); c.fillStyle = '#f0c8b0'; c.fill(); c.strokeStyle = '#c08a70'; c.lineWidth = Math.max(1, L * .02); for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(0, L * .2); c.lineTo(i * L * .12, -L * .22); c.stroke() } }
-    else if (junk === 'kepp') { c.strokeStyle = '#6b4528'; c.lineWidth = L * .07; c.lineCap = 'round'; c.beginPath(); c.moveTo(-L * .4, L * .1); c.lineTo(L * .4, -L * .08); c.moveTo(0, 0); c.lineTo(L * .12, -L * .2); c.stroke() }
-    else { const t = junk.split('_')[1], body = t === 'kuld' ? '#c8901a' : t === 'hobe' ? '#7a8a96' : '#5a3e22', lid = t === 'kuld' ? '#e0a830' : t === 'hobe' ? '#9aaab6' : '#6a4a2a', band = t === 'kuld' ? '#fff0a0' : t === 'hobe' ? '#e8f0f4' : '#e0a83a';
-      if (t === 'kuld') { const g = c.createRadialGradient(0, 0, 0, 0, 0, L * .7); g.addColorStop(0, '#ffe08088'); g.addColorStop(1, '#ffe08000'); c.fillStyle = g; c.fillRect(-L, -L, L * 2, L * 2) }
-      rect(c, -L * .35, -L * .15, L * .7, L * .35, body); poly(c, [-L * .35, -L * .15, -L * .3, -L * .3, L * .3, -L * .3, L * .35, -L * .15], lid); rect(c, -L * .35, -L * .16, L * .7, L * .05, band); rect(c, -L * .04, -L * .17, L * .08, L * .12, '#ffd060') }
-    c.restore(); return;
-  }
+  if (junk) { drawJunk(c, L * 1.15, junk, t); c.restore(); return }
   look = look || {};
   drawFishReal(c, L, look, t, look._id);
   c.restore();
@@ -3131,6 +3124,163 @@ function drawFlat(c, L, a, body, back, belly, fin, t, detail, lw) {
   c.strokeStyle = 'rgba(20,10,10,.6)'; c.beginPath(); c.moveTo(-rx * 1.0, ry * .05); c.quadraticCurveTo(-rx * .9, ry * .2, -rx * .82, ry * .12); c.stroke();
 }
 
+/* ---------- Varustuse ja leidude joonised ---------- */
+const ROD_ST = {
+  algaja: { shaft: '#b8935a', dark: '#7a5a30', handle: '#8a6a40', reel: 0, guides: 0 },
+  puit: { shaft: '#a0682e', dark: '#5a3414', handle: '#d8b07a', cork: 1, reel: '#6a6a6a', guides: 4 },
+  tugev: { shaft: '#5a3a1e', dark: '#2a1a0a', handle: '#d8b07a', cork: 1, wraps: '#c83a2a', reel: '#4a4a4a', guides: 5 },
+  teras: { shaft: '#9aa6ae', dark: '#4a5258', handle: '#2a2a2e', reel: '#c0c8cc', guides: 6, metal: 1 },
+  kuld: { shaft: '#e8b840', dark: '#8a6010', handle: '#3a2a1a', wraps: '#fff0a0', reel: '#ffd060', guides: 6, metal: 1 },
+  kuninglik: { shaft: '#2a4aa0', dark: '#101e50', handle: '#d8b07a', cork: 1, wraps: '#ffd060', reel: '#ffd060', guides: 6, metal: 1 },
+  maagiline: { shaft: '#7a4ac8', dark: '#2a1060', handle: '#3a2050', wraps: '#c8a0ff', reel: '#b08af0', guides: 6, glow: '#c8a0ff', runes: 1 },
+  draakon: { shaft: '#a82a1a', dark: '#3a0a06', handle: '#1a1010', wraps: '#ffb030', reel: '#2a1a1a', guides: 7, glow: '#ff7a30', scales: 1 },
+  legend: { shaft: '#f4f0e0', dark: '#a89a70', handle: '#e8c060', wraps: '#ffd860', reel: '#fff4c0', guides: 7, glow: '#fff0a0', metal: 1 },
+  muutiline: { shaft: 'rainbow', dark: '#3a2a6a', handle: '#1a1a3a', wraps: '#ffffff', reel: '#e0d0ff', guides: 8, glow: '#ff9af0', stars: 1 },
+};
+function metalGrad(c, x0, y0, x1, y1, col) { const g = c.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, shade(col, -.35)); g.addColorStop(.35, shade(col, .45)); g.addColorStop(.55, col); g.addColorStop(1, shade(col, -.45)); return g }
+function gemGrad(c, x, y, r, col) { const g = c.createRadialGradient(x - r * .35, y - r * .4, r * .05, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(.25, shade(col, .35)); g.addColorStop(.75, col); g.addColorStop(1, shade(col, -.5)); return g }
+function glowAt(c, x, y, r, col, a = .55) { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, hexA(col, a)); g.addColorStop(1, hexA(col, 0)); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2) }
+function sparkle(c, x, y, r, col = '#ffffff') { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill() }
+function drawRod(c, S, id, t) {
+  const st = ROD_ST[id] || ROD_ST.algaja, x0 = -S * .42, y0 = S * .36, x1 = S * .44, y1 = -S * .4, len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0);
+  if (st.glow) glowAt(c, 0, 0, S * .6, st.glow, .35);
+  // nöör ja konks
+  c.strokeStyle = 'rgba(240,240,240,.7)'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(x1 + S * .02, y1 + S * .35, x1 - S * .02, y1 + S * .5 + Math.sin(t * 2) * S * .01); c.stroke();
+  const hx = x1 - S * .02, hy = y1 + S * .5; c.strokeStyle = '#c8ccd0'; c.lineWidth = Math.max(1, S * .012); c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx, hy + S * .05); c.arc(hx - S * .025, hy + S * .05, S * .025, 0, Math.PI * .9); c.stroke();
+  c.save(); c.translate(x0, y0); c.rotate(ang);
+  const w0 = S * .045, w1 = S * .01;
+  // ritv
+  c.beginPath(); c.moveTo(len * .26, -w0 * .55); c.lineTo(len, -w1 / 2); c.lineTo(len, w1 / 2); c.lineTo(len * .26, w0 * .55); c.closePath();
+  if (st.shaft === 'rainbow') { const g = c.createLinearGradient(len * .26, 0, len, 0); ['#ff6a8a', '#ffb050', '#ffe860', '#7af0a0', '#6ab8ff', '#b08aff'].forEach((col, i) => g.addColorStop(i / 5, col)); c.fillStyle = g } else c.fillStyle = metalGrad(c, 0, -w0 * .55, 0, w0 * .55, st.shaft);
+  c.fill(); c.strokeStyle = hexA(st.dark, .7); c.lineWidth = Math.max(.6, S * .005); c.stroke();
+  if (st.scales) { c.fillStyle = 'rgba(40,0,0,.35)'; for (let i = 0; i < 14; i++) { const x = len * (.3 + i * .045); c.beginPath(); c.arc(x, 0, w0 * (.45 - i * .02), -1.2, 1.2); c.fill() } }
+  if (st.runes) { c.strokeStyle = hexA(st.glow, .9); c.lineWidth = Math.max(.6, S * .006); c.beginPath(); for (let i = 0; i < 5; i++) { const x = len * (.35 + i * .1); c.moveTo(x, -w0 * .25); c.lineTo(x + S * .015, w0 * .2); c.lineTo(x + S * .03, -w0 * .2) } c.stroke() }
+  // mähised ja juhtrõngad
+  if (st.wraps) for (let i = 0; i < (st.guides || 4); i++) { const x = len * (.32 + i * (.62 / (st.guides || 4))); rect(c, x - S * .006, -w0 * .5, S * .012, w0, st.wraps) }
+  if (st.guides) for (let i = 0; i < st.guides; i++) { const x = len * (.34 + i * (.62 / st.guides)), r = S * (.022 - i * .0018); c.strokeStyle = '#d8dce0'; c.lineWidth = Math.max(.6, S * .006); c.beginPath(); c.moveTo(x - r, -w0 * .3); c.lineTo(x, -w0 * .3 - r * 1.2); c.lineTo(x + r, -w0 * .3); c.stroke(); c.beginPath(); c.arc(x, -w0 * .3 - r * 1.6, r * .6, 0, 6.283); c.stroke() }
+  rect(c, len - S * .008, -w1, S * .012, w1 * 2, st.wraps || st.dark);
+  // käepide
+  const hl = len * .26;
+  c.beginPath(); c.moveTo(0, -w0 * .7); c.lineTo(hl, -w0 * .6); c.lineTo(hl, w0 * .6); c.lineTo(0, w0 * .7); c.closePath(); c.fillStyle = metalGrad(c, 0, -w0, 0, w0, st.handle); c.fill();
+  if (st.cork) { c.fillStyle = 'rgba(90,60,30,.35)'; for (let i = 0; i < 18; i++) circ(c, th(i, 1, 3) * hl, (th(i, 2, 3) - .5) * w0 * 1.1, S * .004, 'rgba(90,60,30,.4)') }
+  c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(.6, S * .005); c.stroke();
+  ell(c, 0, 0, S * .012, w0 * .75, shade(st.handle, -.4));
+  // rull
+  if (st.reel) {
+    const rx = hl * .62, ry = w0 * 2.2, rr = S * .075;
+    rect(c, rx - S * .01, w0 * .4, S * .02, ry - rr * .8, shade(st.reel, -.3));
+    c.beginPath(); c.arc(rx, ry, rr, 0, 6.283); c.fillStyle = metalGrad(c, rx - rr, ry - rr, rx + rr, ry + rr, st.reel); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.stroke();
+    c.beginPath(); c.arc(rx, ry, rr * .55, 0, 6.283); c.fillStyle = shade(st.reel, -.25); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.35)'; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(rx, ry, rr * (.6 + i * .1), 0, 6.283); c.stroke() }
+    c.strokeStyle = shade(st.reel, -.4); c.lineWidth = Math.max(1, S * .01); c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + rr * .9, ry + rr * .6); c.stroke(); circ(c, rx + rr * .9, ry + rr * .6, S * .014, st.handle);
+  }
+  c.restore();
+  // valgusvirvendus ritval
+  const sh = (t * .3) % 1; glowAt(c, x0 + (x1 - x0) * sh, y0 + (y1 - y0) * sh, S * .05, '#ffffff', .25);
+  if (st.stars || st.glow) for (let i = 0; i < 4; i++) { const k = (t * .2 + i / 4) % 1, px = x0 + (x1 - x0) * (.3 + th(i, 1, 2) * .7), py = y0 + (y1 - y0) * (.3 + th(i, 1, 2) * .7) - S * .05; sparkle(c, px, py - k * S * .1, S * (.03 * (1 - k)), hexA(st.glow, 1 - k)) }
+}
+function drawBait(c, S, id, t) {
+  const r = S * .36;
+  switch (id) {
+    case 'leib': { c.beginPath(); c.moveTo(-r, r * .3); c.quadraticCurveTo(-r * 1.05, -r * .6, -r * .2, -r * .7); c.quadraticCurveTo(r * .9, -r * .8, r, -r * .1); c.lineTo(r * .9, r * .45); c.quadraticCurveTo(0, r * .65, -r, r * .3); c.fillStyle = metalGrad(c, 0, -r, 0, r, '#c8823a'); c.fill();
+      c.beginPath(); c.moveTo(-r * .75, r * .2); c.quadraticCurveTo(-r * .75, -r * .4, -r * .1, -r * .45); c.quadraticCurveTo(r * .65, -r * .5, r * .7, 0); c.lineTo(r * .65, r * .3); c.quadraticCurveTo(0, r * .42, -r * .75, r * .2); c.fillStyle = '#f2dcae'; c.fill();
+      for (let i = 0; i < 22; i++) circ(c, -r * .6 + th(i, 1, 1) * r * 1.2, -r * .35 + th(i, 2, 1) * r * .65, r * .025, 'rgba(160,110,50,.45)'); break }
+    case 'uss': { c.lineCap = 'round'; const pts = []; for (let i = 0; i <= 30; i++) { const u = i / 30; pts.push([-r + u * r * 2, Math.sin(u * 7 + t * 3) * r * .35]) }
+      c.lineWidth = r * .22; c.strokeStyle = '#b05a5a'; c.beginPath(); pts.forEach(p => c.lineTo(p[0], p[1])); c.stroke(); c.lineWidth = r * .16; c.strokeStyle = '#e88a8a'; c.stroke(); c.lineWidth = r * .05; c.strokeStyle = 'rgba(255,220,220,.6)'; c.beginPath(); pts.forEach(p => c.lineTo(p[0], p[1] - r * .04)); c.stroke();
+      c.strokeStyle = 'rgba(120,40,40,.4)'; c.lineWidth = Math.max(.6, S * .006); for (let i = 1; i < 30; i += 2) { const p = pts[i]; c.beginPath(); c.moveTo(p[0], p[1] - r * .1); c.lineTo(p[0], p[1] + r * .1); c.stroke() } ell(c, pts[9][0], pts[9][1], r * .14, r * .12, '#d06a6a'); break }
+    case 'vagel': for (let i = 0; i < 3; i++) { const x = (i - 1) * r * .6, y = (i % 2) * r * .3 - r * .1, a = (i - 1) * .5 + Math.sin(t * 4 + i) * .15; c.save(); c.translate(x, y); c.rotate(a); ell(c, 0, 0, r * .32, r * .14, metalGrad(c, 0, -r * .14, 0, r * .14, '#f0e4c0')); c.strokeStyle = 'rgba(150,120,70,.4)'; c.lineWidth = Math.max(.5, S * .005); for (let k = -3; k <= 3; k++) { c.beginPath(); c.moveTo(k * r * .08, -r * .12); c.lineTo(k * r * .08, r * .12); c.stroke() } circ(c, -r * .28, 0, r * .03, '#3a2a1a'); c.restore() } break;
+    case 'mais': for (let i = 0; i < 6; i++) { const x = ((i % 3) - 1) * r * .55, y = (Math.floor(i / 3) - .5) * r * .6; c.beginPath(); c.moveTo(x - r * .22, y - r * .2); c.quadraticCurveTo(x, y - r * .32, x + r * .22, y - r * .2); c.lineTo(x + r * .18, y + r * .2); c.quadraticCurveTo(x, y + r * .3, x - r * .18, y + r * .2); c.closePath(); c.fillStyle = gemGrad(c, x, y, r * .3, '#f0c020'); c.fill(); c.strokeStyle = 'rgba(160,100,0,.5)'; c.lineWidth = Math.max(.5, S * .005); c.stroke() } break;
+    case 'hobelant': case 'kuldvobler': case 'draakonilant': {
+      const col = id === 'hobelant' ? '#c8d0d8' : id === 'kuldvobler' ? '#f0b830' : '#d83a20';
+      if (id === 'draakonilant') glowAt(c, 0, 0, r * 1.5, '#ff8a30', .45);
+      c.save(); c.rotate(-.15);
+      if (id === 'hobelant') { c.beginPath(); c.moveTo(-r * .9, 0); c.bezierCurveTo(-r * .6, -r * .5, r * .5, -r * .45, r * .7, 0); c.bezierCurveTo(r * .5, r * .45, -r * .6, r * .5, -r * .9, 0); c.fillStyle = metalGrad(c, 0, -r * .5, 0, r * .5, col); c.fill(); c.strokeStyle = 'rgba(60,70,80,.6)'; c.lineWidth = Math.max(.6, S * .006); c.stroke(); ell(c, -r * .1, -r * .12, r * .4, r * .08, 'rgba(255,255,255,.55)'); circ(c, r * .25, 0, r * .07, '#c83a2a') }
+      else { c.beginPath(); c.moveTo(-r * .75, 0); c.bezierCurveTo(-r * .7, -r * .4, r * .4, -r * .42, r * .7, -r * .05); c.lineTo(r * .7, r * .08); c.bezierCurveTo(r * .4, r * .38, -r * .7, r * .38, -r * .75, 0); c.fillStyle = metalGrad(c, 0, -r * .4, 0, r * .4, col); c.fill(); c.strokeStyle = hexA(shade(col, -.6), .7); c.lineWidth = Math.max(.6, S * .006); c.stroke();
+        poly(c, [-r * .72, r * .05, -r * 1.1, r * .3, -r * 1.05, r * .38, -r * .68, r * .16], 'rgba(220,235,245,.75)');
+        c.save(); c.clip(); for (let i = 0; i < 18; i++) c.strokeStyle = 'rgba(0,0,0,.12)', c.beginPath(), c.arc(-r * .5 + (i % 9) * r * .14, (Math.floor(i / 9) - .5) * r * .25, r * .09, -1.2, 1.2), c.stroke(); c.restore();
+        if (id === 'draakonilant') { poly(c, [-r * .2, -r * .3, 0, -r * .7, r * .2, -r * .32], '#ffb030'); poly(c, [r * .7, 0, r * 1.05, -r * .3, r * .95, 0, r * 1.05, r * .3], '#ffb030') }
+        circ(c, -r * .5, -r * .08, r * .1, '#fff8e0'); circ(c, -r * .5, -r * .08, r * .055, '#111') }
+      // kolmikkonks
+      c.strokeStyle = '#a8b0b8'; c.lineWidth = Math.max(.8, S * .01); const hx = id === 'hobelant' ? r * .75 : r * .1, hy = id === 'hobelant' ? 0 : r * .38;
+      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + (id === 'hobelant' ? r * .25 : 0), hy + (id === 'hobelant' ? 0 : r * .25)); c.stroke(); const bx = hx + (id === 'hobelant' ? r * .25 : 0), by = hy + (id === 'hobelant' ? 0 : r * .25);
+      for (const a of [-.9, 0, .9]) { c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + Math.sin(a) * r * .2, by + r * .25, bx + Math.sin(a) * r * .08 + r * .08, by + r * .12); c.stroke() }
+      c.restore(); break }
+    case 'krevett': { c.save(); c.rotate(.1); const segs = 6; for (let i = segs; i >= 0; i--) { const a = -1.2 + i / segs * 2.4, x = Math.cos(a) * r * .55, y = Math.sin(a) * r * .55; c.beginPath(); c.ellipse(x, y, r * (.22 - i * .012), r * .16, a + 1.57, 0, 6.283); c.fillStyle = gemGrad(c, x, y, r * .25, '#f08a5a'); c.fill(); c.strokeStyle = 'rgba(150,50,20,.4)'; c.lineWidth = Math.max(.5, S * .004); c.stroke() }
+      poly(c, [Math.cos(1.25) * r * .55, Math.sin(1.25) * r * .55, Math.cos(1.25) * r * .55 - r * .35, Math.sin(1.25) * r * .55 + r * .1, Math.cos(1.25) * r * .55 - r * .2, Math.sin(1.25) * r * .55 + r * .25], '#e87a4a');
+      c.strokeStyle = '#d0704a'; c.lineWidth = Math.max(.5, S * .004); c.beginPath(); c.moveTo(Math.cos(-1.2) * r * .55, Math.sin(-1.2) * r * .55); c.quadraticCurveTo(-r * .9, -r * 1, -r * 1.05, -r * .2); c.moveTo(Math.cos(-1.2) * r * .55, Math.sin(-1.2) * r * .55); c.quadraticCurveTo(-r * .6, -r * 1.1, -r * .95, -r * .55); c.stroke();
+      for (let i = 1; i < 5; i++) { const a = -1 + i * .4; c.beginPath(); c.moveTo(Math.cos(a) * r * .4, Math.sin(a) * r * .4); c.lineTo(Math.cos(a) * r * .15, Math.sin(a) * r * .4 + r * .05); c.stroke() }
+      circ(c, Math.cos(-1.2) * r * .55 - r * .05, Math.sin(-1.2) * r * .55 - r * .05, r * .05, '#111'); c.restore(); break }
+    case 'valgus': { glowAt(c, 0, 0, r * 1.6, '#b0f0ff', .6 + Math.sin(t * 3) * .15); c.beginPath(); c.arc(0, 0, r * .45, 0, 6.283); c.fillStyle = gemGrad(c, 0, 0, r * .45, '#7ae0ff'); c.fill(); for (let i = 0; i < 5; i++) sparkle(c, Math.cos(i * 1.26 + t) * r * .8, Math.sin(i * 1.26 + t) * r * .8, r * .12, '#e8ffff'); break }
+    case 'haldjatolm': { glowAt(c, 0, -r * .1, r * 1.3, '#f0b0ff', .45); c.beginPath(); c.moveTo(-r * .12, -r * .7); c.lineTo(r * .12, -r * .7); c.lineTo(r * .12, -r * .45); c.quadraticCurveTo(r * .5, -r * .35, r * .5, r * .1); c.quadraticCurveTo(r * .5, r * .6, 0, r * .6); c.quadraticCurveTo(-r * .5, r * .6, -r * .5, r * .1); c.quadraticCurveTo(-r * .5, -r * .35, -r * .12, -r * .45); c.closePath(); c.fillStyle = 'rgba(230,240,255,.35)'; c.fill(); c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = Math.max(.7, S * .008); c.stroke();
+      c.save(); c.clip(); const g = c.createLinearGradient(0, -r * .1, 0, r * .6); g.addColorStop(0, '#ffb0f0'); g.addColorStop(1, '#a070ff'); c.fillStyle = g; c.fillRect(-r, -r * .05, r * 2, r); c.restore(); rect(c, -r * .15, -r * .85, r * .3, r * .18, '#a0703a');
+      for (let i = 0; i < 7; i++) { const k = (t * .4 + i / 7) % 1; sparkle(c, (th(i, 1, 2) - .5) * r * 1.2, -r * .9 - k * r * .6, r * .1 * (1 - k), hexA('#fff0ff', 1 - k)) } ell(c, -r * .22, -r * .1, r * .07, r * .2, 'rgba(255,255,255,.5)'); break }
+    default: circ(c, 0, 0, r * .5, '#aaa');
+  }
+}
+function drawItem(c, S, id, t) {
+  const r = S * .36;
+  ell(c, 0, r * .72, r * .75, r * .12, 'rgba(0,0,0,.3)');
+  switch (id) {
+    case 'karp': { c.beginPath(); c.moveTo(0, r * .55); for (let i = 0; i <= 10; i++) { const a = Math.PI * (1.08 + i / 10 * .84), rr = r * (i % 2 ? .78 : .84); c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * .95 + r * .05) } c.closePath(); c.fillStyle = gemGrad(c, -r * .1, -r * .3, r * .9, '#f2b8a0'); c.fill();
+      c.strokeStyle = 'rgba(170,90,70,.55)'; c.lineWidth = Math.max(.6, S * .007); for (let i = 0; i <= 8; i++) { const a = Math.PI * (1.12 + i / 8 * .76); c.beginPath(); c.moveTo(0, r * .5); c.lineTo(Math.cos(a) * r * .78, Math.sin(a) * r * .74 + r * .05); c.stroke() }
+      poly(c, [-r * .3, r * .62, -r * .12, r * .4, r * .12, r * .4, r * .3, r * .62], '#e8a08a'); for (let i = 1; i < 4; i++) { c.beginPath(); c.arc(0, r * .55, r * i * .2, Math.PI * 1.15, Math.PI * 1.85); c.strokeStyle = 'rgba(255,240,230,.3)'; c.stroke() } break }
+    case 'parl': case 'mustparl': { const dark = id === 'mustparl';
+      c.beginPath(); c.ellipse(0, r * .5, r * .75, r * .25, 0, 0, Math.PI); c.fillStyle = dark ? '#3a3040' : '#d8b0a0'; c.fill(); c.beginPath(); c.ellipse(0, r * .5, r * .75, r * .15, 0, 0, 6.283); c.fillStyle = dark ? '#6a5a80' : '#f8e0d8'; c.fill();
+      const g = c.createRadialGradient(-r * .15, -r * .05, r * .02, 0, r * .12, r * .42); if (dark) { g.addColorStop(0, '#d8d0ff'); g.addColorStop(.2, '#6a5a90'); g.addColorStop(.6, '#2a2238'); g.addColorStop(.85, '#3a5a50'); g.addColorStop(1, '#1a1420') } else { g.addColorStop(0, '#ffffff'); g.addColorStop(.35, '#f6f0ec'); g.addColorStop(.75, '#e8d8e0'); g.addColorStop(1, '#c0b0b8') }
+      c.beginPath(); c.arc(0, r * .12, r * .4, 0, 6.283); c.fillStyle = g; c.fill(); ell(c, -r * .14, -r * .04, r * .1, r * .06, 'rgba(255,255,255,.85)');
+      c.globalAlpha = .25 + Math.sin(t * 2) * .1; c.beginPath(); c.arc(0, r * .12, r * .4, 0, 6.283); const ir = c.createLinearGradient(-r * .4, 0, r * .4, 0); ir.addColorStop(0, '#ff9ad0'); ir.addColorStop(.5, '#9af0ff'); ir.addColorStop(1, '#d0ff9a'); c.fillStyle = ir; c.fill(); c.globalAlpha = 1; break }
+    case 'merevaik': { c.beginPath(); const p = [[-.7, .1], [-.5, -.5], [.1, -.7], [.65, -.35], [.75, .25], [.3, .62], [-.4, .55]]; p.forEach(([x, y], i) => i ? c.lineTo(x * r, y * r) : c.moveTo(x * r, y * r)); c.closePath(); const g = c.createRadialGradient(-r * .2, -r * .2, r * .05, 0, 0, r * .9); g.addColorStop(0, '#ffe8a0'); g.addColorStop(.4, '#f0a020'); g.addColorStop(1, '#8a4000'); c.fillStyle = g; c.fill();
+      c.save(); c.clip(); c.fillStyle = 'rgba(40,20,0,.55)'; ell(c, r * .05, r * .05, r * .12, r * .06, 'rgba(40,20,0,.6)'); c.strokeStyle = 'rgba(40,20,0,.5)'; c.lineWidth = Math.max(.5, S * .005); for (const s of [-1, 1]) for (let k = -1; k <= 1; k++) { c.beginPath(); c.moveTo(r * (.05 + k * .06), r * .05); c.lineTo(r * (.05 + k * .1), r * (.05 + s * .15)); c.stroke() } ell(c, r * .05, -r * .05, r * .14, r * .05, 'rgba(255,255,255,.25)'); c.restore();
+      c.strokeStyle = 'rgba(255,240,200,.6)'; c.lineWidth = Math.max(.6, S * .008); c.beginPath(); c.moveTo(-r * .45, -r * .35); c.lineTo(0, -r * .55); c.stroke(); break }
+    case 'ruun': { c.beginPath(); c.ellipse(0, r * .05, r * .72, r * .6, -.1, 0, 6.283); c.fillStyle = gemGrad(c, 0, 0, r * .8, '#7a8088'); c.fill(); c.save(); c.clip(); for (let i = 0; i < 30; i++) circ(c, (th(i, 1, 5) - .5) * r * 1.4, (th(i, 2, 5) - .5) * r * 1.2, r * .03, i % 2 ? 'rgba(0,0,0,.2)' : 'rgba(255,255,255,.12)'); c.restore();
+      glowAt(c, 0, 0, r * .8, '#6ad0ff', .25 + Math.sin(t * 2) * .1); c.strokeStyle = '#8ae8ff'; c.lineWidth = Math.max(1, S * .02); c.lineCap = 'round'; c.beginPath(); c.moveTo(-r * .15, -r * .35); c.lineTo(-r * .15, r * .4); c.moveTo(-r * .15, -r * .3); c.lineTo(r * .25, -r * .05); c.lineTo(-r * .15, r * .15); c.moveTo(r * .1, r * .1); c.lineTo(r * .3, r * .4); c.stroke(); break }
+    case 'sormus': { c.save(); c.translate(0, r * .1); c.lineWidth = r * .16; c.strokeStyle = metalGrad(c, -r * .6, -r * .3, r * .6, r * .3, '#e8b030'); c.beginPath(); c.ellipse(0, r * .1, r * .55, r * .3, 0, 0, 6.283); c.stroke(); c.lineWidth = r * .04; c.strokeStyle = 'rgba(255,250,200,.7)'; c.beginPath(); c.ellipse(0, r * .06, r * .55, r * .3, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
+      poly(c, [-r * .14, -r * .18, r * .14, -r * .18, r * .1, -r * .05, -r * .1, -r * .05], '#c89020'); c.beginPath(); c.moveTo(0, -r * .62); c.lineTo(r * .2, -r * .38); c.lineTo(0, -r * .14); c.lineTo(-r * .2, -r * .38); c.closePath(); c.fillStyle = gemGrad(c, 0, -r * .38, r * .25, '#e8304a'); c.fill(); c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = Math.max(.5, S * .005); c.beginPath(); c.moveTo(-r * .2, -r * .38); c.lineTo(r * .2, -r * .38); c.moveTo(0, -r * .62); c.lineTo(0, -r * .14); c.stroke(); sparkle(c, r * .12, -r * .55, r * .1); c.restore(); break }
+    case 'kristall': { glowAt(c, 0, 0, r * 1.2, '#7ae8ff', .35);
+      const cr = (x, y, w, h, a) => { c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.moveTo(-w, 0); c.lineTo(-w, -h); c.lineTo(0, -h - w * 1.2); c.lineTo(w, -h); c.lineTo(w, 0); c.closePath(); const g = c.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, 'rgba(120,220,255,.75)'); g.addColorStop(.45, 'rgba(230,255,255,.9)'); g.addColorStop(.55, 'rgba(90,190,240,.8)'); g.addColorStop(1, 'rgba(40,120,200,.85)'); c.fillStyle = g; c.fill(); c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = Math.max(.5, S * .005); c.stroke(); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -h - w * 1.2); c.stroke(); c.restore() };
+      cr(-r * .3, r * .5, r * .16, r * .5, -.35); cr(r * .32, r * .5, r * .14, r * .45, .4); cr(0, r * .55, r * .22, r * .8, 0); circ(c, -r * .05, -r * .05, r * .07, 'rgba(255,255,255,.6)'); sparkle(c, r * .15, -r * .45, r * .12); break }
+    case 'soomus': { glowAt(c, 0, 0, r * 1.2, '#ffd060', .3); c.beginPath(); c.moveTo(0, -r * .75); c.bezierCurveTo(r * .75, -r * .6, r * .7, r * .2, 0, r * .7); c.bezierCurveTo(-r * .7, r * .2, -r * .75, -r * .6, 0, -r * .75); const g = c.createLinearGradient(-r * .6, -r * .6, r * .6, r * .6); g.addColorStop(0, '#fff0a0'); g.addColorStop(.3, '#e0a020'); g.addColorStop(.6, '#6a9a3a'); g.addColorStop(1, '#2a4a1a'); c.fillStyle = g; c.fill(); c.strokeStyle = '#5a3a0a'; c.lineWidth = Math.max(.8, S * .01); c.stroke();
+      c.save(); c.clip(); c.strokeStyle = 'rgba(80,50,0,.45)'; c.lineWidth = Math.max(.6, S * .007); for (let i = -4; i <= 4; i++) { c.beginPath(); c.moveTo(i * r * .1, -r * .7); c.quadraticCurveTo(i * r * .16, 0, i * r * .06, r * .7); c.stroke() } c.restore(); ell(c, -r * .2, -r * .3, r * .12, r * .25, 'rgba(255,255,230,.45)'); break }
+    default: circ(c, 0, 0, r * .5, '#aaa');
+  }
+}
+function drawJunk(c, S, id, t) {
+  const r = S * .36;
+  ell(c, 0, r * .72, r * .8, r * .12, 'rgba(0,0,0,.3)');
+  if (id === 'karp') return drawItem(c, S, 'karp', t);
+  if (id === 'saabas') { c.beginPath(); c.moveTo(-r * .45, -r * .75); c.lineTo(r * .05, -r * .75); c.lineTo(r * .08, r * .1); c.quadraticCurveTo(r * .7, r * .15, r * .75, r * .45); c.lineTo(r * .75, r * .6); c.lineTo(-r * .5, r * .6); c.closePath(); c.fillStyle = metalGrad(c, -r * .5, 0, r * .3, 0, '#3a5a3a'); c.fill(); rect(c, -r * .52, r * .5, r * 1.3, r * .14, '#1a2018'); rect(c, -r * .5, -r * .8, r * .6, r * .1, '#2a4a2a');
+    c.strokeStyle = 'rgba(255,255,255,.2)'; c.lineWidth = Math.max(.6, S * .008); c.beginPath(); c.moveTo(-r * .32, -r * .6); c.lineTo(-r * .3, r * .35); c.stroke(); c.strokeStyle = '#4a8a3a'; c.beginPath(); c.moveTo(-r * .1, -r * .78); c.quadraticCurveTo(r * .2, -r * .4, 0, -r * .1); c.stroke(); ell(c, r * .5, r * .66 + (t * 20 % 6), r * .03, r * .05, 'rgba(160,210,240,.7)'); return }
+  if (id === 'purk') { c.beginPath(); c.moveTo(-r * .38, -r * .55); c.lineTo(r * .38, -r * .55); c.lineTo(r * .38, r * .55); c.lineTo(-r * .38, r * .55); c.closePath(); c.fillStyle = metalGrad(c, -r * .4, 0, r * .4, 0, '#a9b1b3'); c.fill(); rect(c, -r * .38, -r * .25, r * .76, r * .45, '#c8473a'); rect(c, -r * .38, -r * .1, r * .76, r * .12, '#f0e0b0');
+    ell(c, 0, -r * .55, r * .38, r * .1, '#d0d6d8'); ell(c, 0, -r * .55, r * .3, r * .07, '#9aa2a4'); for (let i = 0; i < 6; i++) ell(c, -r * .25 + th(i, 1, 6) * r * .5, -r * .4 + th(i, 2, 6) * r * .9, r * .06, r * .04, 'rgba(150,80,30,.55)'); ell(c, 0, r * .55, r * .38, r * .1, '#8a9294'); return }
+  if (id === 'kepp') { c.lineCap = 'round'; c.strokeStyle = '#5a3a20'; c.lineWidth = r * .22; c.beginPath(); c.moveTo(-r * .9, r * .35); c.quadraticCurveTo(0, r * .05, r * .9, -r * .3); c.stroke(); c.strokeStyle = '#7a5434'; c.lineWidth = r * .14; c.stroke(); c.lineWidth = r * .08; c.strokeStyle = '#6a4a2a'; c.beginPath(); c.moveTo(0, r * .12); c.lineTo(r * .2, -r * .4); c.stroke();
+    c.strokeStyle = 'rgba(40,20,10,.5)'; c.lineWidth = Math.max(.5, S * .005); for (let i = 0; i < 8; i++) { const x = -r * .7 + i * r * .2; c.beginPath(); c.moveTo(x, r * .28 - i * r * .07); c.lineTo(x + r * .1, r * .26 - i * r * .07); c.stroke() } c.beginPath(); c.ellipse(r * .3, -r * .5, r * .16, r * .07, -.6, 0, 6.283); c.fillStyle = '#6a9a3a'; c.fill(); return }
+  if (id === 'pudel') { c.save(); c.rotate(-.35); c.beginPath(); c.moveTo(-r * .7, -r * .25); c.lineTo(r * .3, -r * .25); c.quadraticCurveTo(r * .45, -r * .25, r * .5, -r * .1); c.lineTo(r * .75, -r * .1); c.lineTo(r * .75, r * .1); c.lineTo(r * .5, r * .1); c.quadraticCurveTo(r * .45, r * .25, r * .3, r * .25); c.lineTo(-r * .7, r * .25); c.quadraticCurveTo(-r * .8, 0, -r * .7, -r * .25); c.fillStyle = 'rgba(120,190,150,.55)'; c.fill(); c.strokeStyle = 'rgba(200,255,220,.6)'; c.lineWidth = Math.max(.6, S * .007); c.stroke();
+    c.save(); c.translate(-r * .15, 0); c.rotate(.05); rect(c, -r * .4, -r * .12, r * .7, r * .24, '#efe0b8'); c.strokeStyle = 'rgba(120,80,40,.6)'; c.beginPath(); c.moveTo(-r * .3, -r * .03); c.lineTo(r * .2, -r * .03); c.moveTo(-r * .3, r * .05); c.lineTo(r * .1, r * .05); c.stroke(); rect(c, -r * .05, -r * .13, r * .05, r * .26, '#c83a2a'); c.restore();
+    rect(c, r * .72, -r * .12, r * .14, r * .24, '#9a6a3a'); ell(c, -r * .2, -r * .17, r * .4, r * .04, 'rgba(255,255,255,.45)'); c.restore(); return }
+  // kirstud
+  const tier = (id.split('_')[1]) || 'puu', body = tier === 'kuld' ? '#d8a020' : tier === 'hobe' ? '#9aa8b4' : '#7a4e28', band = tier === 'kuld' ? '#fff0a0' : tier === 'hobe' ? '#e8f0f6' : '#4a4a4a';
+  if (tier === 'kuld') glowAt(c, 0, 0, r * 1.5, '#ffe080', .5 + Math.sin(t * 2) * .1);
+  c.beginPath(); c.moveTo(-r * .8, -r * .1); c.lineTo(r * .8, -r * .1); c.lineTo(r * .8, r * .6); c.lineTo(-r * .8, r * .6); c.closePath(); c.fillStyle = metalGrad(c, 0, -r * .1, 0, r * .6, body); c.fill();
+  if (tier === 'puu') { c.strokeStyle = 'rgba(40,20,5,.45)'; c.lineWidth = Math.max(.6, S * .006); for (let i = 1; i < 3; i++) { c.beginPath(); c.moveTo(-r * .8, -r * .1 + i * r * .23); c.lineTo(r * .8, -r * .1 + i * r * .23); c.stroke() } }
+  c.beginPath(); c.moveTo(-r * .8, -r * .1); c.lineTo(-r * .8, -r * .35); c.quadraticCurveTo(0, -r * .85, r * .8, -r * .35); c.lineTo(r * .8, -r * .1); c.closePath(); c.fillStyle = metalGrad(c, 0, -r * .7, 0, -r * .1, shade(body, .1)); c.fill();
+  for (const x of [-.55, .55]) { c.fillStyle = metalGrad(c, r * (x - .07), 0, r * (x + .07), 0, band); c.beginPath(); c.moveTo(r * (x - .07), r * .6); c.lineTo(r * (x - .07), -r * .38 - (x < 0 ? 0 : 0)); c.quadraticCurveTo(r * x, -r * .5, r * (x + .07), -r * .38); c.lineTo(r * (x + .07), r * .6); c.fill() }
+  rect(c, -r * .8, -r * .14, r * 1.6, r * .08, band);
+  rect(c, -r * .1, -r * .2, r * .2, r * .26, tier === 'puu' ? '#d8a840' : '#ffd060'); circ(c, 0, -r * .06, r * .035, '#2a1a0a');
+  if (tier === 'kuld') { for (let i = 0; i < 4; i++) { const x = -r * .5 + i * r * .32; ell(c, x, r * .68, r * .12, r * .05, '#ffd040'); ell(c, x, r * .66, r * .1, r * .035, '#fff0a0') } for (let i = 0; i < 3; i++) { const k = (t * .4 + i / 3) % 1; sparkle(c, -r * .5 + i * r * .5, -r * .6 - k * r * .4, r * .12 * (1 - k)) } }
+  c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(.6, S * .006); c.strokeRect(-r * .8, -r * .1, r * 1.6, r * .7);
+}
+function drawGear(c, x, y, S, kind, id, t = 1) { c.save(); c.translate(x, y); if (kind === 'rod') drawRod(c, S, id, t); else if (kind === 'bait') drawBait(c, S, id, t); else if (kind === 'item') drawItem(c, S, id, t); else drawJunk(c, S, id, t); c.restore() }
+function paintGear(root) {
+  root.querySelectorAll('canvas[data-gear]').forEach(cv2 => {
+    const w = cv2.clientWidth || 56, h = cv2.clientHeight || 44, d = Math.min(3, (devicePixelRatio || 1) * 1.5); cv2.width = w * d; cv2.height = h * d;
+    const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id] = cv2.dataset.gear.split(':');
+    if (!cv2.classList.contains('gi')) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
+    drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, 1);
+  });
+}
+function gearCv(kind, id, cls = 'gearcv') { return `<canvas class="${cls}" data-gear="${kind}:${id}" aria-hidden="true"></canvas>` }
+function itemIcon(id) { return gearCv('item', id, 'gi') + ' ' + esc(FD.item[id] ? FD.item[id].name : id) }
+
 function paintFishCanvases(root) {
   root.querySelectorAll('canvas[data-fl]').forEach(cv2 => {
     const w = cv2.clientWidth || 140, h = cv2.clientHeight || 60, d = 2; cv2.width = w * d; cv2.height = h * d;
@@ -3163,8 +3313,8 @@ function fvHeader() {
       <div class="fv-stat"><small>Püütud kalu</small><b class="num">${fmt(FS.total)}</b></div>
       <div class="fv-stat"><small>Suurim kala</small><b>${big}</b></div>
       <div class="fv-stat"><small>Haruldasi kalu</small><b class="num">${fmt(rare)}</b></div>
-      <div class="fv-stat"><small>Õngeritv</small><b>${rod ? rod.name : ''} ${FS.rod_broken ? '<span style="color:var(--bad)">· katki</span>' : ''}</b></div>
-      <div class="fv-stat"><small>Sööt</small><b>${bait ? bait.name + baitCnt : ''}</b></div></div>`;
+      <div class="fv-stat"><small>Õngeritv</small><b>${rod ? gearCv('rod', rod.id, 'gi') + ' ' + rod.name : ''} ${FS.rod_broken ? '<span style="color:var(--bad)">· katki</span>' : ''}</b></div>
+      <div class="fv-stat"><small>Sööt</small><b>${bait ? gearCv('bait', bait.id, 'gi') + ' ' + bait.name + baitCnt : ''}</b></div></div>`;
 }
 function weatherChips() {
   const w = WTH2[FS.weather] || ['', ''];
@@ -3189,7 +3339,7 @@ function renderFV(force) {
   root.innerHTML = html;
   const slot = root.querySelector('#fvSceneSlot'); if (slot) slot.replaceWith(sceneCv);
   const aslot = root.querySelector('#fvAqSlot'); if (aslot) aslot.replaceWith(aqCv);
-  paintFishCanvases(root); paintHouses(root);
+  paintFishCanvases(root); paintHouses(root); paintGear(root);
   $('#fishView').scrollTop = st;
 }
 
@@ -3315,7 +3465,7 @@ function resultMsg(r) {
 }
 function itemName(id) { return (ITEM_IC[id] || '✨') + ' ' + (FD.item[id] ? FD.item[id].name : id) }
 function itemsTxt(list, bare) { if (!list || !list.length) return ''; const t = list.map(x => itemName(x.id) + (x.qty > 1 ? ' ×' + x.qty : '')).join(', '); return bare ? t : ' ning kotti: ' + t }
-function itemsRow(list) { return list && list.length ? `<div class="itemrow">${list.map(x => { const it = FD.item[x.id]; return `<span class="itm" style="border-color:${RAR2[it ? it.rarity : 1][1]}88">${itemName(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>` }).join('')}</div>` : '' }
+function itemsRow(list) { return list && list.length ? `<div class="itemrow">${list.map(x => { const it = FD.item[x.id]; return `<span class="itm" style="border-color:${RAR2[it ? it.rarity : 1][1]}88">${itemIcon(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>` }).join('')}</div>` : '' }
 function estPrice(id) {
   const c = (FS.inventory || []).find(x => x.id === id); if (!c) return 0;
   const s = FD.sp[c.species], m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
@@ -3375,7 +3525,12 @@ function sceneLoop(ts) {
   const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
   if (FV.phase === 'bite') bob = 9 + Math.sin(t * 32) * 5;
   if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
-  c.strokeStyle = '#6b4528'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke();
+  { const st = ROD_ST[FS.rod] || ROD_ST.algaja, g = c.createLinearGradient(-10, h * .98, w * .32, h * .07);
+    if (st.shaft === 'rainbow') ['#ff6a8a', '#ffb050', '#ffe860', '#7af0a0', '#6ab8ff', '#b08aff'].forEach((col, i) => g.addColorStop(i / 5, col)); else { g.addColorStop(0, shade(st.shaft, -.3)); g.addColorStop(1, shade(st.shaft, .2)) }
+    if (st.glow) { c.strokeStyle = hexA(st.glow, .25); c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke() }
+    c.strokeStyle = g; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .32, h * .07); c.stroke();
+    c.strokeStyle = st.handle; c.lineWidth = 8; c.beginPath(); c.moveTo(-10, h * .98); c.lineTo(w * .05, h * .72); c.stroke();
+    if (st.reel) { const rx = w * .04, ry = h * .8; circ(c, rx + 8, ry + 6, 11, shade(st.reel, -.3)); circ(c, rx + 8, ry + 6, 8, st.reel); circ(c, rx + 8, ry + 6, 3, shade(st.reel, -.4)) } }
   if (!casting || FV.phase === 'casting') {
     c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(w * .32, h * .07); c.quadraticCurveTo(w * .5, h * .2, bx, by + bob - 6); c.stroke();
     if (FV.phase === 'bite' || FV.phase === 'reel') for (let i = 0; i < 3; i++) { c.strokeStyle = `rgba(255,255,255,${.55 - i * .15})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 28), 4 + ((t * 10 + i * 4) % 9), 0, 0, 6.29); c.stroke() }
@@ -3424,7 +3579,7 @@ function tabSaak() {
   h += `<div class="fv-card"><h2>Trofeeriiul <small class="lead">${tro.length} / 12</small></h2><p class="lead">Trofeed jäävad sinu kollektsiooni igaveseks ja neid ei müüda kogemata maha. Klõpsa trofeel, et see riiulilt tagasi võtta.</p>${tro.length ? `<div class="inv">${tro.map(cell).join('')}</div>` : '<p class="lead">Riiul on veel tühi. Pane siia oma uhkeim saak.</p>'}</div>`;
   const its = FD.items.filter(it => (FS.items || {})[it.id] > 0);
   h += `<div class="fv-card"><h2>Kott <small class="lead">${its.reduce((a, it) => a + FS.items[it.id], 0)} eset</small></h2><p class="lead">Aardekirstudest, karpidest, kalade kõhust ja ülesannetest leitud väärtuslikud asjad. Neid saab müüa kalurikassasse. Hiljem läheb osa neist vaja ka õngede võlumiseks, seega ära kõike kohe maha müü.</p>
-    ${its.length ? `<div class="shop">${its.map(it => `<div class="srow"><div><b>${itemName(it.id)} × ${FS.items[it.id]}</b> <span class="rpill" style="color:${RAR2[it.rarity][1]}">${RAR2[it.rarity][0]}</span><small>${esc(it.descr)} · ${fmt(it.price)} kulda tükk</small></div>
+    ${its.length ? `<div class="shop">${its.map(it => `<div class="srow gearrow">${gearCv('item', it.id)}<div><b>${esc(it.name)} × ${FS.items[it.id]}</b> <span class="rpill" style="color:${RAR2[it.rarity][1]}">${RAR2[it.rarity][0]}</span><small>${esc(it.descr)} · ${fmt(it.price)} kulda tükk</small></div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm ghost" type="button" data-fa="isell" data-arg="${it.id}:1">Müü 1</button>${FS.items[it.id] > 1 ? `<button class="btn sm ghost" type="button" data-fa="isell" data-arg="${it.id}:${FS.items[it.id]}">Müü kõik (${fmt(it.price * FS.items[it.id])})</button>` : ''}</div></div>`).join('')}</div>` : '<p class="lead">Kott on tühi. Leia aardekirste ja merekarpe!</p>'}</div>`;
   h += `<div class="fv-card"><h2>Kalurikassa</h2><p class="lead">Kalapüügiga teenitud kuld on kalurikassas: <b>${fmt(FS.gold)} kulda</b>. Selle eest saad osta õngi ja sööta. Kulda saad saata ka oma kuningriigi varakambrisse, aga tagasi kalurikassasse seda tuua ei saa.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${[100, 500, 2000].map(n => `<button class="btn sm ghost" type="button" data-fa="transfer" data-arg="${n}" ${FS.gold >= n ? '' : 'disabled'}>Saada ${n} kuningriiki</button>`).join('')}<button class="btn sm ghost" type="button" data-fa="transfer" data-arg="${FS.gold}" ${FS.gold > 0 ? '' : 'disabled'}>Saada kõik (${fmt(FS.gold)})</button></div></div>`;
@@ -3437,12 +3592,12 @@ function tabPood() {
   if (FS.rod_broken) h += `<div class="fv-card" style="border-color:var(--bad)"><h2>Õng on katki</h2><p class="lead">${FD.rod[FS.rod].name} murdus. Parandus maksab ${repairCost2()} kulda. Võid ka mõne teise oma õnge kasutusele võtta.</p><div><button class="btn" type="button" data-fa="repair" ${FS.gold >= repairCost2() ? '' : 'disabled'}>Paranda õng</button></div></div>`;
   h += `<div class="fv-card"><h2>Õngeridvad</h2><p class="lead">Tugevus näitab, kui raske kala õng välja kannab. Püügiboonus suurendab haruldaste kalade võimalust ja väljatoomise boonus teeb rohelise ala laiemaks.</p><div class="shop">${FD.rods.map(r => {
     const own = (FS.rods || []).includes(r.id), on = FS.rod === r.id, lock = FS.level < r.min_level;
-    return `<div class="srow ${lock && !own ? 'locked' : ''}"><div><b>${r.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : own ? ' <span class="pill">Sinu oma</span>' : ''}<small>Tugevus ${fmt1(+r.strength)} kg · püügiboonus +${Math.round(r.catch_bonus * 100)}% · väljatoomine +${Math.round(r.reel_bonus * 100)}%</small><small>${own ? '' : lock ? `🔒 Avaneb kalapüügi ${r.min_level}. tasemel · ` : ''}${own ? '' : `Hind ${fmt(r.price)} kulda`}</small></div>
+    return `<div class="srow gearrow ${lock && !own ? 'locked' : ''}">${gearCv('rod', r.id)}<div><b>${r.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : own ? ' <span class="pill">Sinu oma</span>' : ''}<small>Tugevus ${fmt1(+r.strength)} kg · püügiboonus +${Math.round(r.catch_bonus * 100)}% · väljatoomine +${Math.round(r.reel_bonus * 100)}%</small><small>${own ? '' : lock ? `🔒 Avaneb kalapüügi ${r.min_level}. tasemel · ` : ''}${own ? '' : `Hind ${fmt(r.price)} kulda`}</small></div>
       ${on ? '' : own ? `<button class="btn sm ghost" type="button" data-fa="rod" data-arg="${r.id}">Võta kasutusele</button>` : `<button class="btn sm" type="button" data-fa="rod" data-arg="${r.id}" ${!lock && FS.gold >= r.price ? '' : 'disabled'}>Osta</button>`}</div>`;
   }).join('')}</div></div>`;
   h += `<div class="fv-card"><h2>Söödad ja peibutised</h2><p class="lead">Sööt kulub iga viskega. Peibutis ostetakse üks kord ja see ei kulu kunagi. Parem sööt toob kala kiiremini ja suurendab haruldaste kalade võimalust.</p><div class="shop">${FD.baits.map(b => {
     const lock = FS.level < b.min_level, cnt = (FS.baits || {})[b.id] || 0, ownLure = !b.consumable && (b.price === 0 || (FS.baits || {})[b.id] !== undefined), on = FS.bait === b.id;
-    return `<div class="srow ${lock ? 'locked' : ''}"><div><b>${b.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : ''}<small>${esc(b.descr)}</small><small>Ootamine ${Math.round((1 - b.wait_mult) * 100)}% kiirem · haruldased +${Math.round(b.rarity_bonus * 100)}%${b.consumable ? ` · sul on ${cnt} tk · ${b.price} kulda tükk` : b.price ? (ownLure ? ' · sinu oma' : ` · ${fmt(b.price)} kulda`) : ' · tasuta'}</small>${lock ? `<small>🔒 Avaneb ${b.min_level}. tasemel</small>` : ''}</div>
+    return `<div class="srow gearrow ${lock ? 'locked' : ''}">${gearCv('bait', b.id)}<div><b>${b.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : ''}<small>${esc(b.descr)}</small><small>Ootamine ${Math.round((1 - b.wait_mult) * 100)}% kiirem · haruldased +${Math.round(b.rarity_bonus * 100)}%${b.consumable ? ` · sul on ${cnt} tk · ${b.price} kulda tükk` : b.price ? (ownLure ? ' · sinu oma' : ` · ${fmt(b.price)} kulda`) : ' · tasuta'}</small>${lock ? `<small>🔒 Avaneb ${b.min_level}. tasemel</small>` : ''}</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${lock ? '' : b.consumable ? `<button class="btn sm" type="button" data-fa="bait10" data-arg="${b.id}" ${FS.gold >= b.price * 10 ? '' : 'disabled'}>10 tk (${b.price * 10})</button><button class="btn sm ghost" type="button" data-fa="bait50" data-arg="${b.id}" ${FS.gold >= b.price * 50 ? '' : 'disabled'}>50 tk (${b.price * 50})</button>${cnt && !on ? `<button class="btn sm ghost" type="button" data-fa="baitUse" data-arg="${b.id}">Kasuta</button>` : ''}` : ownLure ? (on ? '' : `<button class="btn sm ghost" type="button" data-fa="baitUse" data-arg="${b.id}">Kasuta</button>`) : `<button class="btn sm" type="button" data-fa="lure" data-arg="${b.id}" ${FS.gold >= b.price ? '' : 'disabled'}>Osta</button>`}</div></div>`;
   }).join('')}</div></div>`;
   return h;
@@ -3514,7 +3669,7 @@ function questText(q) {
 function questRow(q, per) {
   const prog = +q.progress, tgt = +q.target, ok = prog >= tgt;
   return `<div class="srow" style="${q.done ? 'opacity:.6' : ''}"><div><b>${questText(q)}</b><div class="bar ${ok ? 'green' : ''}" style="margin:5px 0"><i style="width:${Math.min(100, prog / tgt * 100).toFixed(1)}%"></i></div>
-    <small class="num">${q.kind === 'weight' ? fmt1(prog) : fmt(prog)} / ${fmt(tgt)} · Preemia: ${fmt(q.gold)} kulda, ${fmt(q.xp)} kogemust${q.item && q.qty ? ', ' + itemName(q.item) : ''}</small></div>
+    <small class="num">${q.kind === 'weight' ? fmt1(prog) : fmt(prog)} / ${fmt(tgt)} · Preemia: ${fmt(q.gold)} kulda, ${fmt(q.xp)} kogemust${q.item && q.qty ? ', ' + itemIcon(q.item) : ''}</small></div>
     ${q.done ? '<span class="pill ok">Tehtud</span>' : `<button class="btn sm" type="button" data-fa="qclaim" data-arg="${per}:${q.idx}" ${ok ? '' : 'disabled'}>Võta preemia</button>`}</div>`;
 }
 function timeLeft(iso) { const ms = new Date(iso) - Date.now(); if (ms <= 0) return 'kohe'; const h = Math.floor(ms / 3600000), d = Math.floor(h / 24); return d ? `${d} p ${h % 24} h` : h ? `${h} h ${Math.floor(ms / 60000) % 60} min` : `${Math.max(1, Math.floor(ms / 60000))} min` }
@@ -3666,7 +3821,7 @@ function tabMaja() {
   if (nx) {
     const items = Object.entries(nx.items || {}), lvlOk = FS.level >= nx.min_fish_level, goldOk = FS.gold >= nx.gold, itOk = items.every(([k, q]) => ((FS.items || {})[k] || 0) >= q);
     h += `<div class="srow"><div><b>${L ? 'Täienda' : 'Ehita'}: ${esc(nx.name)}</b><small>Annab: ${bonusTxt(nx)}</small>
-      <small><span style="color:${lvlOk ? 'var(--ok)' : 'var(--bad)'}">kalapüügi tase ${nx.min_fish_level}</span> · <span style="color:${goldOk ? 'var(--ok)' : 'var(--bad)'}">${fmt(nx.gold)} kulda</span>${items.map(([k, q]) => { const have = (FS.items || {})[k] || 0; return ` · <span style="color:${have >= q ? 'var(--ok)' : 'var(--bad)'}">${itemName(k)} ${Math.min(have, q)}/${q}</span>` }).join('')}</small></div>
+      <small><span style="color:${lvlOk ? 'var(--ok)' : 'var(--bad)'}">kalapüügi tase ${nx.min_fish_level}</span> · <span style="color:${goldOk ? 'var(--ok)' : 'var(--bad)'}">${fmt(nx.gold)} kulda</span>${items.map(([k, q]) => { const have = (FS.items || {})[k] || 0; return ` · <span style="color:${have >= q ? 'var(--ok)' : 'var(--bad)'}">${itemIcon(k)} ${Math.min(have, q)}/${q}</span>` }).join('')}</small></div>
       <button class="btn" type="button" data-fa="house" ${lvlOk && goldOk && itOk ? '' : 'disabled'}>${L ? 'Täienda' : 'Ehita'}</button></div>`;
   } else h += '<p class="lead"><b>Sinu kalamaja on kõige kõrgemal tasemel!</b></p>';
   h += '</div>';
