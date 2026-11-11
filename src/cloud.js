@@ -136,6 +136,7 @@ async function onSignedIn(user) {
 }
 // kõik eelmise mängija mälus olevad andmed maha (sama arvuti, teine kasutaja)
 function clientReset() {
+  try { $('#playerName').value = ''; $('#kingdomName').value = '' } catch (e) { }
   CL.cloudCopy = null; CL.cloudUid = null; CL.trust = null; CL.lb = null; CL.lbAt = 0; CL.peers = []; CL.pending = false;
   try { if (typeof FS !== 'undefined') FS = null } catch (e) { }
   try { if (typeof FMK !== 'undefined') Object.assign(FMK, { list: null, mine: null, newSold: 0, confirm: null }) } catch (e) { }
