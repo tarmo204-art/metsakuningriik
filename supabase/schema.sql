@@ -1113,6 +1113,7 @@ begin
   if p_kind = 'rod' then
     select * into r from fish_rods where id = p_id;
     if r.id is null then raise exception 'Tundmatu õng'; end if;
+    if f.rod_broken and not (f.rod = any(f.rods_broken)) then update fishers set rods_broken = rods_broken || f.rod where user_id = u; f.rods_broken := f.rods_broken || f.rod; end if;
     if r.id = any(f.rods) then update fishers set rod = r.id, rod_broken = r.id = any(rods_broken) where user_id = u; return jsonb_build_object('equipped', r.id); end if;
     if f.level < r.min_level then raise exception 'See õng avaneb % tasemel', r.min_level; end if;
     if f.gold < r.price then raise exception 'Kulda jääb puudu'; end if;
