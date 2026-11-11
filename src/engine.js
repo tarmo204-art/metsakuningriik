@@ -10,7 +10,7 @@ const ri = (a, b) => Math.floor(rnd(a, b + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmt = n => { n = Math.floor(n + 1e-9); if (n < 10000) return String(n); if (n < 1e6) return (n / 1000).toFixed(1).replace('.', ',') + 'k'; return (n / 1e6).toFixed(2).replace('.', ',') + 'M' };
-const fmt1 = n => (Math.round(n * 10) / 10).toFixed(Math.abs(n) < 10 && n % 1 !== 0 ? 1 : 0).replace('.', ',');
+const fmt1 = n => n && Math.abs(n) < .095 ? (Math.round(n * 100) / 100).toFixed(2).replace('.', ',') : (Math.round(n * 10) / 10).toFixed(Math.abs(n) < 10 && n % 1 !== 0 ? 1 : 0).replace('.', ',');
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); if (s < 60) return s + ' s'; const m = Math.floor(s / 60), r = s % 60; if (m < 60) return m + ' min' + (r ? ' ' + r + ' s' : ''); return Math.floor(m / 60) + ' h ' + (m % 60) + ' min' };
 const dayNum = () => Math.floor(S.time / DAY) + 1;
 const dateKey = d => { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') };

@@ -455,6 +455,39 @@ on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w
   price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty,
   look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
 
+-- Eesti päris kalaliigid (lisa)
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather) values
+ ('viidikas','Viidikas',1,0.01,0.06,2,3,'{metsajarv,jogi,kuninglik}',1,false,false,1,'{"s":"n","c":["#d8e2e6","#6a8a98","#f8fafa","#c8d0d0"]}','Väike hõbedane pinnakala, keda on suvel suurte parvedena.',21,null),
+ ('nurg','Nurg',1,0.1,0.6,4,5,'{metsajarv,kuninglik}',2,false,false,1,'{"s":"d","c":["#c8ccc0","#6a7060","#eef0e8","#d88a6a"]}','Latika moodi, aga väiksem ja punakate uimedega.',22,null),
+ ('lepamaim','Lepamaim',1,0.01,0.03,2,3,'{jogi}',1,false,false,1,'{"s":"n","c":["#9aa078","#4a5034","#e8d8a0","#c86a3a"],"st":8}','Pisike kirju kala kiirevoolulistest ojadest.',23,null),
+ ('luukarits','Luukarits',1,0.01,0.02,2,3,'{meri,saarestik,metsajarv}',1,false,false,1,'{"s":"n","c":["#7a9a7a","#2a4a3a","#e8eee0","#c84a3a"]}','Kolme seljaokkaga pisike kala. Kevadel on isasel punane kõht.',24,null),
+ ('ogalik','Ogalik',1,0.01,0.02,2,3,'{metsajarv,jogi}',1,false,false,1,'{"s":"n","c":["#8a9060","#3a4028","#d8d8b0","#6a6a40"]}','Üheksa seljaokkaga, üks Eesti väikseimaid kalu.',25,null),
+ ('trulling','Trulling',1,0.01,0.05,3,4,'{jogi}',3,false,false,2,'{"s":"e","c":["#a08a5a","#5a4a2a","#e0d0a0","#8a7448"],"sp":1}','Vurrudega põhjakala, kes peidab end kivide alla.',26,null),
+ ('hink','Hink',1,0.01,0.03,3,4,'{jogi,metsajarv}',3,false,false,2,'{"s":"e","c":["#d8c8a0","#5a4a30","#f0e8d0","#9a8a60"],"sp":1}','Täpiline pisike põhjakala, kes kaevub liiva sisse.',27,null),
+ ('voldas','Võldas',1,0.01,0.08,3,4,'{jogi}',3,false,false,2,'{"s":"n","c":["#8a7a5a","#3a3020","#d8c8a0","#6a5a3a"],"sp":1}','Suure peaga põhjakala puhastest ojadest.',28,null),
+ ('kilu','Kilu',1,0.01,0.03,2,4,'{meri,saarestik,avameri}',18,false,false,1,'{"s":"n","c":["#b8d0e0","#2a4a6a","#f4f8fc","#8aa8c0"]}','Räime väike sugulane. Kiluvõileib on Eesti klassika!',29,null),
+ ('mustmudil','Must mudil',1,0.02,0.15,4,5,'{meri,saarestik}',18,false,false,2,'{"s":"n","c":["#5a5040","#2a2418","#a89878","#3a3020"],"sp":1}','Võõrliik, kes on Läänemeres väga kiiresti levinud.',30,null),
+ ('liivamudil','Liivamudil',1,0.01,0.02,2,3,'{meri,saarestik}',18,false,false,1,'{"s":"n","c":["#d8c8a0","#8a7a5a","#f4ecd8","#b0a080"],"sp":1}','Liivase põhja värvi pisike mudil.',31,null),
+ ('vimb','Vimb',2,0.2,1.2,12,12,'{jogi,meri}',6,false,false,3,'{"s":"n","c":["#a8b4bc","#3a4650","#eef0f0","#d8a050"]}','Kevadel jõgedesse kudema tulev ninakas kala.',38,null),
+ ('turb','Turb',2,0.3,2.5,14,13,'{jogi}',7,false,false,3,'{"s":"n","c":["#a8a890","#3a4038","#e8e8d8","#d8603a"]}','Laia peaga jõekala, kes sööb isegi konni.',39,null),
+ ('koger','Koger',2,0.1,1.5,10,10,'{metsajarv,kuninglik}',3,false,false,2,'{"s":"d","c":["#b8a040","#5a4a1a","#ece0a0","#a07a2a"]}','Kuldne ja vastupidav, elab ka mudastes tiikides.',40,null),
+ ('hobekoger','Hõbekoger',2,0.1,1.5,9,9,'{metsajarv,kuninglik,jogi}',3,false,false,2,'{"s":"d","c":["#c8ccc8","#5a6060","#f2f2f0","#9aa0a0"]}','Kogre hõbedane sugulane, kes levib kiiresti.',41,null),
+ ('nokkhaug','Nokkhaug',2,0.2,1,18,16,'{meri,saarestik}',19,false,false,4,'{"s":"l","c":["#5a9a9a","#1a4a5a","#e8f4f4","#3ac0a0"]}','Pika nokaga merekala, kelle luud on rohelised.',42,null),
+ ('merinoel','Merinõel',2,0.01,0.03,16,15,'{saarestik}',20,false,false,3,'{"s":"e","c":["#8a9a5a","#3a4a1a","#d8e0a0","#6a7a3a"]}','Peenike nagu nõel. Poegi kannab hoopis isane.',43,null),
+ ('madunoel','Madunõel',2,0.01,0.02,16,15,'{saarestik,meri}',20,false,false,3,'{"s":"e","c":["#6a8a5a","#2a3a1a","#c8d8a0","#4a6a3a"]}','Meriheina vahel peituv ussi moodi kala.',44,null),
+ ('peled','Peled',2,0.3,2,16,15,'{jaa,kuninglik}',14,false,false,3,'{"s":"n","c":["#d0d8e0","#6a7a88","#f6f8fa","#a0aab4"]}','Siia sugulane, kes toodi kunagi Siberist.',45,null),
+ ('mudamaim','Mudamaim',2,0.01,0.04,14,13,'{metsajarv}',4,false,false,3,'{"s":"n","c":["#a8a070","#5a5430","#e0d8b0","#8a8050"],"sp":1}','Haruldane pisikala soiste veekogude mudasest veest.',46,null),
+ ('vingerjas','Vingerjas',2,0.05,0.15,12,12,'{metsajarv,kuninglik}',4,false,false,3,'{"s":"e","c":["#8a6a3a","#3a2a14","#e0c890","#6a5030"],"st":3}','Ilma ennustav kala: enne äikest muutub rahutuks.',47,'{torm}'),
+ ('ojasilm','Ojasilm',2,0.01,0.02,14,13,'{jogi}',6,false,false,3,'{"s":"e","c":["#9a8a6a","#4a3a2a","#e0d4b8","#7a6a4a"]}','Jõesilmu väike sugulane, kes elab ojades.',48,null),
+ ('toogjas','Tõugjas',3,1,6,40,34,'{jogi}',10,false,false,6,'{"s":"n","c":["#a8b4c0","#3a4858","#eef2f4","#c8b8a0"]}','Ainus röövtoiduline karpkalaline. Ründab pinnal kalu kõva pritsmega.',58,null),
+ ('joeforell','Jõeforell',3,0.2,3,40,34,'{jogi}',8,false,false,6,'{"s":"n","c":["#a89060","#4a3a1e","#f0e0b0","#d0603a"],"sp":1}','Punaste täppidega ojade kaunitar.',59,null),
+ ('joesilm','Jõesilm',3,0.05,0.2,36,32,'{jogi}',10,true,false,5,'{"s":"e","c":["#8a90a0","#3a4050","#d8dce0","#6a7080"]}','Iidne lõugadeta kala, kes rändab öösiti jõest üles.',60,null),
+ ('hobekarp','Hõbekarp',3,3,20,44,36,'{kuninglik}',12,false,false,6,'{"s":"d","c":["#c8d0d4","#5a6670","#f4f6f6","#a0aab0"]}','Suur hõbedane karpkala, kes hüppab ehmatades veest välja.',61,null),
+ ('amuur','Amuur',3,3,25,46,38,'{kuninglik}',13,false,false,6,'{"s":"n","c":["#8a9a6a","#3a4a2a","#d8d8b0","#6a7a4a"]}','Taimtoiduline hiid, kes hoiab tiigid puhtana.',62,null)
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
+  price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, night_only=excluded.night_only, difficulty=excluded.difficulty,
+  look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
+
 insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
  ('paadimees','Paadimees','Osta oma esimene paat','Meremees',500,300,33),
  ('kapten','Kapten','Osta kõik kolm paati','Kapten',5000,3000,34),

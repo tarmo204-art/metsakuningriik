@@ -249,8 +249,12 @@ const SP_ARCH = {
   saga: 'catfish', tuur: 'sturgeon', haldjakala: 'angel', leviaatan: 'monster',
   tobias: 'herring', laternkala: 'herring', emakala: 'eel', merihark: 'perch', makrell: 'tuna', kammeljas: 'flat', kirveskala: 'bream',
   tuun: 'tuna', merikurat: 'angler', mookkala: 'sword', airukala: 'serpent', sugavusedraakon: 'serpent',
+  viidikas: 'herring', nurg: 'bream', lepamaim: 'cypr', luukarits: 'perch', ogalik: 'perch', trulling: 'burbot', hink: 'burbot', voldas: 'cod',
+  kilu: 'herring', mustmudil: 'cod', liivamudil: 'cod', vimb: 'cypr', turb: 'cypr', koger: 'bream', hobekoger: 'bream', nokkhaug: 'sword',
+  merinoel: 'eel', madunoel: 'eel', peled: 'salmon', mudamaim: 'cypr', vingerjas: 'burbot', ojasilm: 'eel', toogjas: 'cypr', joeforell: 'salmon',
+  joesilm: 'eel', hobekarp: 'carp', amuur: 'cypr',
 };
-const SP_PAT = { lohe: 'xspots', meriforell: 'xspots', vikerforell: 'trout', vihmaforell: 'trout', paalia: 'char', kuningkarp: 'koi', haug: 'pikespots', jaahaug: 'pikespots', tormihaug: 'pikespots', joekuningas: 'pikespots', tursk: 'mottle', luts: 'mottle', saga: 'mottle', lest: 'flatspots', kiisk: 'mottle', linask: 'none', harjus: 'grayspots', jarvelohe: 'scales2', makrell: 'mackerel', laternkala: 'photo', kirveskala: 'photo', merihark: 'mottle', emakala: 'mottle', merikurat: 'mottle', tuun: 'none', mookkala: 'none' };
+const SP_PAT = { joeforell: 'trout', trulling: 'mottle', hink: 'mottle', voldas: 'mottle', mustmudil: 'mottle', liivamudil: 'mottle', mudamaim: 'mottle', lohe: 'xspots', meriforell: 'xspots', vikerforell: 'trout', vihmaforell: 'trout', paalia: 'char', kuningkarp: 'koi', haug: 'pikespots', jaahaug: 'pikespots', tormihaug: 'pikespots', joekuningas: 'pikespots', tursk: 'mottle', luts: 'mottle', saga: 'mottle', lest: 'flatspots', kiisk: 'mottle', linask: 'none', harjus: 'grayspots', jarvelohe: 'scales2', makrell: 'mackerel', laternkala: 'photo', kirveskala: 'photo', merihark: 'mottle', emakala: 'mottle', merikurat: 'mottle', tuun: 'none', mookkala: 'none' };
 const GHOST = { igijaavaim: 1, merivaim: 1, udukala: 1, uduhobe: 1, kristallahven: 1 };
 function hexA(h, a) { if (!h || h[0] !== '#') return h; if (h.length === 4) h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]; return `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})` }
 function mixC(a2, b2, k) { if (!a2 || !b2 || a2.length < 7 || b2.length < 7) return a2; return '#' + [1, 3, 5].map(i => Math.round(parseInt(a2.slice(i, i + 2), 16) * (1 - k) + parseInt(b2.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('') }
