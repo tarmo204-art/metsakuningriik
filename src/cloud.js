@@ -184,13 +184,20 @@ async function pullCloud() {
   } catch (e) { CL.msg = 'Pilvesalvestust ei saanud laadida: ' + etError(e); CL.msgKind = 'bad' }
 }
 const _loadSave = loadSave;
-loadSave = function () { const v = _loadSave(); if (!v && CL.user && CL.cloudCopy && CL.cloudUid === CL.user.id) return JSON.parse(JSON.stringify(CL.cloudCopy)); return v };
+loadSave = function () {
+  let v = _loadSave(); if (v && CL.user && v.uid && v.uid !== CL.user.id) v = null; // võõra konto salvestus: ära kasuta
+  if (!v && CL.user && CL.cloudCopy && CL.cloudUid === CL.user.id) return JSON.parse(JSON.stringify(CL.cloudCopy)); return v
+};
+// iga kuningriik teab, kellele ta kuulub
+setInterval(() => { if (S && CL.user && !S.uid && running) S.uid = CL.user.id }, 1000);
 async function cloudSave(force) {
   if (!CL.sb || !CL.user || !S) return;
   if (!force && Date.now() - CL.lastCloud < 20000) { CL.pending = true; return }
   if (CL.saving) { CL.pending = true; return }
   CL.saving = true; CL.pending = false;
   try {
+    if (S.uid && S.uid !== CL.user.id) { CL.saving = false; running = false; S = null; toast('Mäng peatati: see kuningriik kuulub teisele kontole. Logi uuesti sisse.', 'bad'); showStart(); return }
+    if (!S.uid) S.uid = CL.user.id;
     CL.trust = await rpc('save_kingdom', { p_data: S });
     CL.lastCloud = Date.now(); CL.cloudCopy = null; CL.cloudOk = true;
   } catch (e) { CL.cloudOk = false; CL.cloudErr = etError(e) }
@@ -252,7 +259,7 @@ async function doImport() {
   let o; try { o = await decodeCode($('#importCode').value) } catch (e) { toast(e.message || BADCODE, 'bad'); return }
   delete o.fish; o.last = Date.now();
   if (o.cave) o.cave = null;
-  S = migrate(o); closeModal(); save(); cloudSave(true);
+  S = migrate(o); S.uid = CL.user ? CL.user.id : undefined; closeModal(); save(); cloudSave(true);
   if (CL.user) rpc('set_profile', { p_name: S.name, p_kingdom: S.kingdom }).catch(() => { });
   enterGame(); toast(`Tere tulemast tagasi, ${S.name}! ${S.kingdom} kolis edukalt.`, 'gold', 'fame');
 }

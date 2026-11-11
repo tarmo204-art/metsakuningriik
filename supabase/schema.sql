@@ -686,6 +686,7 @@ begin
     raise exception 'Vigane salvestus';
   end if;
   if octet_length(p_data::text) > 2000000 then raise exception 'Salvestus on liiga suur'; end if;
+  if p_data ? 'uid' and p_data ->> 'uid' <> u::text then raise exception 'See kuningriik kuulub teisele kontole. Logi uuesti sisse.'; end if;
   begin
     lvl := coalesce((p_data ->> 'level')::int, 1); xp := coalesce((p_data ->> 'xp')::numeric, 0);
     v_fame := coalesce((p_data ->> 'fame')::numeric, 0); tre := coalesce((p_data -> 'st' ->> 'treasures')::int, 0);
