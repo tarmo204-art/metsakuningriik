@@ -19,7 +19,7 @@ vesi/puud/kivid), koostöö (monument, kingid, külastused), kalapüük etapid 1
 mereveed, **mängijate kalaturg**).
 
 ## Järgmised plaanid
-1. Etapp 5: Kalatund – reaalajas võistlused + ühine bossikala (server kontrollib tulemusi).
+1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1.)
 2. Etapp 6: prestiiž pärast kalapüügi 50. taset.
 3. Ideed: jõulusündmus (detsember), äpina paigaldamine (PWA), mobiilis kaardi suum,
    koduloomad, külalisteraamat, hooaja edetabel, varukoopiad.

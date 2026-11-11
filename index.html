@@ -4488,6 +4488,25 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .mkl .sum{display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:14px;padding:9px 12px;border-radius:11px;background:rgba(0,0,0,.25)}
 .mkl .sum b{font-family:var(--f-head);font-size:17px;color:#ffd77a}
 .tag-b{font-size:10.5px;font-weight:800;color:#86cde0}
+.kt-hero{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 80% 0%,rgba(255,150,60,.25),transparent 60%),linear-gradient(160deg,#0f3446,#0a1c28)!important;border-color:rgba(255,190,110,.4)!important}
+.kt-hero h2{font-family:var(--f-head);font-size:26px;color:#ffd9a0;margin:0}
+.kt-live{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;background:#c8302c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.04em}
+.kt-live::before{content:'';width:8px;height:8px;border-radius:50%;background:#fff;animation:ktBlink 1s infinite}@keyframes ktBlink{50%{opacity:.2}}
+.kt-wait{display:inline-flex;gap:7px;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid rgba(255,214,150,.35);color:#ffe2b8;font-weight:700;font-size:13px}
+.kt-clock{font-family:var(--f-head);font-size:34px;color:#fff;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.kt-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.kt-stats div{padding:8px 10px;border-radius:11px;background:rgba(0,0,0,.3);display:grid;gap:1px}.kt-stats small{font-size:11px;color:#9cb8c4;text-transform:uppercase;letter-spacing:.05em}.kt-stats b{font-size:19px;color:#ffe2b8}
+@media (max-width:640px){.kt-stats{grid-template-columns:repeat(2,1fr)}.kt-clock{font-size:28px}}
+.kt-boss{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,120,90,.35)}
+.kt-boss canvas{display:block;width:100%;height:210px}
+.kt-hp{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:4px}
+.kt-hp .bar{height:16px;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);overflow:hidden}
+.kt-hp .bar i{display:block;height:100%;background:linear-gradient(90deg,#ff5a3a,#ffb03a);box-shadow:0 0 12px rgba(255,120,60,.7);transition:width .6s}
+.kt-hp span{display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000}
+.kt-boss .bn{position:absolute;left:12px;top:10px;font-family:var(--f-head);font-size:20px;color:#ffd0b0;text-shadow:0 2px 6px #000}
+.kt-boss.dead .bar i{background:#6a7a80;box-shadow:none}
+.kt-pts{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.kt-pts span{font-size:12.5px;padding:5px 8px;border-radius:8px;background:rgba(0,0,0,.25)}
+.kt-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(90deg,rgba(200,48,44,.9),rgba(160,60,20,.85));color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid rgba(255,200,140,.5)}
+.kt-banner .mini{flex:1;min-width:120px;height:9px;border-radius:999px;background:rgba(0,0,0,.45);overflow:hidden}.kt-banner .mini i{display:block;height:100%;background:#ffd25e}
 </style>`);
 document.body.insertAdjacentHTML('beforeend', '<section class="fv" id="fishView" hidden aria-label="Kalapüük"><div class="fv-in" id="fvIn"></div></section>');
 const sceneCv = document.createElement('canvas'); sceneCv.id = 'fvScene'; sceneCv.setAttribute('aria-label', 'Püügikoht');
@@ -5063,13 +5082,14 @@ function weatherChips() {
   const w = WTH2[FS.weather] || ['', ''];
   return `<span class="chip" title="${w[1]}">${w[0]}</span>${WFISH[FS.weather] ? `<span class="chip wfish" title="Need kalad ujuvad ainult selle ilmaga">🌦️ ${WFISH[FS.weather]}</span>` : ''}${FS.is_night ? '<span class="chip" title="Öised kalad on väljas">🌙 Öö</span>' : '<span class="chip">☀️ Päev</span>'}${FS.is_winter ? '<span class="chip" title="Talvised kalad on väljas">❄️ Talv</span>' : ''}${FS.luck ? `<span class="chip" title="Kuldkala õnnistus">🍀 Õnn ${FS.luck}</span>` : ''}`;
 }
-const FTABS = { puuk: 'Püük', saak: 'Saak', maja: 'Kalamaja', tookoda: 'Töökoda', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', turg: 'Turg', voistlus: 'Võistlused', uudised: 'Uudised' };
+const FTABS = { puuk: 'Püük', saak: 'Saak', maja: 'Kalamaja', tookoda: 'Töökoda', tellimus: 'Ülesanded', pood: 'Pood', raamat: 'Kalaraamat', turg: 'Turg', kalatund: 'Kalatund', voistlus: 'Võistlused', uudised: 'Uudised' };
 function fvBadges() {
   const b = {};
   b.saak = (FS.inventory || []).filter(x => !x.trophy).length || 0;
   b.tellimus = (FV.orders ? FV.orders.filter(o => !o.done && o.have >= o.qty).length : 0) + (FV.quests ? [...FV.quests.daily, ...FV.quests.weekly].filter(q => !q.done && +q.progress >= +q.target).length : 0);
   b.uudised = NEWS.unread;
   b.turg = FMK.newSold || 0;
+  b.kalatund = KT.d ? (KT.d.unclaimed || 0) + (KT.d.active ? 1 : 0) : 0;
   b.maja = FS.aq_pending >= 50 ? 1 : 0;
   if (FV.comps) b.voistlus = ['big', 'rare', 'most'].filter(k => { const c = FV.comps[k]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) }).length;
   return b;
@@ -5078,12 +5098,12 @@ function renderFV(force) {
   if (!FV.open || !FS) return;
   if (!force && FV.busyUI) return;
   const b = fvBadges();
-  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised, maja: tabMaja, tookoda: tabTookoda, turg: tabTurg }[FV.tab]()}</div>`;
+  const html = fvHeader() + `<nav class="fv-tabs">${Object.keys(FTABS).map(k => `<button type="button" class="${FV.tab === k ? 'on' : ''}" data-fa="tab" data-arg="${k}">${FTABS[k]}${b[k] ? `<span class="dot">${b[k] > 99 ? '99+' : b[k]}</span>` : ''}</button>`).join('')}</nav><div class="fv-body">${ktBanner()}${{ puuk: tabPuuk, saak: tabSaak, pood: tabPood, raamat: tabRaamat, voistlus: tabVoistlus, tellimus: tabUlesanded, uudised: tabUudised, maja: tabMaja, tookoda: tabTookoda, turg: tabTurg, kalatund: tabKalatund }[FV.tab]()}</div>`;
   const root = $('#fvIn'), st = $('#fishView').scrollTop;
   root.innerHTML = html;
   const slot = root.querySelector('#fvSceneSlot'); if (slot) slot.replaceWith(sceneCv);
   const aslot = root.querySelector('#fvAqSlot'); if (aslot) aslot.replaceWith(aqCv);
-  paintFishCanvases(root); paintHouses(root); paintGear(root);
+  paintFishCanvases(root); paintHouses(root); paintGear(root); ktPaint(root);
   $('#fishView').scrollTop = st;
 }
 
@@ -5195,7 +5215,7 @@ async function doLand() {
     } else {
       FV.result = r; sparkleScene(r.kind === 'fish' ? RAR2[r.rarity][1] : '#ffd065');
       await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); FV.oddsKey = ''; loadOdds().then(() => FV.phase === 'result' && renderFV());
-      FV.busy = false; setPhase('result', resultMsg(r));
+      FV.busy = false; setPhase('result', resultMsg(r) + ktResult(r.kt));
       afterLevels(r.levels); afterAch(r.ach);
       FV.orders = null; loadSide();
     }
@@ -5450,6 +5470,8 @@ function newsText(n) {
     case 'enchant': return `${who} lisas õngele ${esc(d.rod || '')} võimsa võlu: ${esc(d.ench || '')} III!`;
     case 'boat': return `${who} ostis uue paadi: ${esc(d.boat || '')}!`;
     case 'trade': return `${who} ostis kalaturult ${({ 3: 'haruldase', 4: 'eepilise', 5: 'legendaarse', 6: 'müütilise' })[d.rarity] || ''} kala <b style="color:${RAR2[d.rarity || 3][1]}">${esc(fn)}</b>${w} ${fmt(d.price || 0)} kulla eest!`;
+    case 'boss': return `${who} andis Kalatunnis bossikalale viimase löögi! Järvekoletis on alistatud. 🐉`;
+    case 'kalatund': return `${who} võitis Kalatunni ${fmt(d.pts || 0)} punktiga! 👑`;
     case 'house': return `${who} täiendas kalamaja: nüüd on tal ${esc(d.name || '')} (tase ${d.level})!`;
   }
   return who;
@@ -5662,7 +5684,7 @@ document.addEventListener('click', async e => {
   const a = el.dataset.fa, arg = el.dataset.arg;
   switch (a) {
     case 'close': closeFishView(); break;
-    case 'tab': FV.tab = arg; if (arg === 'maja') { AQ.visit = null; AQ.list = null } if (arg === 'turg') { FMK.seenSold = Date.now(); try { localStorage.setItem('mk.mkSeen', FMK.seenSold) } catch (e2) { } FMK.newSold = 0; loadMarket() } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
+    case 'tab': FV.tab = arg; if (arg === 'kalatund') loadKT(); if (arg === 'maja') { AQ.visit = null; AQ.list = null } if (arg === 'turg') { FMK.seenSold = Date.now(); try { localStorage.setItem('mk.mkSeen', FMK.seenSold) } catch (e2) { } FMK.newSold = 0; loadMarket() } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
     case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return }
       if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
@@ -5678,6 +5700,11 @@ document.addEventListener('click', async e => {
     case 'selnone': FV.sel.clear(); renderFV(true); break;
     case 'bulk': if (FV.sel.size) fUse(arg, [...FV.sel]); break;
     case 'sellall': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_sell_all', { p_max_rarity: +arg }); toast(`Müüsid ${r.n} kala ja said ${r.gold} kulda.`, 'good', 'gold'); FV.sel.clear(); await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'ktClaim': {
+      if (FV.busy) break; FV.busy = true;
+      try { const r = await rpc('fish_kt_claim'); if (!r.prizes.length) toast('Uusi Kalatunni auhindu pole.', 'info'); else r.prizes.forEach(p => toast(`Kalatund ${new Date(p.day).toLocaleDateString('et-EE')}: ${p.place}. koht (${fmt(p.pts)} punkti)${p.boss ? ', bossikala alistatud' : ''}! +${fmt(p.gold)} kulda, +${p.xp} kogemust${itemsTxt(p.items)}`, 'gold', 'gold')); await refreshFS(); afterLevels(r.levels); afterAch(r.ach) } catch (e2) { toast(e2.message, 'bad') }
+      FV.busy = false; await loadKT(); break }
+    case 'ktGo': FV.tab = arg || 'puuk'; renderFV(true); break;
     case 'mkSell': { const id = [...FV.sel][0]; if (id) showListing(id); break }
     case 'mkPrice': { const inp = document.getElementById('mkPrice'); if (inp) { inp.value = arg; mkUpd() } break }
     case 'mkList': {
@@ -5840,6 +5867,97 @@ function mkUpd(src) {
   const b = document.querySelector('[data-fa="mkList"]'); if (b) b.disabled = !ok;
 }
 document.addEventListener('input', e => { if (e.target.id === 'mkRange') mkUpd('range'); else if (e.target.id === 'mkPrice') mkUpd('num') });
+
+/* ---------- Kalatund: iga päev 20–21 ühine püük + bossikala ---------- */
+const KT = { d: null, at: 0, off: 0, loading: false, wasActive: null, warned: '', anim: null };
+async function loadKT(silent) {
+  if (!CL.user || KT.loading) return; KT.loading = true;
+  try {
+    const d = await rpc('fish_kalatund'); KT.off = new Date(d.now).getTime() - Date.now(); KT.at = Date.now();
+    if (KT.wasActive === false && d.active) { toast('Kalatund algas! Tund aega ühist püüki: iga kala annab punkte ja teeb bossikalale kahju. Mine kalale!', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
+    if (KT.d && KT.d.boss && d.boss && !KT.d.boss.killed_at && d.boss.killed_at) toast(`Bossikala on alistatud! Viimase löögi andis ${d.boss.killer}. Kõik, kes aitasid, saavad pärast Kalatundi auhinna.`, 'gold', 'fish');
+    KT.wasActive = d.active; KT.d = d;
+  } catch (e) { if (!silent) toast(e.message, 'bad') }
+  KT.loading = false; if (FV.open && (FV.tab === 'kalatund' || KT.d && KT.d.active)) renderFV();
+}
+function ktNow() { return Date.now() + KT.off }
+function ktClock(ms) { ms = Math.max(0, ms); const h = Math.floor(ms / 3600e3), m = Math.floor(ms % 3600e3 / 60000), s2 = Math.floor(ms % 60000 / 1000); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0') }
+setInterval(() => {
+  document.querySelectorAll('[data-ktto]').forEach(el => { const ms = +el.dataset.ktto - ktNow(); el.textContent = ktClock(ms); if (ms <= 0 && KT.d && Date.now() - KT.at > 3000) loadKT(true) });
+  if (!CL.user || !KT.d) return;
+  // meeldetuletus 10 min enne
+  const st = new Date(KT.d.start).getTime(), left = st - ktNow(), key = KT.d.start;
+  if (!KT.d.active && left > 0 && left < 600e3 && KT.warned !== key) { KT.warned = key; toast(`Kalatund algab ${Math.ceil(left / 60000)} minuti pärast! Pane sööt valmis.`, 'info', 'fish') }
+}, 1000);
+setInterval(() => { if (!CL.user) return; const fast = FV.open && KT.d && KT.d.active; if (fast || Date.now() - KT.at > 60000) loadKT(true) }, 10000);
+function ktBanner() {
+  const d = KT.d; if (!d || !d.active || FV.tab === 'kalatund') return '';
+  const b = d.boss, pct = b ? Math.round(b.hp / b.max_hp * 100) : 100;
+  return `<div class="kt-banner" data-fa="ktGo" data-arg="kalatund">🔥 Kalatund käib · <span data-ktto="${new Date(d.end).getTime()}">${ktClock(new Date(d.end).getTime() - ktNow())}</span> · sinu punktid ${fmt(d.mine ? d.mine.pts : 0)}${b ? ` · boss ${b.killed_at ? 'alistatud!' : pct + '%'}<span class="mini"><i style="width:${b.killed_at ? 0 : pct}%"></i></span>` : ''}</div>`;
+}
+function ktResult(kt) {
+  if (!kt) return '';
+  setTimeout(() => loadKT(true), 300);
+  if (kt.killed) { setTimeout(() => toast('SINA andsid bossikalale viimase löögi! Järvekoletis on alistatud!', 'gold', 'fish'), 600); if (typeof sfx === 'function') sfx('levelup') }
+  return ` Kalatund: +${fmt(kt.pts)} punkti${kt.dmg ? `, bossile −${fmt(kt.dmg)} elu` : ''}.`;
+}
+function tabKalatund() {
+  const d = KT.d; if (!d) { setTimeout(loadKT, 0); return '<div class="fv-card"><p class="lead">Laadin Kalatundi…</p></div>' }
+  const end = new Date(d.end).getTime(), next = new Date(d.next).getTime(), m = d.mine || { pts: 0, fish: 0, dmg: 0 }, b = d.boss;
+  const myPlace = (d.top.find(r => r.me) || {}).place;
+  let h = `<div class="fv-card kt-hero"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Kalatund</h2>${d.active ? '<span class="kt-live">OTSE · KÄIB PRAEGU</span>' : `<span class="kt-wait">Iga päev kell ${d.hour}:00–${d.hour + 1}:00</span>`}</div>
+    <p class="lead">Üks tund päevas, kui kõik kalurid püüavad korraga. Iga püütud kala annab punkte ja võtab järvekoletiselt elu. Kolm parimat saavad suure auhinna, kõik osalejad tänukingi. Kui bossikala koos alistatakse, saab iga aitaja lisaks kulda, kogemust ja haruldase eseme.</p>
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="lead" style="margin:0">${d.active ? 'Lõpuni jäänud' : 'Järgmine Kalatund algab'}</span><span class="kt-clock" data-ktto="${d.active ? end : next}">${ktClock((d.active ? end : next) - ktNow())}</span></div>
+    ${d.active ? `<div class="kt-stats"><div><small>Sinu punktid</small><b>${fmt(m.pts)}</b></div><div><small>Koht</small><b>${myPlace ? myPlace + '.' : '–'}</b></div><div><small>Kalu</small><b>${m.fish}</b></div><div><small>Bossikahju</small><b>${fmt(m.dmg)}</b></div></div>
+      <div><button class="btn" type="button" data-fa="ktGo" data-arg="puuk">Mine püüdma!</button></div>` : ''}
+    ${d.unclaimed ? `<div><button class="btn" type="button" data-fa="ktClaim">Võta Kalatunni auhinnad (${d.unclaimed})</button></div>` : ''}</div>`;
+  if (b || d.active) {
+    const hp = b ? b.hp : 1, mx = b ? b.max_hp : 1, pct = Math.max(0, Math.round(hp / mx * 100));
+    h += `<div class="fv-card"><div class="kt-boss ${b && b.killed_at ? 'dead' : ''}"><canvas id="ktBossCv" aria-label="Bossikala"></canvas><div class="bn">Järvekoletis ${b && b.killed_at ? '· alistatud!' : ''}</div>
+      <div class="kt-hp"><span><span>${b && b.killed_at ? `Viimase löögi andis ${esc(b.killer || '?')}` : 'Bossi elu'}</span><span>${fmt(hp)} / ${fmt(mx)}</span></span><div class="bar"><i style="width:${pct}%"></i></div></div></div>
+      <p class="lead" style="font-size:13px">Bossi elud sõltuvad sellest, mitu kalurit viimasel nädalal püüdis. Üksi on teda raske alistada, koos sõpradega palju lihtsam. ${d.players ? `Täna on osalenud ${d.players} kalurit.` : ''}</p></div>`;
+  }
+  h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? `<table class="ctable"><thead><tr><th>#</th><th>Kalur</th><th>Punkte</th><th>Kalu</th><th>Bossile</th></tr></thead><tbody>${d.top.map(r => `<tr class="${r.me ? 'me' : ''}"><td>${r.place <= 3 ? ['🥇', '🥈', '🥉'][r.place - 1] : r.place}</td><td>${esc(r.name)}${r.title ? ` <small>${esc(r.title)}</small>` : ''}</td><td>${fmt(r.pts)}</td><td>${r.fish}</td><td>${fmt(r.dmg)}</td></tr>`).join('')}</tbody></table>` : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
+    ${d.yesterday && d.yesterday.top.length ? `<p class="lead" style="font-size:12.5px">Eile: ${d.yesterday.top.map(r => `${r.place}. ${esc(r.name)} (${fmt(r.pts)})`).join(', ')}${d.yesterday.boss ? (d.yesterday.boss.killed ? ` · boss alistati, viimase löögi andis ${esc(d.yesterday.boss.killer || '?')}` : ' · boss pääses minema') : ''}</p>` : ''}</div>`;
+  h += `<div class="fv-card"><h3>Punktid ja auhinnad</h3><div class="kt-pts">${[1, 2, 3, 4, 5, 6].map(r => `<span style="color:${RAR2[r][1]}">${RAR2[r][0]}: ${[5, 10, 25, 60, 150, 400][r - 1]} p</span>`).join('')}</div>
+    <p class="lead" style="font-size:13px">Suurem kala annab rohkem punkte (kuni 2× tavalisest) ja rekordsuurus veel 1,5× juurde. Turult ostetud kalad ei loe.</p>
+    <p class="lead" style="font-size:13px">🥇 1500 kulda + 500 kogemust + tiitel „Kalatunni kuningas“ · 🥈 800 kulda + 250 kogemust · 🥉 400 kulda + 120 kogemust · igale osalejale 100 kulda + 60 kogemust. Bossi alistamisel igale aitajale lisaks kulda, 200 kogemust ja haruldane ese; kõige rohkem kahju teinud saab tiitli „Bossikala alistaja“. Auhinnad saab võtta pärast Kalatunni lõppu.</p></div>`;
+  return h;
+}
+function ktPaint(root) {
+  const cv2 = root.querySelector('#ktBossCv'); if (KT.anim) { clearInterval(KT.anim); KT.anim = null } if (!cv2) return;
+  const w = cv2.clientWidth || 600, h = cv2.clientHeight || 210, dpr = 2; cv2.width = w * dpr; cv2.height = h * dpr;
+  const c = cv2.getContext('2d'), sp = FD.sp.merikurat || Object.values(FD.sp).pop(), dead = KT.d && KT.d.boss && KT.d.boss.killed_at;
+  const bub = Array.from({ length: 24 }, () => ({ x: Math.random(), y: Math.random(), r: 1 + Math.random() * 3, v: .03 + Math.random() * .06 }));
+  const draw = () => {
+    if (!cv2.isConnected) { clearInterval(KT.anim); KT.anim = null; return }
+    const t = performance.now() / 1000; c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, dead ? '#1c3440' : '#0e3a4e'); g.addColorStop(1, '#040e16'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+    c.save(); c.globalCompositeOperation = 'lighter'; for (let i = 0; i < 4; i++) { const x = w * (.15 + i * .25) + Math.sin(t * .3 + i) * 20; const lg = c.createLinearGradient(x, 0, x + 40, h); lg.addColorStop(0, 'rgba(120,200,230,.12)'); lg.addColorStop(1, 'rgba(120,200,230,0)'); c.fillStyle = lg; c.beginPath(); c.moveTo(x - 15, 0); c.lineTo(x + 25, 0); c.lineTo(x + 90, h); c.lineTo(x + 20, h); c.fill() } c.restore();
+    for (const b of bub) { b.y -= b.v / 30; if (b.y < -.05) { b.y = 1.05; b.x = Math.random() } c.strokeStyle = 'rgba(200,240,255,.45)'; c.lineWidth = 1; c.beginPath(); c.arc(b.x * w + Math.sin(t + b.x * 9) * 4, b.y * h, b.r, 0, 6.283); c.stroke() }
+    const L = Math.min(w * .62, h * 1.25), x = w / 2 + Math.sin(t * .5) * w * .06, y = h * .47 + Math.sin(t * .9) * 8;
+    c.save(); if (dead) { c.translate(x, y); c.rotate(Math.PI); c.translate(-x, -y); c.globalAlpha = .75 }
+    const glow = c.createRadialGradient(x, y, 0, x, y, L * .7); glow.addColorStop(0, dead ? 'rgba(80,80,80,0)' : 'rgba(255,90,40,.22)'); glow.addColorStop(1, 'rgba(255,90,40,0)'); c.fillStyle = glow; c.fillRect(0, 0, w, h);
+    drawLook(c, x, y, L, Object.assign({ _id: 'merikurat' }, sp.look), t * 2, Math.cos(t * .25) > 0 ? 1 : -1);
+    c.restore();
+    if (!dead) { // kroon
+      const dir = Math.cos(t * .25) > 0 ? 1 : -1, cx2 = x - dir * L * .26, cy2 = y - L * .17;
+      c.fillStyle = '#ffd25e'; c.strokeStyle = '#a06a10'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(cx2 - 16, cy2); c.lineTo(cx2 - 16, cy2 - 14); c.lineTo(cx2 - 8, cy2 - 6); c.lineTo(cx2, cy2 - 18); c.lineTo(cx2 + 8, cy2 - 6); c.lineTo(cx2 + 16, cy2 - 14); c.lineTo(cx2 + 16, cy2); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#d8302c'; c.beginPath(); c.arc(cx2, cy2 - 5, 2.6, 0, 6.283); c.fill();
+    }
+  };
+  draw(); KT.anim = setInterval(draw, 50);
+}
+{ // nõuandja teab Kalatunnist
+  const _at = advTodo;
+  advTodo = function () {
+    const o = _at(), d = KT.d; if (!d) return o;
+    if (d.active) o.push({ pri: 9, ic: '🔥', t: 'Kalatund käib praegu!', how: 'Iga kala annab punkte ja teeb bossikalale kahju. Kolm parimat saavad suure auhinna.', go: 'kt:puuk', lbl: 'Kalale' });
+    if (d.unclaimed) o.push({ pri: 8, ic: '🏆', t: 'Kalatunni auhinnad ootavad', how: 'Võta auhinnad kalapüügi vahekaardil Kalatund.', go: 'kt:kalatund', lbl: 'Võta' });
+    return o.sort((a, b) => b.pri - a.pri);
+  };
+  const _ag = ACT.advGo; ACT.advGo = a => { if (a && a.startsWith('kt:')) { closeModal(); openFishView(a.slice(3)); return } _ag(a) };
+}
 
 /* ================= CLOUD: KONTOD, PILVESALVESTUS, EDETABEL ================= */
 const SUPA_URL = window.MK_SUPA_URL || 'https://marevpuolbeblrpwclms.supabase.co';

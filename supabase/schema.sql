@@ -884,7 +884,7 @@ end $$;
 create or replace function public.fish_land(p_cast bigint) returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); c fish_casts; f fishers; s fish_species; r fish_rods; sp fish_spots;
   chance numeric; wthr text := fx_weather(); v_night boolean := fx_is_night(); levels int[]; xp int; ach jsonb;
-  newsp boolean; prevmax numeric; cid bigint; res jsonb; g int; items jsonb := '[]'; tier text;
+  newsp boolean; prevmax numeric; cid bigint; res jsonb; g int; items jsonb := '[]'; tier text; kt jsonb;
 begin
   select * into c from fish_casts where id = p_cast and user_id = u for update;
   if c.id is null or c.state <> 'hooked' then return jsonb_build_object('ok', false, 'reason', 'gone'); end if;
@@ -967,7 +967,8 @@ begin
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
-  return jsonb_build_object('ok', true, 'kind', 'fish', 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
+  kt := fx_kt_add(u, s.id, s.rarity, c.weight, c.giant);
+  return jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
     'xp', xp, 'levels', to_jsonb(levels), 'ach', ach);
 end $$;
@@ -1841,6 +1842,124 @@ begin
   return jsonb_build_object('ok', true, 'amount', amt, 'res', p_res, 'stage_done', m.done_at is not null or exists (select 1 from kingdom_monument where stage = m.stage and done_at is not null));
 end $$;
 
+
+-- ---------------------------------------------------------------------
+-- 2g. Kalatund: iga päev kell 20–21 ühine püük + ühine bossikala
+-- ---------------------------------------------------------------------
+create table if not exists public.kalatund_score (
+  day date not null, user_id uuid not null references auth.users(id) on delete cascade,
+  pts int not null default 0, fish int not null default 0, dmg int not null default 0, best_rarity int not null default 0,
+  primary key (day, user_id)
+);
+create table if not exists public.kalatund_boss (
+  day date primary key, hp int not null, max_hp int not null, killed_at timestamptz, killer uuid
+);
+create table if not exists public.kalatund_prize (
+  user_id uuid not null references auth.users(id) on delete cascade, day date not null, at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+alter table public.kalatund_score enable row level security;
+alter table public.kalatund_boss enable row level security;
+alter table public.kalatund_prize enable row level security;
+revoke all on public.kalatund_score, public.kalatund_boss, public.kalatund_prize from anon, authenticated;
+
+create or replace function public.fx_kt_hour() returns int language sql immutable as $$ select 20 $$;
+create or replace function public.fx_kt_win(d date) returns table(p_from timestamptz, p_to timestamptz) language sql stable as
+$$ select (d::timestamp + make_interval(hours => fx_kt_hour())) at time zone 'Europe/Tallinn',
+          (d::timestamp + make_interval(hours => fx_kt_hour() + 1)) at time zone 'Europe/Tallinn' $$;
+create or replace function public.fx_kt_boss(d date) returns kalatund_boss language plpgsql as $$
+declare b kalatund_boss; n int;
+begin
+  select * into b from kalatund_boss where day = d;
+  if b.day is null then
+    select count(distinct user_id) into n from fish_catches where caught_at > now() - interval '7 days' and not bought;
+    insert into kalatund_boss(day, hp, max_hp) values (d, 1000 + 600 * greatest(1, n), 1000 + 600 * greatest(1, n)) on conflict (day) do nothing;
+    select * into b from kalatund_boss where day = d;
+  end if;
+  return b;
+end $$;
+-- kutsutakse fish_land seest: lisab punktid ja teeb bossile kahju
+create or replace function public.fx_kt_add(u uuid, p_species text, p_rarity int, p_w numeric, p_giant boolean) returns jsonb language plpgsql as $$
+declare d date := fx_today(); w record; avgw numeric; v_pts int; b kalatund_boss; v_dmg int; killed boolean := false;
+begin
+  select * into w from fx_kt_win(d);
+  if now() < w.p_from or now() >= w.p_to then return null; end if;
+  select (min_w + max_w) / 2 into avgw from fish_species where id = p_species;
+  v_pts := greatest(1, round((array[5,10,25,60,150,400])[least(6, greatest(1, p_rarity))] * (0.6 + 0.4 * least(3, p_w / greatest(avgw, 0.01))) * case when p_giant then 1.5 else 1 end));
+  perform pg_advisory_xact_lock(hashtext('kalatund' || d::text));
+  b := fx_kt_boss(d);
+  v_dmg := case when b.killed_at is null then least(b.hp, v_pts) else 0 end;
+  if v_dmg > 0 then
+    update kalatund_boss set hp = hp - v_dmg where day = d returning * into b;
+    if b.hp <= 0 then
+      update kalatund_boss set killed_at = now(), killer = u where day = d; killed := true;
+      perform fx_news(u, 'boss', jsonb_build_object('day', d));
+    end if;
+  end if;
+  insert into kalatund_score(day, user_id, pts, fish, dmg, best_rarity) values (d, u, v_pts, 1, v_dmg, p_rarity)
+  on conflict (day, user_id) do update set pts = kalatund_score.pts + v_pts, fish = kalatund_score.fish + 1,
+    dmg = kalatund_score.dmg + v_dmg, best_rarity = greatest(kalatund_score.best_rarity, p_rarity);
+  return jsonb_build_object('pts', v_pts, 'dmg', v_dmg, 'hp', greatest(0, b.hp), 'max_hp', b.max_hp, 'killed', killed);
+end $$;
+
+create or replace function public.fx_kt_top(d date, u uuid, lim int) returns jsonb language sql stable as $$
+  select coalesce(jsonb_agg(jsonb_build_object('place', x.place, 'name', x.name, 'title', x.title, 'pts', x.pts, 'fish', x.fish, 'dmg', x.dmg, 'me', x.user_id = u) order by x.place), '[]')
+  from (select k.user_id, p.name, f.title, k.pts, k.fish, k.dmg, (row_number() over (order by k.pts desc, k.fish desc, k.user_id))::int as place
+        from kalatund_score k join profiles p on p.id = k.user_id left join fishers f on f.user_id = k.user_id where k.day = d) x
+  where x.place <= lim or x.user_id = u
+$$;
+
+create or replace function public.fish_kalatund() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); d date := fx_today(); w record; b kalatund_boss; yb kalatund_boss; mine jsonb; unclaimed int; act boolean; nxt timestamptz; part int;
+begin
+  perform fx_fisher(u);
+  select * into w from fx_kt_win(d);
+  act := now() >= w.p_from and now() < w.p_to;
+  nxt := case when now() < w.p_from then w.p_from else (select p_from from fx_kt_win(d + 1)) end;
+  if act then b := fx_kt_boss(d); else select * into b from kalatund_boss where day = d; end if;
+  select * into yb from kalatund_boss where day = d - 1;
+  select to_jsonb(k) - 'user_id' - 'day' into mine from kalatund_score k where k.day = d and k.user_id = u;
+  select count(*) into part from kalatund_score where day = d;
+  select count(*) into unclaimed from kalatund_score k where k.user_id = u and k.day >= d - 7
+    and (k.day < d or now() >= w.p_to) and not exists (select 1 from kalatund_prize z where z.user_id = u and z.day = k.day);
+  return jsonb_build_object('now', now(), 'active', act, 'start', w.p_from, 'end', w.p_to, 'next', nxt, 'hour', fx_kt_hour(),
+    'top', fx_kt_top(d, u, 10), 'mine', mine, 'players', part, 'unclaimed', unclaimed,
+    'boss', case when b.day is null then null else jsonb_build_object('hp', b.hp, 'max_hp', b.max_hp, 'killed_at', b.killed_at,
+       'killer', (select name from profiles where id = b.killer)) end,
+    'yesterday', jsonb_build_object('top', (select coalesce(jsonb_agg(e) filter (where (e->>'place')::int <= 3), '[]') from jsonb_array_elements(fx_kt_top(d - 1, u, 3)) e),
+       'boss', case when yb.day is null then null else jsonb_build_object('killed', yb.killed_at is not null, 'killer', (select name from profiles where id = yb.killer)) end));
+end $$;
+
+create or replace function public.fish_kt_claim() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); d date := fx_today(); w record; k record; pl int; b kalatund_boss; v_gold int; v_xp int; got jsonb := '[]';
+  levels int[] := '{}'; items jsonb; topdmg uuid; f fishers;
+begin
+  select * into f from fx_fisher(u);
+  select * into w from fx_kt_win(d);
+  for k in select * from kalatund_score s where s.user_id = u and s.day >= d - 7 and (s.day < d or now() >= w.p_to)
+           and not exists (select 1 from kalatund_prize z where z.user_id = u and z.day = s.day) order by s.day loop
+    insert into kalatund_prize(user_id, day) values (u, k.day) on conflict do nothing;
+    if not found then continue; end if;
+    select place into pl from (select user_id, row_number() over (order by pts desc, fish desc, user_id) as place from kalatund_score where day = k.day) x where x.user_id = u;
+    v_gold := 100 + case pl when 1 then 1500 when 2 then 800 when 3 then 400 else 0 end;
+    v_xp := 60 + case pl when 1 then 500 when 2 then 250 when 3 then 120 else 0 end;
+    items := '[]';
+    select * into b from kalatund_boss where day = k.day;
+    if b.killed_at is not null and k.dmg > 0 then
+      v_gold := v_gold + 300 + f.level * 10; v_xp := v_xp + 200;
+      items := fx_give_random(u, 4, 1);
+      select user_id into topdmg from kalatund_score where day = k.day order by dmg desc, pts desc limit 1;
+      if topdmg = u then update fishers set titles = case when not ('Bossikala alistaja' = any(titles)) then titles || 'Bossikala alistaja'::text else titles end where user_id = u; end if;
+    end if;
+    update fishers set gold = gold + v_gold,
+      titles = case when pl = 1 and not ('Kalatunni kuningas' = any(titles)) then titles || 'Kalatunni kuningas'::text else titles end where user_id = u;
+    if pl = 1 then perform fx_news(u, 'kalatund', jsonb_build_object('day', k.day, 'pts', k.pts)); end if;
+    levels := levels || fx_add_xp(u, v_xp);
+    got := got || jsonb_build_object('day', k.day, 'place', pl, 'pts', k.pts, 'gold', v_gold, 'xp', v_xp, 'boss', b.killed_at is not null and k.dmg > 0, 'items', items);
+  end loop;
+  return jsonb_build_object('prizes', got, 'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
@@ -1853,7 +1972,7 @@ do $$ declare r record; begin
               'fish_house_upgrade','fish_aquarium_put','fish_aquarium_take','fish_aquarium_collect','fish_aquarium_view','fish_aquariums','fish_aquarium_like',
               'fish_rod_upgrade','fish_enchant','fish_boat_buy',
               'fish_market_list','fish_market_cancel','fish_market_buy','fish_market_browse','fish_market_mine',
-              'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute')) loop
+              'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute','fish_kalatund','fish_kt_claim')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
