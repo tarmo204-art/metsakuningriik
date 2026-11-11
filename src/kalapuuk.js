@@ -814,7 +814,7 @@ async function doPull() {
       FS.lost++;
       setPhase('lost', r.reason === 'early' || early ? 'Liiga vara! Kala ehmus ära. Oota, kuni ujuk vee alla tõmbub.' : 'Liiga hilja! Kala jõudis minema ujuda.');
     } else {
-      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 2 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.25, .75), zw: +r.zone, sp: +r.speed, t0: performance.now(), flash: 0 };
+      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 };
       const over = +r.est > +r.strength;
       setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: tõmba või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Vajuta ${r.need} korda, kui valge joon on rohelisel alal.`);
     }
@@ -824,13 +824,13 @@ async function doPull() {
 function reelHit() {
   const h = FV.hook; if (!h || FV.busy) return;
   const lo = h.zc - h.zw / 2, hi = h.zc + h.zw / 2, nd = h.needle || 0;
-  if (nd >= lo && nd <= hi) {
-    h.hits++; h.flash = .25;
+  if (nd >= lo - .03 && nd <= hi + .03) {
+    h.hits++; h.flash = .25; fxHit(Math.abs(nd - h.zc) < h.zw * .22);
     if (h.hits >= h.need) { doLand(); return }
-    h.zc = rnd(.18, .82); h.zw = Math.max(.07, h.zw * .93); h.sp *= 1.07;
+    h.zc = rnd(.22, .78); h.zw = Math.max(.1, h.zw * .96); h.sp *= 1.04;
     setMsg(['Hea! Kala väsib.', 'Veel natuke!', 'Tõmba, tõmba!'][h.hits % 3]);
   } else {
-    h.misses++;
+    h.misses++; fxMiss();
     if (h.misses >= h.maxMiss) { doLose('Nöör läks lõdvaks ja kala rebis end lahti.'); return }
     setMsg(`Mööda! Nöör on pingul. Vigu veel lubatud: ${h.maxMiss - h.misses}.`);
   }
@@ -854,7 +854,7 @@ async function doLand() {
       else setPhase('lost', 'Kala pääses minema.');
       await refreshFS(); afterAch(r.ach); renderFV(true);
     } else {
-      FV.result = r; sparkleScene(r.kind === 'fish' ? RAR2[r.rarity][1] : '#ffd065');
+      FV.result = r; fxLand(r);
       await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); FV.oddsKey = ''; loadOdds().then(() => FV.phase === 'result' && renderFV());
       FV.busy = false; setPhase('result', resultMsg(r) + ktResult(r.kt));
       afterLevels(r.levels); afterAch(r.ach);
@@ -898,8 +898,8 @@ function sceneLoop(ts) {
   requestAnimationFrame(sceneLoop);
   const dt = Math.min(.05, (ts - lastSc) / 1000 || 0); lastSc = ts; const t = ts / 1000;
   // ajastused
-  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); renderFV(true) }
-  if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1150 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
+  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
+  if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
   if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
@@ -907,28 +907,13 @@ function sceneLoop(ts) {
   const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
   if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
   const c = sceneCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  if (FX.shake > 0) { FX.shake -= dt; const k = FX.shake * 14; c.translate(rnd(-k, k), rnd(-k, k)) }
   const [shore, wTop, wBot] = SCN[FV.spot] || SCN.metsajarv, night = FS && FS.is_night, h = hgt;
-  const sg = c.createLinearGradient(0, 0, 0, h * .32); sg.addColorStop(0, night ? '#0b1530' : FV.spot === 'salajane' ? '#5a4a8a' : FV.spot === 'sugavik' ? '#1a2a48' : '#8fc8e4'); sg.addColorStop(1, night ? '#1e2c58' : FV.spot === 'salajane' ? '#a898c8' : FV.spot === 'sugavik' ? '#3a4a6a' : '#d6ecf2');
-  c.fillStyle = sg; c.fillRect(0, 0, w, h * .32);
-  if (night) for (let i = 0; i < 40; i++) circ(c, th(i, 1, 3) * w, th(i, 2, 3) * h * .28, th(i, 3, 3) * 1.3 + .3, `rgba(255,255,240,${.4 + .4 * Math.abs(Math.sin(t + i))})`);
-  if (night) circ(c, w * .82, h * .1, 12, '#f2ecd0');
-  // kallas ja taust
-  if (FV.spot === 'kuninglik') { c.fillStyle = night ? '#1a2238' : '#6a7a8a'; c.fillRect(w * .62, h * .12, w * .2, h * .16); for (let i = 0; i < 4; i++) c.fillRect(w * .62 + i * w * .055, h * .09, w * .03, h * .04); c.fillRect(w * .66, h * .02, w * .04, h * .12); poly(c, [w * .655, h * .02, w * .68, -h * .04, w * .705, h * .02], '#3a5f8c') }
-  if (FV.spot === 'jogi' || FV.spot === 'metsajarv' || FV.spot === 'salajane') for (let i = 0; i < 18; i++) { const x = i / 18 * w + th(i, 4, 1) * 20, hh = h * (.1 + th(i, 5, 1) * .08); poly(c, [x - 14, h * .3, x + 14, h * .3, x, h * .3 - hh], night ? '#0e2018' : FV.spot === 'salajane' ? '#3a3a5a' : '#2b5a3a') }
-  if (FV.spot === 'jaa') for (let i = 0; i < 6; i++) poly(c, [i * w / 5 - 40, h * .3, i * w / 5 + 60, h * .3, i * w / 5 + 10, h * .12], '#c8dae2');
-  if (FV.spot === 'saarestik') for (let i = 0; i < 4; i++) { const x = w * (.08 + i * .27), iw = w * (.12 + th(i, 2, 8) * .08); c.beginPath(); c.moveTo(x - iw / 2, h * .32); c.quadraticCurveTo(x - iw * .3, h * .2, x, h * .2); c.quadraticCurveTo(x + iw * .35, h * .21, x + iw / 2, h * .32); c.fillStyle = night ? '#1a2028' : '#6a6a62'; c.fill(); for (let k = 0; k < 4; k++) { const px = x - iw * .25 + k * iw * .15, ph2 = h * (.06 + th(i, k, 9) * .05); poly(c, [px - 6, h * .215, px + 6, h * .215, px, h * .2 - ph2], night ? '#0e1a14' : '#2b4a32') } }
-  if (FV.spot === 'avameri') { const sx = ((t * 6) % (w + 200)) - 100, col = night ? 'rgba(20,26,40,.8)' : 'rgba(70,80,100,.55)'; poly(c, [sx, h * .305, sx + 34, h * .305, sx + 28, h * .318, sx + 5, h * .318], col); poly(c, [sx + 16, h * .3, sx + 16, h * .2, sx + 30, h * .3], night ? 'rgba(30,36,50,.8)' : 'rgba(240,240,240,.7)'); poly(c, [sx + 14, h * .3, sx + 14, h * .23, sx + 5, h * .3], night ? 'rgba(30,36,50,.8)' : 'rgba(230,230,230,.6)') }
-  if (FV.spot === 'avameri' || FV.spot === 'sugavik') rect(c, 0, h * .3, w, h * .03, wTop); else rect(c, 0, h * .26, w, h * .07, shore);
-  const wg = c.createLinearGradient(0, h * .32, 0, h); wg.addColorStop(0, wTop); wg.addColorStop(1, wBot); c.fillStyle = wg; c.fillRect(0, h * .32, w, h * .68);
-  if (FV.spot === 'jaa') { c.fillStyle = '#e8f4f8'; c.fillRect(0, h * .32, w, h * .68); c.beginPath(); c.ellipse(w * .6, h * .56, w * .17, h * .13, 0, 0, 6.29); c.fillStyle = '#1f4e62'; c.fill(); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.stroke() }
-  if (FV.spot === 'sugavik') for (let i = 0; i < 26; i++) { const x = (th(i, 1, 11) * w + Math.sin(t * .3 + i) * 20), y = h * (.4 + th(i, 2, 11) * .58) + Math.sin(t * .7 + i * 2) * 6, a = .3 + .5 * Math.abs(Math.sin(t * .8 + i)); circ(c, x, y, 1.2 + th(i, 3, 11) * 1.8, `rgba(120,230,255,${a})`) }
-  const flow = FV.spot === 'jogi' ? 70 : FV.spot === 'meri' || FV.spot === 'avameri' ? 30 : FV.spot === 'sugavik' ? 8 : 14;
-  for (let i = 0; i < 9; i++) { const yy = h * (.38 + i * .07) + Math.sin(t * 1.3 + i) * 2, xx = ((t * flow * (i % 2 ? 1 : .6) + i * 97) % (w + 80)) - 40; c.strokeStyle = 'rgba(255,255,255,.13)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + 40, yy); c.stroke() }
-  if (FV.spot === 'salajane') for (let i = 0; i < 3; i++) { const fx = ((t * 12 * (i + 1) + i * 200) % (w + 300)) - 150, g = c.createRadialGradient(fx, h * .5, 0, fx, h * .5, 160); g.addColorStop(0, 'rgba(220,200,255,.22)'); g.addColorStop(1, 'rgba(220,200,255,0)'); c.fillStyle = g; c.fillRect(fx - 160, h * .5 - 160, 320, 320) }
+  drawBackdrop(c, w, h, t, night, d, wTop, wBot);
   // ilm
   if (FS && (FS.weather === 'vihm' || FS.weather === 'torm')) { c.strokeStyle = 'rgba(210,230,255,.45)'; c.lineWidth = 1; for (let i = 0; i < (FS.weather === 'torm' ? 120 : 70); i++) { const x = (th(i, 7, 1) * w + t * 60) % w, y = (th(i, 8, 1) * h + t * 400 * (.8 + th(i, 9, 1) * .4)) % h; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 4, y + 12); c.stroke() } }
   if (FS && FS.weather === 'udu') { c.fillStyle = 'rgba(230,236,234,.22)'; c.fillRect(0, 0, w, h) }
-  if (night) { c.fillStyle = 'rgba(8,16,44,.35)'; c.fillRect(0, 0, w, h) }
+  if (night) { c.fillStyle = 'rgba(8,16,44,.12)'; c.fillRect(0, 0, w, h) }
   // paat merel
   if (FD.spot[FV.spot] && FD.spot[FV.spot].boat) {
     const own = (FS.boats || []), bid = own.includes('laev') ? 'laev' : own.includes('kaater') ? 'kaater' : 'paat', col = bid === 'laev' ? '#2a4a7a' : bid === 'kaater' ? '#e8eef2' : '#9a6436', rock = Math.sin(t * 1.4) * 3;
@@ -956,6 +941,7 @@ function sceneLoop(ts) {
   if (FV.phase === 'reel' && FV.hook) {
     const hk = FV.hook, fx = bx + Math.sin(t * 2.4) * w * .12, L = Math.min(w * .3, 50 + (+hk.est) * 3);
     c.globalAlpha = .35; c.filter = 'brightness(0)'; drawLook(c, fx, h * .8, L, {}, t, Math.cos(t * 2.4) > 0 ? -1 : 1); c.filter = 'none'; c.globalAlpha = 1;
+    if (Math.random() < .18) fxDrops(fx + rnd(-L * .4, L * .4), h * .62 + rnd(-6, 6), 3, .6);
     const x0 = w * .06, bw = w * .88, yb = h * .9, bh = 16;
     rect(c, x0 - 2, yb - 2, bw + 4, bh + 4, 'rgba(0,0,0,.6)'); rect(c, x0, yb, bw, bh, '#24343a');
     rect(c, x0 + (hk.zc - hk.zw / 2) * bw, yb, hk.zw * bw, bh, hk.flash > 0 ? '#d8ff9a' : '#7fd16a');
@@ -966,6 +952,7 @@ function sceneLoop(ts) {
     c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
     rect(c, w / 2 - tw / 2, yb - 30, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, yb - 15);
   }
+  FX.w = w; FX.h = h; FX.bx = bx; FX.by = by; drawFx(c, w, h, dt, t);
   for (const p of sparks) { p.life -= dt; p.vy += dt * .5; p.x += p.vx * dt; p.y += p.vy * dt; c.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5)); circ(c, p.x * w, p.y * h, 3, p.col); c.globalAlpha = 1 }
   sparks = sparks.filter(p => p.life > 0);
 }
