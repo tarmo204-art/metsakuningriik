@@ -5353,11 +5353,7 @@ function sceneLoop(ts) {
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
   const bend = FV.phase === 'reel' ? RS * (.12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
-  if (!casting || FV.phase === 'casting') {
-    c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(tipP[0], tipP[1]); c.quadraticCurveTo((tipP[0] + bx) / 2 + w * .03, (tipP[1] + by) / 2 - h * .05 + (FV.phase === 'reel' ? h * .08 : 0), bx, by + bob - 6); c.stroke();
-    if (FV.phase === 'bite' || FV.phase === 'reel') for (let i = 0; i < 3; i++) { c.strokeStyle = `rgba(255,255,255,${.55 - i * .15})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 28), 4 + ((t * 10 + i * 4) % 9), 0, 0, 6.29); c.stroke() }
-    circ(c, bx, by + bob, 7, '#e8412e'); c.beginPath(); c.arc(bx, by + bob, 7, Math.PI, 0); c.fillStyle = '#fff'; c.fill(); rect(c, bx - 1, by + bob - 15, 2, 8, '#3a2a1a');
-  }
+  drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
     const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
@@ -6218,7 +6214,7 @@ function fxHit(perfect) {
 function fxMiss() { fxText(FX.w / 2, FX.h * .72, 'MÖÖDA!', '#ff9a8a', 22); FX.shake = .3 }
 function fxLand(r) {
   if (r.kind !== 'fish') { sparkleScene('#ffd065'); fxDrops(FX.bx, FX.by, 20); fxRing(FX.bx, FX.by, 50); return }
-  FX.leap = { t0: performance.now(), sid: r.species, rar: r.rarity, giant: r.giant, w: +r.weight, landed: false };
+  FX.leap = { t0: performance.now(), sid: r.species, rar: r.rarity, giant: r.giant, w: +r.weight, landed: false, xp: r.xp, nw: r.new_species, rec: r.record };
   fxDrops(FX.bx, FX.by, 30, 1.3); fxRing(FX.bx, FX.by, 70); fxRing(FX.bx, FX.by, 45); FX.shake = .25;
 }
 function drawFx(c, w, h, dt, t) {
@@ -6232,6 +6228,10 @@ function drawFx(c, w, h, dt, t) {
         fxDrops(FX.bx + w * .16, FX.by, 26, 1.2); fxRing(FX.bx + w * .16, FX.by, 60);
         sparkleScene(col); if (L2.rar >= 3 || L2.giant) FX.rays = { t0: performance.now(), col, big: L2.rar >= 5 || L2.giant };
         if (L2.rar >= 4 || L2.giant) for (let i = 0; i < 70; i++) FX.conf.push({ x: w / 2 + rnd(-40, 40), y: h * .35, vx: rnd(-220, 220), vy: rnd(-320, -80), r: rnd(0, 6.28), vr: rnd(-8, 8), col: ['#ffd25e', '#ff6a5a', '#6ad8ff', '#9aff7a', col][i % 5], life: rnd(1.6, 2.6) });
+        fxRing(FX.bx + w * .16, FX.by, 120, col.startsWith('#') ? [1, 3, 5].map(i => parseInt(col.slice(i, i + 2), 16)).join(',') : '255,255,255');
+        for (let i = 0; i < 16; i++) FX.conf.push({ x: FX.bx + w * .16, y: FX.by - 10, vx: rnd(-160, 160), vy: rnd(-300, -150), r: 0, vr: rnd(-6, 6), col: '#ffd84a', coin: 1, life: rnd(1, 1.6) });
+        if (L2.xp) setTimeout(() => fxText(FX.bx + w * .16, FX.by - 40, `+${L2.xp} XP`, '#9ae8ff', 20), 250);
+        if (L2.nw) setTimeout(() => fxText(w / 2, h * .32, 'UUS LIIK KALARAAMATUS!', '#9aff7a', 22), 500); else if (L2.rec) setTimeout(() => fxText(w / 2, h * .32, 'ISIKLIK REKORD!', '#ffb86a', 22), 500);
         fxText(w / 2, h * .2, L2.giant ? 'REKORDSUURUS!' : ['', 'Püütud!', 'Ebatavaline!', 'HARULDANE!', 'EEPILINE!', 'LEGENDAARNE!', 'MÜÜTILINE!'][L2.rar] || 'Püütud!', col, L2.rar >= 4 ? 34 : 28);
       }
       FX.leap = null;
@@ -6257,7 +6257,7 @@ function drawFx(c, w, h, dt, t) {
   FX.drops = FX.drops.filter(p => p.life > 0);
   for (const r of FX.rings) { r.t += dt; const k = r.t / .9; c.strokeStyle = `rgba(${r.col},${Math.max(0, .7 * (1 - k))})`; c.lineWidth = 2 * (1 - k) + .5; c.beginPath(); c.ellipse(r.x, r.y, r.max * k, r.max * k * .3, 0, 0, 6.283); c.stroke() }
   FX.rings = FX.rings.filter(r => r.t < .9);
-  for (const p of FX.conf) { p.life -= dt; p.vy += 300 * dt; p.vx *= .99; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; c.save(); c.globalAlpha = Math.max(0, Math.min(1, p.life)); c.translate(p.x, p.y); c.rotate(p.r); c.fillStyle = p.col; c.fillRect(-4, -2, 8, 4); c.restore() }
+  for (const p of FX.conf) { p.life -= dt; p.vy += 300 * dt; p.vx *= .99; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; c.save(); c.globalAlpha = Math.max(0, Math.min(1, p.life)); c.translate(p.x, p.y); c.rotate(p.r); if (p.coin) { c.scale(Math.cos(p.r * 2), 1); c.fillStyle = '#f2b532'; c.beginPath(); c.arc(0, 0, 4, 0, 6.283); c.fill(); c.fillStyle = '#ffe89a'; c.beginPath(); c.arc(-1, -1, 2, 0, 6.283); c.fill() } else { c.fillStyle = p.col; c.fillRect(-4, -2, 8, 4) } c.restore() }
   FX.conf = FX.conf.filter(p => p.life > 0 && p.y < h + 20);
   for (const tx of FX.texts) {
     tx.life -= dt; const k = 1 - tx.life / 1.3, s = k < .15 ? .6 + k / .15 * .5 : 1.1 - Math.min(.1, (k - .15));
@@ -6267,6 +6267,71 @@ function drawFx(c, w, h, dt, t) {
   FX.texts = FX.texts.filter(x => x.life > 0);
 }
 { const _dl = doLose; doLose = async function (msg) { fxDrops(FX.bx, FX.by, 10, .8); fxRing(FX.bx, FX.by, 40, '255,150,130'); fxText(FX.w / 2, FX.h * .3, 'PÄÄSES!', '#ff9a8a', 26); return _dl.apply(this, arguments) } }
+
+/* ---------- ujuk, nöör, viskamine ---------- */
+FX.bub = []; FX.castT0 = 0; FX.lastPh = ''; FX.snap = 0; FX.nib = 0;
+function drawBobber(c, x, wy, sink, t, s, night) {
+  // wy = veepinna kõrgus ujuki kohal, sink = kui palju ujuk on vee all (px)
+  const H = 30 * s, R = 6.2 * s, top = wy - H * .55 + sink;
+  // veealune osa (murdub ja tumeneb)
+  c.save(); c.beginPath(); c.rect(x - 30 * s, wy, 60 * s, 60 * s); c.clip(); c.globalAlpha = .45; c.translate(Math.sin(t * 3) * 1.2 * s, 0);
+  c.fillStyle = '#c8b890'; c.beginPath(); c.moveTo(x, top + H * 1.05); c.quadraticCurveTo(x + R * 1.05, top + H * .62, x + R, top + H * .42); c.lineTo(x - R, top + H * .42); c.quadraticCurveTo(x - R * 1.05, top + H * .62, x, top + H * 1.05); c.fill();
+  c.strokeStyle = 'rgba(40,30,20,.6)'; c.lineWidth = 1.2 * s; c.beginPath(); c.moveTo(x, top + H * 1.05); c.lineTo(x, top + H * 1.4); c.stroke();
+  c.restore();
+  // pinnast kõrgem osa
+  c.save(); c.beginPath(); c.rect(x - 30 * s, wy - 80 * s, 60 * s, 80 * s + .5); c.clip();
+  c.strokeStyle = '#2a2018'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(x, top + H * .1); c.lineTo(x, top - H * .45); c.stroke();
+  c.fillStyle = '#ff3a2a'; c.beginPath(); c.ellipse(x, top - H * .45, 1.6 * s, 3.4 * s, 0, 0, 6.283); c.fill();
+  const g = c.createLinearGradient(x - R, 0, x + R, 0); g.addColorStop(0, '#a8180e'); g.addColorStop(.35, '#ff5a3a'); g.addColorStop(.6, '#f03a22'); g.addColorStop(1, '#8a1208');
+  c.fillStyle = g; c.beginPath(); c.moveTo(x, top); c.quadraticCurveTo(x + R * 1.05, top + H * .12, x + R, top + H * .42); c.lineTo(x - R, top + H * .42); c.quadraticCurveTo(x - R * 1.05, top + H * .12, x, top); c.fill();
+  const wg = c.createLinearGradient(x - R, 0, x + R, 0); wg.addColorStop(0, '#b8b4a8'); wg.addColorStop(.4, '#ffffff'); wg.addColorStop(1, '#a8a498'); c.fillStyle = wg; c.fillRect(x - R * .99, top + H * .32, R * 1.98, H * .1);
+  c.fillStyle = '#1a1410'; c.fillRect(x - R, top + H * .3, R * 2, H * .025);
+  c.fillStyle = 'rgba(255,255,255,.7)'; c.beginPath(); c.ellipse(x - R * .42, top + H * .16, R * .2, H * .09, -.3, 0, 6.283); c.fill();
+  c.restore();
+  // veepiir: menisk ja peegeldus
+  if (sink < H * .5) {
+    c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.2 * s; c.beginPath(); c.ellipse(x, wy, R * 1.5, R * .4, 0, 0, 6.283); c.stroke();
+    c.fillStyle = 'rgba(255,80,50,.18)'; c.beginPath(); c.ellipse(x + Math.sin(t * 2) * s, wy + H * .25, R * .7, H * .18, 0, 0, 6.283); c.fill();
+  }
+}
+function drawLineBobber(c, w, h, t, tip, bx, by, bob, casting) {
+  const ph = FV.phase, s = Math.max(.85, Math.min(1.5, h / 220)), now = performance.now();
+  if (ph !== FX.lastPh) {
+    if (ph === 'casting') FX.castT0 = now;
+    if (ph === 'lost' && FX.lastPh !== 'idle') FX.snap = now;
+    FX.lastPh = ph;
+  }
+  // viskamine: ujuk lendab kaares õnge otsast vette
+  const flyK = FX.castT0 ? (now - FX.castT0) / 750 : 2;
+  let fx = bx, fy = by + bob, flying = flyK < 1 && (ph === 'casting' || ph === 'waiting');
+  if (flying) { fx = tip[0] + (bx - tip[0]) * flyK; fy = tip[1] + (by - tip[1]) * flyK - Math.sin(flyK * Math.PI) * h * .25 }
+  else if (FX.castT0 && flyK >= 1) { FX.castT0 = 0; fxDrops(bx, by, 16, .9); fxRing(bx, by + 4, 50); fxRing(bx, by + 4, 32); if (typeof sfx === 'function') sfx('splash') }
+  // nöör katkeb: lõdvalt tagasi
+  if (FX.snap && now - FX.snap < 900) {
+    const k = (now - FX.snap) / 900; c.strokeStyle = `rgba(240,240,240,${.8 * (1 - k)})`; c.lineWidth = 1; c.beginPath(); c.moveTo(tip[0], tip[1]);
+    for (let i = 1; i <= 12; i++) { const q = i / 12; c.lineTo(tip[0] + (bx - tip[0]) * q * (1 - k * .7), tip[1] + (by - tip[1]) * q * (1 - k * .5) + Math.sin(q * 9 + k * 14) * 14 * k + q * q * 60 * k) } c.stroke();
+  }
+  if (casting && ph !== 'casting' && !flying) return;
+  // väike näksimine enne näkkamist
+  let sink = 0;
+  if (ph === 'waiting' && FV.biteAt) { const left = FV.biteAt - now; if (left < 1600 && left > 0 && Math.sin(now / 90) > .6) { sink = 2.5 * s; if (Math.random() < .05) fxRing(bx, by + 2, 18) } }
+  if (ph === 'bite') { sink = (16 + Math.sin(t * 30) * 6) * s; if (Math.random() < .5) FX.bub.push({ x: bx + rnd(-5, 5) * s, y: by + 10 * s, v: rnd(20, 40), r: rnd(1, 2.6) * s, life: rnd(.5, 1) }) }
+  if (ph === 'reel') { sink = (8 + Math.sin(t * 14) * 4) * s; if (Math.random() < .25) FX.bub.push({ x: bx + rnd(-8, 8) * s, y: by + 8 * s, v: rnd(20, 40), r: rnd(1, 2.2) * s, life: rnd(.4, .8) }) }
+  const bobY = flying ? fy : by + Math.sin(t * 2.2) * 1.5 * s;
+  // nöör
+  const tight = ph === 'reel' || ph === 'hooking' || ph === 'landing', mx = (tip[0] + fx) / 2 + (tight ? 0 : w * .03), my = (tip[1] + bobY) / 2 + (tight ? -h * .02 : h * .04);
+  c.strokeStyle = tight ? 'rgba(255,255,255,.95)' : 'rgba(240,240,240,.8)'; c.lineWidth = tight ? 1.3 : 1;
+  c.beginPath(); c.moveTo(tip[0], tip[1]); c.quadraticCurveTo(mx + (tight ? Math.sin(t * 40) * 1.5 : 0), my, fx, flying ? fy : bobY - 12 * s + sink); c.stroke();
+  if (tight) { c.strokeStyle = 'rgba(180,230,255,.35)'; c.lineWidth = 3; c.stroke(); if (Math.random() < .3) { const q = Math.random(); FX.drops.push({ x: tip[0] + (fx - tip[0]) * q, y: tip[1] + (bobY - tip[1]) * q, vx: rnd(-20, 20), vy: rnd(0, 40), life: .5, r: 1.2 }) } }
+  if (flying) { c.save(); c.translate(fx, fy); c.rotate(flyK * 6); c.translate(-fx, -fy); drawBobber(c, fx, fy + 12 * s, 0, t, s, 0); c.restore(); return }
+  // rõngad
+  if (ph === 'bite' || ph === 'reel') for (let i = 0; i < 3; i++) { const k = ((t * 1.6 + i / 3) % 1); c.strokeStyle = `rgba(255,255,255,${.6 * (1 - k)})`; c.lineWidth = 1.4; c.beginPath(); c.ellipse(bx, by, 8 + k * 40 * s, (3 + k * 12) * s, 0, 0, 6.283); c.stroke() }
+  else { const k = (t * .4) % 1; c.strokeStyle = `rgba(255,255,255,${.25 * (1 - k)})`; c.lineWidth = 1; c.beginPath(); c.ellipse(bx, by, 10 + k * 26 * s, (3 + k * 7) * s, 0, 0, 6.283); c.stroke() }
+  drawBobber(c, bx, by, sink, t, s, 0);
+  // mullid
+  for (const b of FX.bub) { b.life -= 1 / 60; b.y -= b.v / 60; c.strokeStyle = `rgba(230,250,255,${Math.max(0, b.life)})`; c.lineWidth = 1; c.beginPath(); c.arc(b.x, Math.max(by - 2, b.y), b.r, 0, 6.283); c.stroke() }
+  FX.bub = FX.bub.filter(b => b.life > 0 && b.y > by - 3);
+}
 
 /* ================= CLOUD: KONTOD, PILVESALVESTUS, EDETABEL ================= */
 const SUPA_URL = window.MK_SUPA_URL || 'https://marevpuolbeblrpwclms.supabase.co';

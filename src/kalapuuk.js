@@ -932,11 +932,7 @@ function sceneLoop(ts) {
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
   const bend = FV.phase === 'reel' ? RS * (.12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
-  if (!casting || FV.phase === 'casting') {
-    c.strokeStyle = 'rgba(240,240,240,.85)'; c.lineWidth = 1; c.beginPath(); c.moveTo(tipP[0], tipP[1]); c.quadraticCurveTo((tipP[0] + bx) / 2 + w * .03, (tipP[1] + by) / 2 - h * .05 + (FV.phase === 'reel' ? h * .08 : 0), bx, by + bob - 6); c.stroke();
-    if (FV.phase === 'bite' || FV.phase === 'reel') for (let i = 0; i < 3; i++) { c.strokeStyle = `rgba(255,255,255,${.55 - i * .15})`; c.beginPath(); c.ellipse(bx, by + 6, 10 + ((t * 30 + i * 10) % 28), 4 + ((t * 10 + i * 4) % 9), 0, 0, 6.29); c.stroke() }
-    circ(c, bx, by + bob, 7, '#e8412e'); c.beginPath(); c.arc(bx, by + bob, 7, Math.PI, 0); c.fillStyle = '#fff'; c.fill(); rect(c, bx - 1, by + bob - 15, 2, 8, '#3a2a1a');
-  }
+  drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
     const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
