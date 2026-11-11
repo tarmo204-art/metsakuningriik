@@ -284,13 +284,13 @@ function renderLbWeb() {
   if (!CL.peers.length) h += `<p class="lead">Kui sõbrad on samal ajal mängus, ilmuvad nad siia.</p>`;
   else {
     const byId = {}; (CL.lb || []).forEach(r => byId[r.id] = r);
-    h += `<div class="lbwrap"><table class="lb"><thead><tr><th></th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th></tr></thead><tbody>${CL.peers.map(p => { const v = byId[p.uid]; return `<tr class="${p.me ? 'me' : ''}"><td class="rk"><span class="livedot"></span></td><td><b>${esc(p.k)}</b><small>${esc(p.r || '')}${p.me ? ' · sina' : ''}${p.v ? ' · ' + esc(p.v) : ''}</small></td><td class="num">${v ? v.level : '–'}</td><td class="num">${v ? fmt(v.fame) : '–'}</td><td class="num">${v ? v.regions : '–'}</td></tr>` }).join('')}</tbody></table></div>`;
+    h += lbHtml({ who: 'Kuningriik', cols: ['Tase', 'Kuulsus', 'Alad'], main: 1, rows: CL.peers.map(p => { const v = byId[p.uid]; return { place: 0, live: true, name: p.k, sub: (p.r || '') + (p.v ? ' · ' + p.v : ''), me: p.me, vals: [v ? v.level : '–', v ? fmt(v.fame) : '–', v ? v.regions : '–'] } }) });
   }
   h += `<div class="sec-h">Kõigi aegade tabel</div>`;
   if (CL.lbErr) h += `<div class="card"><p class="lead">Edetabelit ei saanud laadida: ${esc(CL.lbErr)}</p></div>`;
   else if (!CL.lb) h += `<div class="card"><p class="lead">Laadin edetabelit…</p></div>`;
   else if (!CL.lb.length) h += `<div class="card"><p class="lead">Edetabel on veel tühi. Sinu kuningriik ilmub siia peagi.</p></div>`;
-  else h += `<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Kuningriik</th><th>Tase</th><th>Kuulsus</th><th>Alad</th><th>Aardeid</th></tr></thead><tbody>${CL.lb.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="rk">${i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : i + 1}</td><td><b>${esc(r.kingdom)}</b><small>${esc(r.name)}${r.me ? ' · sina' : ''}</small></td><td class="num">${r.level}</td><td class="num">${fmt(r.fame)}</td><td class="num">${r.regions}</td><td class="num">${r.treasures}</td></tr>`).join('')}</tbody></table></div>`;
+  else h += lbHtml({ who: 'Kuningriik', cols: ['Tase', 'Kuulsus', 'Alad', 'Aardeid'], main: 1, hideM: [2, 3], podium: true, rows: CL.lb.map((r, i) => ({ place: i + 1, name: r.kingdom, sub: 'Valitseja ' + r.name, me: r.me, vals: [r.level, fmt(r.fame), r.regions, r.treasures] })) });
   if (typeof newsHtml === 'function') { if (!NEWS.list || Date.now() - NEWS.at > 60000) { NEWS.at = Date.now(); loadNews() } h += `<div class="sec-h">Kuningriigi uudised <small>kalapüügi erakordsed hetked</small></div><div class="card fvnews">${newsHtml(8)}</div>` }
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-act="lbHide">${S.lbHidden ? 'Näita mind edetabelis' : 'Peida mind edetabelist'}</button><span class="lead" style="font-size:12.5px">${S.lbHidden ? 'Sinu kuningriik on edetabelist peidetud.' : 'Teised näevad sinu kuningriigi ja valitseja nime.'}</span></div>`;
   return h;
