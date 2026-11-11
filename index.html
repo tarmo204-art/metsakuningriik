@@ -5206,7 +5206,7 @@ function phaseMsg() {
   }
 }
 function mainButton() {
-  if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="repair">Paranda õng (${repairCost2()} kulda)</button>`;
+  if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return repairButtons(true);
   if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast">Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
   if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
   if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut">Lase lahti</button></div>`;
@@ -5410,11 +5410,11 @@ function tabSaak() {
 /* ---------- Pood ---------- */
 function tabPood() {
   let h = '';
-  if (FS.rod_broken) h += `<div class="fv-card" style="border-color:var(--bad)"><h2>Õng on katki</h2><p class="lead">${FD.rod[FS.rod].name} murdus. Parandus maksab ${repairCost2()} kulda. Võid ka mõne teise oma õnge kasutusele võtta.</p><div><button class="btn" type="button" data-fa="repair" ${FS.gold >= repairCost2() ? '' : 'disabled'}>Paranda õng</button></div></div>`;
+  if (FS.rod_broken) h += `<div class="fv-card" style="border-color:var(--bad)"><h2>🔧 Õng on katki</h2><p class="lead">${FD.rod[FS.rod].name} murdus. Kiirparandus maksab ${repairCost2()} kulda ja õng on kohe korras. Kui kulda pole, vii õng tasuta meister Mardi juurde: ta parandab selle 2 tunniga. Seni saad püüda mõne teise oma õngega.</p>${repairButtons(false)}</div>`;
   h += `<div class="fv-card"><h2>Õngeridvad</h2><p class="lead">Tugevus näitab, kui raske kala õng välja kannab. Püügiboonus suurendab haruldaste kalade võimalust ja väljatoomise boonus teeb rohelise ala laiemaks.</p><div class="shop">${FD.rods.map(r => {
     const own = (FS.rods || []).includes(r.id), on = FS.rod === r.id, lock = FS.level < r.min_level;
-    return `<div class="srow gearrow ${lock && !own ? 'locked' : ''}">${gearCv('rod', r.id)}<div><b>${r.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : own ? ' <span class="pill">Sinu oma</span>' : ''}<small>Tugevus ${fmt1(+r.strength)} kg · püügiboonus +${Math.round(r.catch_bonus * 100)}% · väljatoomine +${Math.round(r.reel_bonus * 100)}%</small><small>${own ? '' : lock ? `🔒 Avaneb kalapüügi ${r.min_level}. tasemel · ` : ''}${own ? '' : `Hind ${fmt(r.price)} kulda`}</small></div>
-      ${on ? '' : own ? `<button class="btn sm ghost" type="button" data-fa="rod" data-arg="${r.id}">Võta kasutusele</button>` : `<button class="btn sm" type="button" data-fa="rod" data-arg="${r.id}" ${!lock && FS.gold >= r.price ? '' : 'disabled'}>Osta</button>`}</div>`;
+    return `<div class="srow gearrow ${lock && !own ? 'locked' : ''}">${gearCv('rod', r.id)}<div><b>${r.name}</b>${on ? ' <span class="pill ok">Kasutusel</span>' : own ? ' <span class="pill">Sinu oma</span>' : ''}${rodBroken(r.id) ? ` <span class="pill" style="background:rgba(255,120,100,.2);color:#ffb0a0">${rodRepairAt(r.id) ? `meistri juures ${rpClock(r.id)}` : 'katki'}</span>` : ''}<small>Tugevus ${fmt1(+r.strength)} kg · püügiboonus +${Math.round(r.catch_bonus * 100)}% · väljatoomine +${Math.round(r.reel_bonus * 100)}%</small><small>${own ? '' : lock ? `🔒 Avaneb kalapüügi ${r.min_level}. tasemel · ` : ''}${own ? '' : `Hind ${fmt(r.price)} kulda`}</small></div>
+      ${on ? '' : own ? `<button class="btn sm ghost" type="button" data-fa="rod" data-arg="${r.id}">${rodBroken(r.id) ? '🔧 ' : ''}Võta kasutusele</button>` : `<button class="btn sm" type="button" data-fa="rod" data-arg="${r.id}" ${!lock && FS.gold >= r.price ? '' : 'disabled'}>Osta</button>`}</div>`;
   }).join('')}</div></div>`;
   h += `<div class="fv-card"><h2>Söödad ja peibutised</h2><p class="lead">Sööt kulub iga viskega. Peibutis ostetakse üks kord ja see ei kulu kunagi. Parem sööt toob kala kiiremini ja suurendab haruldaste kalade võimalust.</p><div class="shop">${FD.baits.map(b => {
     const lock = FS.level < b.min_level, cnt = (FS.baits || {})[b.id] || 0, ownLure = !b.consumable && (b.price === 0 || (FS.baits || {})[b.id] !== undefined), on = FS.bait === b.id;
@@ -5722,6 +5722,7 @@ async function fShop(kind, id, qty) {
     if (r.bought) toast(`Ostsid: ${(FD.rod[r.bought] || FD.bait[r.bought]).name}${r.qty ? ' × ' + r.qty : ''} (−${fmt(r.cost)} kulda)`, 'good', 'fish');
     else if (r.equipped) toast(`Kasutusel: ${(FD.rod[r.equipped] || FD.bait[r.equipped]).name}`, 'info', 'fish');
     else if (r.repaired) toast(`Õng on parandatud (−${r.cost} kulda).`, 'good', 'fish');
+    else if (r.repairing) toast(`Meister Mart võttis õnge parandusse. See on valmis kell ${new Date(r.ready).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' })}. Seni võid püüda mõne teise oma õngega.`, 'info', 'fish');
     else if (r.transferred) { toast(`${fmt(r.transferred)} kulda saadeti kuningriigi varakambrisse.`, 'good', 'gold'); claimInbox() }
     await refreshFS(); FV.oddsKey = ''; await loadOdds();
   } catch (e) { toast(e.message, 'bad') }
@@ -5740,6 +5741,7 @@ document.addEventListener('click', async e => {
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
     case 'cut': if (FV.phase === 'reel') doLose('Lasid kala lahti. Õng jäi terveks.'); break;
     case 'repair': fShop('repair', null); break;
+    case 'repairFree': fShop('repair_free', null); break;
     case 'use': { const [act, id] = arg.split(':'); fUse(act, [+id]); break }
     case 'exch': showExchange(+arg); break;
     case 'exSel': case 'exchSel': { const id = [...FV.sel][0]; if (id) showExchange(id); break }
@@ -6007,6 +6009,19 @@ function ktPaint(root) {
   };
   const _ag = ACT.advGo; ACT.advGo = a => { if (a && a.startsWith('kt:')) { closeModal(); openFishView(a.slice(3)); return } _ag(a) };
 }
+
+/* ---------- õngede parandus: iga õng eraldi, tasuta meister 2 h ---------- */
+function rodBroken(id) { return (FS.rods_broken || []).includes(id) }
+function rodRepairAt(id) { const v = (FS.rod_repairs || {})[id]; return v ? new Date(v).getTime() : 0 }
+function rpClock(id) { const ms = rodRepairAt(id) - Date.now(); return `<span data-rpto="${rodRepairAt(id)}">${ktClock(ms)}</span>` }
+function repairButtons(big) {
+  const at = rodRepairAt(FS.rod), cost = repairCost2(), cls = big ? 'btn bigbtn' : 'btn';
+  if (at) return `<div style="display:grid;gap:6px"><div class="lead" style="margin:0">🔧 Meister Mart parandab õnge. Valmis: <b>${rpClock(FS.rod)}</b></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="${big ? 'btn' : 'btn sm'}" type="button" data-fa="repair" ${FS.gold >= cost ? '' : 'disabled'}>Maksa ja võta kohe (${cost} kulda)</button><button class="${big ? 'btn ghost' : 'btn sm ghost'}" type="button" data-fa="tab" data-arg="pood">Vali teine õng</button></div></div>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="${cls}" type="button" data-fa="repair" ${FS.gold >= cost ? '' : 'disabled'}>Kiirparandus (${cost} kulda)</button><button class="${cls} ghost" type="button" data-fa="repairFree">Vii meistrile (tasuta, 2 h)</button></div>`;
+}
+setInterval(() => {
+  document.querySelectorAll('[data-rpto]').forEach(el => { const ms = +el.dataset.rpto - Date.now(); el.textContent = ktClock(ms); if (ms <= 0 && !el.dataset.done) { el.dataset.done = 1; refreshFS().then(() => { if (!FS.rod_broken) toast('Meister Mart sai õnge korda! Võid jälle püüdma minna.', 'good', 'fish'); renderFV(true) }) } });
+}, 1000);
 
 /* ===== Kalapüügi kohtade realistlikud taustad + püügiefektid ===== */
 const BD = { key: '', cv: document.createElement('canvas'), fg: document.createElement('canvas') };

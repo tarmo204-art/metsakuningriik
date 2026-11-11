@@ -167,6 +167,10 @@ end $$;
 -- 2b. Laiendus 1: ilmakalad, esemed, ülesanded, uudised
 -- ---------------------------------------------------------------------
 alter table public.fish_species add column if not exists weather text[];
+alter table public.fishers add column if not exists rods_broken text[] not null default '{}';
+alter table public.fishers add column if not exists rod_repairs jsonb not null default '{}';
+-- vana üldine katki-lipp -> praeguse õnge kohta
+update public.fishers set rods_broken = array[rod] where rod_broken and not (rod = any(rods_broken));
 alter table public.fish_catches add column if not exists weather text;
 alter table public.fishers add column if not exists quests_done int not null default 0;
 create table if not exists public.fish_items (
@@ -576,6 +580,14 @@ declare f public.fishers;
 begin
   insert into public.fishers(user_id) values (u) on conflict (user_id) do nothing;
   select * into f from public.fishers where user_id = u for update;
+  if f.rod_repairs <> '{}'::jsonb and exists (select 1 from jsonb_each_text(f.rod_repairs) e where e.value::timestamptz <= now()) then
+    update public.fishers x set
+      rods_broken = array(select b from unnest(x.rods_broken) b where b not in (select e.key from jsonb_each_text(x.rod_repairs) e where e.value::timestamptz <= now())),
+      rod_repairs = (select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(x.rod_repairs) e where (e.value #>> '{}')::timestamptz > now())
+    where x.user_id = u;
+    update public.fishers x set rod_broken = x.rod = any(x.rods_broken) where x.user_id = u;
+    select * into f from public.fishers where user_id = u;
+  end if;
   return f;
 end $$;
 
@@ -796,7 +808,7 @@ begin
   select to_jsonb(c) - 'species' - 'junk' - 'weight' - 'kind' - 'user_id' into act from fish_casts c where user_id = u and state in ('waiting','hooked') order by id desc limit 1;
   return jsonb_build_object(
     'level', f.level, 'xp', f.xp, 'xp_need', case when f.level >= 50 then 0 else fx_xp_need(f.level) end, 'gold', f.gold,
-    'rod', f.rod, 'rods', to_jsonb(f.rods), 'bait', f.bait, 'baits', f.baits, 'rod_broken', f.rod_broken, 'luck', f.luck,
+    'rod', f.rod, 'rods', to_jsonb(f.rods), 'rods_broken', to_jsonb(f.rods_broken), 'rod_repairs', f.rod_repairs, 'bait', f.bait, 'baits', f.baits, 'rod_broken', f.rod_broken, 'luck', f.luck,
     'total', f.total, 'rare', f.rare, 'night', f.night, 'junk', f.junk, 'chests', f.chests, 'broken', f.broken, 'lost', f.lost,
     'orders_done', f.orders_done, 'comp_wins', f.comp_wins, 'biggest', f.biggest, 'biggest_species', f.biggest_species,
     'title', f.title, 'titles', to_jsonb(f.titles), 'book', book, 'ach', v_ach, 'by_rarity', byr, 'inventory', inv,
@@ -967,7 +979,7 @@ begin
     chance := least(1, (c.weight / r.strength - 1) * 1.3) + case when wthr = 'torm' then 0.1 else 0 end;
     if random() < chance then
       update fish_casts set state = 'broken' where id = c.id;
-      update fishers set rod_broken = true, broken = broken + 1 where user_id = u;
+      update fishers set rod_broken = true, broken = broken + 1, rods_broken = case when f.rod = any(rods_broken) then rods_broken else rods_broken || f.rod end where user_id = u;
       ach := fx_check_ach(u);
       return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach);
     end if;
@@ -1101,10 +1113,10 @@ begin
   if p_kind = 'rod' then
     select * into r from fish_rods where id = p_id;
     if r.id is null then raise exception 'Tundmatu õng'; end if;
-    if r.id = any(f.rods) then update fishers set rod = r.id where user_id = u; return jsonb_build_object('equipped', r.id); end if;
+    if r.id = any(f.rods) then update fishers set rod = r.id, rod_broken = r.id = any(rods_broken) where user_id = u; return jsonb_build_object('equipped', r.id); end if;
     if f.level < r.min_level then raise exception 'See õng avaneb % tasemel', r.min_level; end if;
     if f.gold < r.price then raise exception 'Kulda jääb puudu'; end if;
-    update fishers set gold = gold - r.price, rods = rods || r.id, rod = r.id, rod_broken = false where user_id = u;
+    update fishers set gold = gold - r.price, rods = rods || r.id, rod = r.id, rod_broken = r.id = any(rods_broken) where user_id = u;
     return jsonb_build_object('bought', r.id, 'cost', r.price);
   elsif p_kind = 'bait' then
     select * into b from fish_baits where id = p_id;
@@ -1127,12 +1139,17 @@ begin
     if b.id is null then raise exception 'Tundmatu sööt'; end if;
     update fishers set bait = b.id where user_id = u; return jsonb_build_object('equipped', b.id);
   elsif p_kind = 'repair' then
-    if not f.rod_broken then return jsonb_build_object('repaired', false); end if;
+    if not (f.rod = any(f.rods_broken)) then update fishers set rod_broken = false where user_id = u; return jsonb_build_object('repaired', false); end if;
     select * into r from fish_rods where id = f.rod;
     cost := greatest(10, round(r.price * 0.2));
-    if f.gold < cost then raise exception 'Parandamiseks on vaja % kulda', cost; end if;
-    update fishers set gold = gold - cost, rod_broken = false where user_id = u;
+    if f.gold < cost then raise exception 'Kiirparanduseks on vaja % kulda. Vii õng tasuta meistri juurde (2 tundi).', cost; end if;
+    update fishers set gold = gold - cost, rod_broken = false, rods_broken = array_remove(rods_broken, f.rod), rod_repairs = rod_repairs - f.rod where user_id = u;
     return jsonb_build_object('repaired', true, 'cost', cost);
+  elsif p_kind = 'repair_free' then
+    if not (coalesce(p_id, f.rod) = any(f.rods_broken)) then raise exception 'See õng ei ole katki'; end if;
+    if f.rod_repairs ? coalesce(p_id, f.rod) then raise exception 'See õng on juba meistri juures'; end if;
+    update fishers set rod_repairs = rod_repairs || jsonb_build_object(coalesce(p_id, f.rod), now() + interval '2 hours') where user_id = u;
+    return jsonb_build_object('repairing', coalesce(p_id, f.rod), 'ready', now() + interval '2 hours');
   elsif p_kind = 'title' then
     if p_id is not null and not (p_id = any(f.titles)) then raise exception 'Sul pole seda tiitlit'; end if;
     update fishers set title = p_id where user_id = u; return jsonb_build_object('title', p_id);
