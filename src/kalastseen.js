@@ -211,7 +211,10 @@ function drawFx(c, w, h, dt, t) {
   // kala hüpe veest
   const L2 = FX.leap;
   if (L2) {
-    const k = (performance.now() - L2.t0) / 1500, sp = FD.sp[L2.sid];
+    const u = (performance.now() - L2.t0) / 2300, k = u >= 1 ? 1 : u < .3 ? u / .3 * .38 : u < .78 ? .38 + (u - .3) / .48 * .24 : .62 + (u - .78) / .22 * .38, sp = FD.sp[L2.sid];
+    // aegluubis: tipus ekraan tumeneb ja tekivad kiirusejooned
+    const slo = u > .25 && u < .82 ? Math.sin((u - .25) / .57 * Math.PI) : 0;
+    if (slo > 0) { c.fillStyle = `rgba(0,10,20,${slo * .35})`; c.fillRect(0, 0, w, h); const vg = c.createRadialGradient(w / 2, h / 2, h * .2, w / 2, h / 2, w * .7); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${slo * .5})`); c.fillStyle = vg; c.fillRect(0, 0, w, h) }
     if (k >= 1) {
       if (!L2.landed) {
         L2.landed = true; const col = RAR2[L2.rar][1];
@@ -220,7 +223,7 @@ function drawFx(c, w, h, dt, t) {
         if (L2.rar >= 4 || L2.giant) for (let i = 0; i < 70; i++) FX.conf.push({ x: w / 2 + rnd(-40, 40), y: h * .35, vx: rnd(-220, 220), vy: rnd(-320, -80), r: rnd(0, 6.28), vr: rnd(-8, 8), col: ['#ffd25e', '#ff6a5a', '#6ad8ff', '#9aff7a', col][i % 5], life: rnd(1.6, 2.6) });
         fxRing(FX.bx + w * .16, FX.by, 120, col.startsWith('#') ? [1, 3, 5].map(i => parseInt(col.slice(i, i + 2), 16)).join(',') : '255,255,255');
         for (let i = 0; i < 16; i++) FX.conf.push({ x: FX.bx + w * .16, y: FX.by - 10, vx: rnd(-160, 160), vy: rnd(-300, -150), r: 0, vr: rnd(-6, 6), col: '#ffd84a', coin: 1, life: rnd(1, 1.6) });
-        if (L2.xp) setTimeout(() => fxText(FX.bx + w * .16, FX.by - 40, `+${L2.xp} XP`, '#9ae8ff', 20), 250);
+        if (L2.xp) FX.xpShow = { t0: performance.now() + 150, xp: L2.xp, col, rar: L2.rar };
         if (L2.nw) setTimeout(() => fxText(w / 2, h * .32, 'UUS LIIK KALARAAMATUS!', '#9aff7a', 22), 500); else if (L2.rec) setTimeout(() => fxText(w / 2, h * .32, 'ISIKLIK REKORD!', '#ffb86a', 22), 500);
         fxText(w / 2, h * .2, L2.giant ? 'REKORDSUURUS!' : ['', 'Püütud!', 'Ebatavaline!', 'HARULDANE!', 'EEPILINE!', 'LEGENDAARNE!', 'MÜÜTILINE!'][L2.rar] || 'Püütud!', col, L2.rar >= 4 ? 34 : 28);
       }
@@ -233,6 +236,25 @@ function drawFx(c, w, h, dt, t) {
       drawLook(c, 0, 0, Lf, sp ? Object.assign({ _id: L2.sid }, sp.look) : {}, t * 3, -1);
       c.restore();
       if (Math.random() < .6) FX.drops.push({ x: x + rnd(-8, 8), y: y + rnd(-4, 6), vx: rnd(-30, 30), vy: rnd(-20, 40), life: rnd(.3, .7), r: rnd(1, 2.2) });
+    }
+  }
+  // suur XP aegluubis
+  if (FX.xpShow) {
+    const X = FX.xpShow, e = (performance.now() - X.t0) / 2800;
+    if (e >= 1) FX.xpShow = null;
+    else if (e > 0) {
+      const pop = e < .12 ? .3 + e / .12 * 1.1 : e < .22 ? 1.4 - (e - .12) / .1 * .4 : 1, cnt = Math.round(X.xp * Math.min(1, e / .45) ** .6), fade = e > .8 ? 1 - (e - .8) / .2 : 1, rise = e > .8 ? (e - .8) / .2 * h * .25 : 0;
+      const fs = Math.min(w * .14, h * .26), cx = w / 2, cy = h * .5 - rise;
+      c.save(); c.globalAlpha = fade; c.translate(cx, cy); c.scale(pop, pop);
+      const gl = c.createRadialGradient(0, 0, 0, 0, 0, fs * 1.8); gl.addColorStop(0, 'rgba(120,220,255,.45)'); gl.addColorStop(1, 'rgba(120,220,255,0)'); c.fillStyle = gl; c.fillRect(-fs * 2, -fs * 2, fs * 4, fs * 4);
+      c.rotate(e * .6); for (let i = 0; i < 10; i++) { c.rotate(Math.PI / 5); c.fillStyle = `rgba(200,240,255,${.18 * (1 - e)})`; c.beginPath(); c.moveTo(0, 0); c.lineTo(fs * 2.2, -fs * .08); c.lineTo(fs * 2.2, fs * .08); c.fill() } c.rotate(-e * .6 - Math.PI * 2);
+      c.font = `900 ${fs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const txt = `+${cnt} XP`, tg = c.createLinearGradient(0, -fs * .5, 0, fs * .5); tg.addColorStop(0, '#ffffff'); tg.addColorStop(.45, '#9ae8ff'); tg.addColorStop(1, '#3a9ad8');
+      c.lineWidth = fs * .12; c.strokeStyle = 'rgba(6,24,40,.9)'; c.lineJoin = 'round'; c.strokeText(txt, 0, 0);
+      c.shadowColor = 'rgba(120,220,255,.9)'; c.shadowBlur = fs * .35; c.fillStyle = tg; c.fillText(txt, 0, 0); c.shadowBlur = 0;
+      c.font = `800 ${fs * .26}px "Alegreya Sans", system-ui, sans-serif`; c.lineWidth = fs * .05; c.strokeText('KOGEMUST', 0, fs * .68); c.fillStyle = '#e8f8ff'; c.fillText('KOGEMUST', 0, fs * .68);
+      c.restore();
+      if (e < .45 && Math.random() < .5) FX.drops.push({ x: cx + rnd(-fs, fs), y: cy + rnd(-fs * .4, fs * .4), vx: rnd(-60, 60), vy: rnd(-120, -30), life: .6, r: 1.6 });
     }
   }
   // kiired haruldase kala puhul
