@@ -107,7 +107,11 @@ document.addEventListener('click', async e => {
   if (a === 'mode') { CL.mode = el.dataset.arg; CL.msg = ''; renderAuth() }
   else if (a === 'guest') { CL.guest = true; CL.msg = ''; SAVE_KEY = GUEST_KEY; showStart() }
   else if (a === 'toLogin') { CL.guest = false; CL.mode = 'login'; showStart() }
-  else if (a === 'logout') { await cloudSave(true); await CL.sb.auth.signOut(); }
+  else if (a === 'logout') {
+    try { if (S) save(); await cloudSave(true) } catch (e2) { }
+    try { await CL.sb.auth.signOut({ scope: 'local' }) } catch (e2) { }
+    onSignedOut(true);
+  }
   else if (a === 'import') showImport();
   else if (a === 'doImport') doImport();
   else if (a === 'setPass') setNewPassword();
@@ -118,6 +122,7 @@ async function onSignedIn(user) {
   const first = !CL.user || CL.user.id !== user.id;
   CL.user = user; CL.guest = false; CL.msg = '';
   if (!first) return;
+  clientReset(); S = null; running = false;
   SAVE_KEY = 'metsakuningriik.v1.u.' + user.id;
   await pullCloud();
   const meta = user.user_metadata || {};
@@ -129,9 +134,19 @@ async function onSignedIn(user) {
   if (!S) showStart();
   startPresence();
 }
-function onSignedOut() {
-  const was = !!CL.user;
-  CL.user = null; stopPresence();
+// kõik eelmise mängija mälus olevad andmed maha (sama arvuti, teine kasutaja)
+function clientReset() {
+  CL.cloudCopy = null; CL.cloudUid = null; CL.trust = null; CL.lb = null; CL.lbAt = 0; CL.peers = []; CL.pending = false;
+  try { if (typeof FS !== 'undefined') FS = null } catch (e) { }
+  try { if (typeof FMK !== 'undefined') Object.assign(FMK, { list: null, mine: null, newSold: 0, confirm: null }) } catch (e) { }
+  try { if (typeof KT !== 'undefined') Object.assign(KT, { d: null, at: 0, wasActive: null }) } catch (e) { }
+  try { if (typeof NEWS !== 'undefined') Object.assign(NEWS, { list: null, at: 0, unread: 0 }) } catch (e) { }
+  try { if (typeof AQ !== 'undefined') Object.assign(AQ, { list: null, visit: null }) } catch (e) { }
+  try { if (typeof FV !== 'undefined') Object.assign(FV, { comps: null, orders: null, quests: null, sel: new Set(), result: null, cast: null, hook: null, phase: 'idle' }) } catch (e) { }
+}
+function onSignedOut(force) {
+  const was = !!CL.user || force;
+  CL.user = null; stopPresence(); clientReset();
   if (was) { running = false; S = null; closeModal(); if (typeof FV !== 'undefined') closeFishView(); SAVE_KEY = GUEST_KEY; CL.msg = 'Logisid välja.'; CL.msgKind = 'good' }
   showStart();
 }
@@ -162,13 +177,13 @@ async function pullCloud() {
     const local = loadSave();
     if (data && data.data && data.data.res && (!local || (data.data.last || 0) > (local.last || 0))) {
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(data.data)) } catch (e) { }
-      CL.cloudCopy = data.data;
+      CL.cloudCopy = data.data; CL.cloudUid = CL.user.id;
     }
     CL.lastCloud = Date.now();
   } catch (e) { CL.msg = 'Pilvesalvestust ei saanud laadida: ' + etError(e); CL.msgKind = 'bad' }
 }
 const _loadSave = loadSave;
-loadSave = function () { const v = _loadSave(); if (!v && CL.user && CL.cloudCopy) return JSON.parse(JSON.stringify(CL.cloudCopy)); return v };
+loadSave = function () { const v = _loadSave(); if (!v && CL.user && CL.cloudCopy && CL.cloudUid === CL.user.id) return JSON.parse(JSON.stringify(CL.cloudCopy)); return v };
 async function cloudSave(force) {
   if (!CL.sb || !CL.user || !S) return;
   if (!force && Date.now() - CL.lastCloud < 20000) { CL.pending = true; return }
