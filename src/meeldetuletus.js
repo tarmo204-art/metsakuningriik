@@ -89,6 +89,7 @@ function remTodo() {
   let done = 0, total = 0;
   const add = (o) => T.push(o);
   const k = typeof KT !== 'undefined' ? KT.d : null;
+  if (typeof kumaOn === 'function' && kumaOn()) add({ c: '#ff9a5a', hot: true, t: 'Õhtukuma: topelt kogemus', s: `Kuni kella 22-ni, veel ${kumaLeft()}${k && k.active ? ' · koos Kalatunniga' : ''}` });
   if (k && k.active) add({ c: C.gold, hot: true, t: 'Kalatund käib praegu', s: `Iga kala annab punkte ja teeb bossikalale kahju · lõpeb ${remIn(new Date(k.end) - remNow())}`, tab: 'kalatund', b: 'Ava' });
   if (k && k.unclaimed > 0) add({ c: C.gold, claim: true, t: 'Kalatunni auhind ootab', tab: 'kalatund', b: 'Võta' });
   if (FV.comps && ['big', 'rare', 'most'].some(x => { const c = FV.comps[x]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) })) add({ c: C.gold, claim: true, t: 'Võistluse auhind ootab', tab: 'voistlus', b: 'Võta' });
@@ -136,6 +137,7 @@ function remTodo() {
 /* ---------- mis on tulemas ---------- */
 function remSoon() {
   const E = [], n = remNow(), k = typeof KT !== 'undefined' ? KT.d : null, d = typeof SEC !== 'undefined' ? SEC.d : null;
+  if (typeof kumaOn === 'function') { if (kumaOn()) E.push({ t: kumaEnd(), c: '#ff9a5a', x: 'Õhtukuma lõpeb', s: 'Kuni selleni on kogemus ×2' }); else E.push({ t: kumaNext(), c: '#ff9a5a', x: 'Õhtukuma algab', s: 'Kell 19–22 annab kalapüük topelt kogemust' }) }
   if (k && !k.active && k.next) E.push({ t: new Date(k.next).getTime(), c: '#f2b552', x: 'Kalatund algab', s: 'Tund aega ühist püüki ja bossikala' });
   if (k && k.active) E.push({ t: new Date(k.end).getTime(), c: '#f2b552', x: 'Kalatund lõpeb', s: 'Auhinnad saab võtta pärast lõppu' });
   const wx = Math.ceil(n / 108e5) * 108e5, bo = d && d.castle && d.castle.open && d.castle.boss;
@@ -165,6 +167,7 @@ function remDial(left, done, total, small) {
       <radialGradient id="remFace" cx=".5" cy=".4" r=".6"><stop offset="0" stop-color="#1d4656"/><stop offset="1" stop-color="#0d2630"/></radialGradient></defs>
     <circle cx="${C}" cy="${C}" r="${R}" fill="url(#remFace)" stroke="rgba(134,205,224,.18)"/>
     <path d="${arc(21, 5, R)}" fill="none" stroke="#2a3f86" stroke-width="8" opacity=".95"/>
+    <path d="${arc(19, 22, R - 7)}" fill="none" stroke="#ff9a5a" stroke-width="3" stroke-linecap="round" opacity="${typeof kumaOn === 'function' && kumaOn() ? 1 : .55}"/>
     <path class="ktarc ${k && k.active ? 'live' : ''}" d="${arc(ktH, ktH + 1, R)}" fill="none" stroke="#f2b552" stroke-width="8" stroke-linecap="butt"/>
     <g class="ticks">${ticks}<text x="${sx.toFixed(1)}" y="${(sy + 3).toFixed(1)}" text-anchor="middle" font-size="8" fill="#97d983">✦</text></g>
     <circle cx="${C}" cy="${C}" r="${rIn}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="5"/>

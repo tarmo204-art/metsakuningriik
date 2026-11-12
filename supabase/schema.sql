@@ -729,6 +729,12 @@ $$ select case w when 'pilves' then 0.02 when 'vihm' then 0.05 when 'udu' then 0
 create or replace function public.fx_weather_wait(w text) returns numeric language sql immutable as
 $$ select case w when 'paike' then 1.15 when 'vihm' then 0.85 when 'torm' then 0.9 else 1 end $$;
 
+-- Õhtukuma: iga päev kell 19–22 (Tallinna aeg) annab kalapüük topelt kogemust
+create or replace function public.fx_kuma() returns boolean language sql stable as
+$$ select extract(hour from now() at time zone 'Europe/Tallinn') between 19 and 21 $$;
+create or replace function public.fx_xp_mult() returns int language sql stable as
+$$ select case when public.fx_kuma() then 2 else 1 end $$;
+
 create or replace function public.fx_xp_need(lvl int) returns int language sql immutable as
 $$ select floor(25 * power(lvl, 1.5))::int + 10 $$;
 
@@ -1002,7 +1008,7 @@ begin
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
-    || jsonb_build_object('prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
+    || jsonb_build_object('kuma', fx_kuma(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
 
 create or replace function public.fish_odds(p_spot text, p_bait text) returns numeric[] language plpgsql security definer set search_path = public as $$
@@ -1140,9 +1146,9 @@ begin
       items := fx_give_item(u, 'karp', 1);
       if random() < 0.25 then items := items || fx_give_item(u, 'parl', 1); end if;
     end if;
-    levels := fx_add_xp(u, 8);
+    levels := fx_add_xp(u, 8 * fx_xp_mult());
     ach := fx_check_ach(u);
-    return jsonb_build_object('ok', true, 'kind', 'junk', 'junk', c.junk, 'xp', 8, 'levels', to_jsonb(levels), 'ach', ach,
+    return jsonb_build_object('ok', true, 'kind', 'junk', 'junk', c.junk, 'xp', 8 * fx_xp_mult(), 'x2', fx_kuma(), 'levels', to_jsonb(levels), 'ach', ach,
       'gold', case when c.junk = 'purk' then 3 else 0 end, 'map', c.junk = 'pudel', 'items', items)
       || jsonb_build_object('sec', fx_secret_ev(u, 'junk', '{}'));
   elsif c.kind = 'chest' then
@@ -1153,9 +1159,9 @@ begin
     items := fx_give_random(u, case tier when 'kuld' then 5 when 'hobe' then 3 else 2 end, case tier when 'kuld' then 3 when 'hobe' then 2 else 1 end);
     if random() < (case tier when 'kuld' then 1 when 'hobe' then 0.4 else 0.15 end) then perform fx_inbox(u, '{"map":1}', 'Veealune aardekirst'); res := '{"map":true}'; else res := '{"map":false}'; end if;
     if tier = 'kuld' then perform fx_news(u, 'chest', jsonb_build_object('gold', g)); end if;
-    levels := fx_add_xp(u, (case tier when 'kuld' then 150 when 'hobe' then 60 else 30 end) + f.level * 2);
+    levels := fx_add_xp(u, ((case tier when 'kuld' then 150 when 'hobe' then 60 else 30 end) + f.level * 2) * fx_xp_mult());
     ach := fx_check_ach(u);
-    return jsonb_build_object('ok', true, 'kind', 'chest', 'tier', tier, 'gold', g, 'xp', (case tier when 'kuld' then 150 when 'hobe' then 60 else 30 end) + f.level * 2,
+    return jsonb_build_object('ok', true, 'kind', 'chest', 'tier', tier, 'gold', g, 'xp', ((case tier when 'kuld' then 150 when 'hobe' then 60 else 30 end) + f.level * 2) * fx_xp_mult(), 'x2', fx_kuma(),
       'levels', to_jsonb(levels), 'ach', ach, 'items', items) || res
       || jsonb_build_object('sec', fx_secret_ev(u, 'chest', jsonb_build_object('tier', tier)));
   end if;
@@ -1197,14 +1203,14 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end));
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end)) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
   kt := fx_kt_add(u, s.id, s.rarity, c.weight, c.giant);
   return jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
-    'xp', xp, 'levels', to_jsonb(levels), 'ach', ach)
+    'xp', xp, 'x2', fx_kuma(), 'levels', to_jsonb(levels), 'ach', ach)
     || jsonb_build_object('sec', fx_secret_ev(u, 'catch', jsonb_build_object('species', s.id, 'weather', wthr,
          'killed', coalesce((kt ->> 'killed')::boolean, false), 'boat', sp.boat is not null, 'kt', kt is not null,
          'spot', c.spot, 'night', v_night, 'weight', c.weight)));

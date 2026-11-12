@@ -73,6 +73,11 @@ kuningriigi kaart ui.js) – NB: nimi `DAILY` on seal kasutusel. `claimDaily` on
 mängija saab samast nupust ka serveri boonuse (`daily_claim`: 7 päeva ring, 7. päev aardekirst,
 30 päeva järjest → saladus `jarjekindel`). Rida `fdayLine()` näitab boonust tervitusaknas ja kaardil.
 
+**Õhtukuma** (12.11.2026) – iga päev 19–22 Tallinna aja järgi topelt kalapüügi kogemus (kala, leid, kirst).
+Server: `fx_kuma()`, `fx_xp_mult()` fish_land'is, tulemuses `x2`, fish_state `kuma`. Kalatund (20–21) jääb sisse.
+Välimus `src/ohtukuma.js`: mähib `drawBackdrop` (loojangutoon, päike, peegeldus), `drawFx` (sädemed),
+`fvHeader` (kuldne riba + ×2), `tabPuuk` (bänner). Kellaaeg muuta: `fx_kuma` ja `KUMA.from/to`.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
