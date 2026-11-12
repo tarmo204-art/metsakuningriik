@@ -794,6 +794,13 @@ update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (
  ('sugavusedraakon','{draakonilant,valgus}','{öö}')
 ) as v(id, b, t) where s.id = v.id and (s.baits = '{}' or s.times = '{}');
 
+-- Igal kalal vähemalt üks lemmiksööt, mis on olemas juba siis, kui kala avaneb (lisab, ei kirjuta üle)
+update public.fish_species s set baits = array_append(s.baits, v.b) from (values
+ ('haug','uss'),('joesilm','uss'),('kuuangerjas','uss'),('ogalik','uss'),('voldas','uss'),
+ ('hobekoger','leib'),('paikesekarp','leib'),('uduhobe','vagel'),
+ ('valgukala','krevett'),('merivaim','krevett'),('leviaatan','valgus'),('igijaavaim','valgus')
+) as v(id, b) where s.id = v.id and not (v.b = any(s.baits));
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
