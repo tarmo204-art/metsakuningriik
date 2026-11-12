@@ -10,9 +10,17 @@ const SEC_PIECES = {
   3: 'Vanad kalurid annavad täidetud ülesannete eest vahel midagi kummalist.',
   4: 'Kristallikoopas, kuuendast sügavusest allpool, on salakäik.',
   5: 'Kristallikoopa põhjas, kaheteistkümnendast sügavusest allpool.',
-  6: 'See tükk on veel udu sees.',
-  7: 'See tükk on veel udu sees.'
+  6: 'Merel – saarestikus või kaugemal – jääb vahel õnge otsa pudel, milles on kiri.',
+  7: 'Kalatunni ajal (kell 20–21) näkkab vahel midagi, mida ükski kalur pole näinud.'
 };
+const SEC_HALLS = [
+  ['varav', '🚪', 'Väravasaal', 'Roostes värav avaneb ainult kulla ja kristallivalguse peale.', 'udukroon'],
+  ['peegel', '🪞', 'Peeglisaal', 'Suur peegel räägib mõistatustes. Vale vastuse korral tumeneb see tunniks.', 'hobesarv'],
+  ['raamatukogu', '📚', 'Raamatukogu', 'Vana raamatukoguhoidja vajab kalaraamatu jaoks näidiseid. Ta võtab igast haruldusest su saagi kõige väiksema kala.', 'varjuvork'],
+  ['kristall', '💠', 'Kristallisaal', 'Uks avaneb ainult neile, kes on käinud Kristallikoopa sügavuses.', 'kristallsuda']
+];
+const SEC_WEAK = { udu: ['udu', 'udu'], vihm: ['vihm', 'vihma'], pilves: ['pilvine ilm', 'pilvist ilma'], paike: ['päike', 'päikest'] };
+const MYTH_IC = { udukroon: '👑', hobesarv: '📯', varjuvork: '🥅', kristallsuda: '💠', kuuong: '🌙' };
 const SEC_KIND = {
   vesi: ['💧', 'Kuuled vett', 'Kõige ohutum. Vees võib leida esemeid.', '#5ac8e8'],
   tuul: ['🌬️', 'Tunned tuuletõmmet', 'Viib kaks sammu sügavamale, aga on ohtlikum.', '#b8d8c8'],
@@ -43,6 +51,24 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sec-ev{padding:9px 12px;border-radius:10px;background:rgba(0,0,0,.35);font-size:14px;line-height:1.45}
 .sec-ev.bad{background:rgba(255,120,100,.15);color:#ffc0b0}.sec-ev.good{background:rgba(151,217,131,.12)}
 .sec-lan{letter-spacing:2px;font-size:18px}
+.sec-castle{background:radial-gradient(100% 80% at 50% 0%,rgba(200,210,240,.16),transparent 65%),linear-gradient(180deg,#1c2533,#121822);border-color:rgba(200,210,240,.25)}
+.sec-halls{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.sec-hall{border-radius:12px;padding:12px;background:rgba(0,0,0,.28);border:1px solid rgba(200,210,240,.15);display:grid;gap:6px;align-content:start}
+.sec-hall.done{border-color:rgba(255,210,122,.5);background:linear-gradient(160deg,rgba(255,210,122,.1),rgba(0,0,0,.25))}
+.sec-hall h3{margin:0;font-size:15px;display:flex;gap:6px;align-items:center}.sec-hall small{color:#a8b8c8;line-height:1.4}
+.sec-req{font-size:12px}.sec-req .y{color:var(--ok)}.sec-req .n{color:var(--bad)}
+.sec-rid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.sec-rid button{padding:8px 6px}
+.sec-q{font-style:italic;color:#e8e0ff;font-family:Georgia,serif;font-size:15px;line-height:1.4}
+.sec-boss{background:radial-gradient(80% 70% at 50% 0%,rgba(120,60,160,.35),transparent 70%),linear-gradient(180deg,#1a1424,#0e0b14);border-color:rgba(190,140,255,.35)}
+.sec-hp{height:16px;border-radius:9px;background:rgba(0,0,0,.5);overflow:hidden;border:1px solid rgba(190,140,255,.35)}
+.sec-hp i{display:block;height:100%;background:linear-gradient(90deg,#7a3ac8,#d48cff);transition:width .5s}
+.sec-weak{padding:7px 11px;border-radius:10px;font-size:13px;background:rgba(255,255,255,.06)}.sec-weak.on{background:rgba(151,217,131,.16);color:#c8f0b8;font-weight:700}
+.sec-top{display:grid;gap:3px;font-size:13px}.sec-top div{display:flex;justify-content:space-between;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.25)}.sec-top .me{background:rgba(255,210,122,.15)}
+.sec-myths{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sec-myth{border-radius:12px;padding:10px;text-align:center;display:grid;gap:3px;justify-items:center;background:rgba(0,0,0,.3);border:1px dashed rgba(200,184,232,.25)}
+.sec-myth .e{font-size:30px;filter:grayscale(1) brightness(.4)}.sec-myth.own .e{filter:drop-shadow(0 0 10px rgba(255,214,120,.7))}
+.sec-myth.own{border:1px solid rgba(255,210,122,.55);background:radial-gradient(90% 80% at 50% 20%,rgba(255,210,122,.16),rgba(0,0,0,.3))}
+.sec-myth b{font-size:13px}.sec-myth small{font-size:11px;color:#a8b2c4;line-height:1.35}
 @media (max-width:560px){.sec-door small.d{display:none}.sec-door{padding:18px 4px 10px}}
 </style>`);
 
@@ -71,7 +97,7 @@ const SEC_GEO = (() => {
   bot.slice(0, -1).forEach((x0, i) => { const x1 = bot[i + 1]; P[i + 5] = poly([...midLine(x0, x1), [x1, 1], [x0, 1]]) });
   return P;
 })();
-function secDrawWorld(c, w, h, caveOpen) {
+function secDrawWorld(c, w, h, caveOpen, castle) {
   const g = c.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#efdcb0'); g.addColorStop(1, '#d6b77e'); c.fillStyle = g; c.fillRect(0, 0, w, h);
   c.strokeStyle = 'rgba(90,60,25,.55)'; c.fillStyle = 'rgba(90,60,25,.55)'; c.lineWidth = 1.4;
   // mäed
@@ -94,6 +120,11 @@ function secDrawWorld(c, w, h, caveOpen) {
     c.font = `italic ${Math.max(10, w * .028)}px Georgia,serif`; c.fillStyle = 'rgba(70,45,20,.9)'; c.fillText('Kristallikoobas', w * .5, h * .36);
   }
   c.font = `${Math.max(14, w * .045)}px Georgia,serif`; c.fillStyle = 'rgba(70,45,20,.8)'; c.fillText('✦', w * .92, h * .1);
+  if (castle) {
+    const x = w * .86, y = h * .755, s = w * .03; c.fillStyle = 'rgba(70,60,80,.9)';
+    c.fillRect(x - s, y - s * 1.2, s * 2, s * 1.2); c.fillRect(x - s * 1.3, y - s * 2, s * .6, s * 2); c.fillRect(x + s * .7, y - s * 2, s * .6, s * 2); c.fillRect(x - s * .3, y - s * 2.6, s * .6, s * 1.4);
+    c.font = `italic ${Math.max(10, w * .028)}px Georgia,serif`; c.fillStyle = 'rgba(70,45,20,.9)'; c.fillText('Udulinn', w * .79, h * .55);
+  }
 }
 function paintSecMap() {
   const cv = document.querySelector('canvas.sec-map'); if (!cv || !SEC.d) return;
@@ -103,7 +134,7 @@ function paintSecMap() {
   c.fillStyle = '#0d1a20'; c.fillRect(0, 0, w, h);
   const path = n => { c.beginPath(); SEC_GEO[n].forEach(([x, y], i) => i ? c.lineTo(x * w, y * h) : c.moveTo(x * w, y * h)); c.closePath() };
   for (let n = 1; n <= 7; n++) {
-    if (have.has(n)) { c.save(); path(n); c.clip(); secDrawWorld(c, w, h, SEC.d.cave_open); c.restore(); path(n); c.strokeStyle = 'rgba(90,60,25,.9)'; c.lineWidth = 1.5; c.stroke() }
+    if (have.has(n)) { c.save(); path(n); c.clip(); secDrawWorld(c, w, h, SEC.d.cave_open, have.size === 7); c.restore(); path(n); c.strokeStyle = 'rgba(90,60,25,.9)'; c.lineWidth = 1.5; c.stroke() }
     else {
       c.save(); path(n); c.fillStyle = 'rgba(30,40,55,.55)'; c.fill(); c.setLineDash([4, 4]); c.strokeStyle = 'rgba(180,160,220,.45)'; c.lineWidth = 1.2; c.stroke(); c.restore();
       const pts = SEC_GEO[n], cx = pts.reduce((a, p) => a + p[0], 0) / pts.length * w, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length * h;
@@ -124,9 +155,9 @@ function secEvText(e) {
 function secCave() {
   const d = SEC.d;
   if (!d.cave_open) return `<div class="fv-card sec-cave"><h2>🔒 Kristallikoobas</h2><p class="lead">Kui leiad kolm esimest kaarditükki, näitab kaart teed Kristallikoopasse.</p></div>`;
-  const r = d.run, lan = '🏮'.repeat(Math.max(0, d.lanterns)) + '<span style="opacity:.25">' + '🏮'.repeat(Math.max(0, 3 - d.lanterns)) + '</span>';
+  const r = d.run, mx = d.lanterns_max || 3, lan = '🏮'.repeat(Math.max(0, d.lanterns)) + '<span style="opacity:.25">' + '🏮'.repeat(Math.max(0, mx - d.lanterns)) + '</span>';
   let h = `<div class="fv-card sec-cave"><h2>💎 Kristallikoobas</h2>
-    <p class="lead">Iga päev on sul 3 laternat. Vali igal sammul üks kolmest käigust. Mida sügavamale, seda suurem saak, aga ka varinguoht. Varingu korral jääb alles pool kullast ja esemed kaovad. Kaarditükid jäävad alati sulle.</p>
+    <p class="lead">Iga päev on sul ${mx} laternat. Vali igal sammul üks kolmest käigust. Mida sügavamale, seda suurem saak, aga ka varinguoht. Varingu korral jääb alles pool kullast ja esemed kaovad. Kaarditükid jäävad alati sulle.</p>
     <div class="sec-depth"><span>Laternad: <span class="sec-lan">${lan}</span></span><span>Sügavaim: <b>${d.best_depth}</b></span><span>Retki: ${d.cave_runs}</span></div>`;
   h += SEC.ev ? secEvText(SEC.ev) : '';
   if (r) {
@@ -136,6 +167,47 @@ function secCave() {
       <div><button class="btn" type="button" data-sa="leave" ${SEC.busy ? 'disabled' : ''}>Lahku koopast ja võta saak kaasa</button></div>`;
   } else h += `<div><button class="btn" type="button" data-sa="start" ${SEC.busy || d.lanterns <= 0 ? 'disabled' : ''}>${d.lanterns > 0 ? 'Süüta latern ja astu koopasse' : 'Laternad on täna otsas – uued kesköösel'}</button></div>`;
   return h + '</div>';
+}
+function secHalls(ca) {
+  const halls = ca.halls || [], myth = {}; (ca.myths || []).forEach(m => myth[m.id] = m);
+  const cr = (FS.items || {}).koopakristall || 0, inv = (FS.inventory || []).filter(x => !x.trophy);
+  const R = (ok, t) => `<span class="${ok ? 'y' : 'n'}">${t}</span>`;
+  return `<div class="sec-halls">${SEC_HALLS.map(([id, ic, name, descr, my]) => {
+    const done = halls.includes(id), m = myth[my] || {};
+    let req = '', btn = '';
+    if (done) return `<div class="sec-hall done"><h3>${ic} ${name}</h3><small>Avatud. Said siit: <b>${MYTH_IC[my] || ''} ${esc(m.name || '')}</b></small></div>`;
+    if (id === 'varav') { const ok = FS.gold >= 3000 && cr >= 5; req = `${R(FS.gold >= 3000, '3000 kulda')} · ${R(cr >= 5, `koopakristall ${Math.min(cr, 5)}/5`)}`; btn = `<button class="btn sm" type="button" data-sa="hall" data-arg="varav" ${ok && !SEC.busy ? '' : 'disabled'}>Ava värav</button>` }
+    if (id === 'peegel') {
+      if (ca.riddle_wait) req = `Peegel on tume kuni ${new Date(ca.riddle_wait).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' })}.`;
+      else if (ca.riddle) btn = `<div class="sec-q">„${esc(ca.riddle.q)}“</div><div class="sec-rid">${ca.riddle.o.map((o, i) => `<button class="btn ghost sm" type="button" data-sa="riddle" data-arg="${i}" ${SEC.busy ? 'disabled' : ''}>${esc(o)}</button>`).join('')}</div>`;
+    }
+    if (id === 'raamatukogu') { const has = [1, 2, 3, 4, 5].map(r => inv.some(x => x.rarity === r)); req = has.map((h, i) => R(h, (RAR2[i + 1] || [''])[0])).join(' · '); const ok = has.every(Boolean);
+      btn = `<button class="btn sm" type="button" data-sa="hall" data-arg="raamatukogu" ${ok && !SEC.busy ? '' : 'disabled'}>${SEC.confirm === 'raamatukogu' ? 'Kinnita: anna 5 kala' : 'Anna kalad'}</button>` }
+    if (id === 'kristall') { const ok = (SEC.d.best_depth || 0) >= 12 && cr >= 10; req = `${R((SEC.d.best_depth || 0) >= 12, `koopas 12. sügavus (sinu parim ${SEC.d.best_depth || 0})`)} · ${R(cr >= 10, `koopakristall ${Math.min(cr, 10)}/10`)}`; btn = `<button class="btn sm" type="button" data-sa="hall" data-arg="kristall" ${ok && !SEC.busy ? '' : 'disabled'}>Ava kristalliuks</button>` }
+    return `<div class="sec-hall"><h3>${ic} ${name}</h3><small>${descr}</small><small>Preemia: <b>${MYTH_IC[my] || ''} ${esc(m.name || '')}</b> – ${esc(m.descr || '')}</small>${req ? `<div class="sec-req">${req}</div>` : ''}${btn}</div>`;
+  }).join('')}</div>`;
+}
+function secBoss(b) {
+  const pct = Math.max(0, Math.min(100, b.hp / Math.max(1, b.max_hp) * 100)), weakNow = FS.weather === b.weak;
+  let h = `<div class="fv-card sec-boss"><h2>👤 Troonisaal: ${esc(b.name)}</h2><p class="lead">${esc(b.descr)} Kuninga Vari on kõigi mängijate ühine vastane ja tuleb iga nädal tagasi uue kujuga. Igaüks saab lüüa 5 korda päevas. Kui Vari langeb, saavad kõik lööjad preemia – ja esimesel korral müütilise <b>Kuuõnge</b>.</p>
+    <div class="sec-weak ${weakNow ? 'on' : ''}">${weakNow ? `⚡ Praegu on ${(SEC_WEAK[b.weak] || [b.weak])[0]} – Vari on nõrk ja löögid teevad topelt kahju!` : `Nõrk koht: ta kardab ${(SEC_WEAK[b.weak] || [, b.weak])[1]}. Siis teevad löögid topelt kahju.`}</div>
+    <div class="sec-hp"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <div class="sec-depth"><span>Elu: <b>${fmt(Math.max(0, b.hp))}</b> / ${fmt(b.max_hp)}</span><span>Sinu kahju: <b>${fmt(b.my_dmg)}</b></span><span>Löögid täna: <b>${'⚔️'.repeat(Math.max(0, b.left))}${b.left <= 0 ? '0' : ''}</b></span></div>`;
+  if (SEC.atk) { const a = SEC.atk; h += `<div class="sec-ev ${a.killed ? 'good' : ''}">⚔️ Sinu löök: <b>−${fmt(a.dmg)}</b> elu${a.weak ? ' · nõrk koht ×2!' : ''}${a.storm ? ' · tormi jõud ×1,5' : ''}${a.killed ? ' · <b>VARI ON ALISTATUD!</b>' : ''}</div>` }
+  if (b.killed) h += `<div class="sec-ev good">🏆 Sel nädalal on Vari alistatud${b.killer ? ` – viimase löögi andis <b>${esc(b.killer)}</b>` : ''}. Uus Vari ilmub esmaspäeval.</div>`;
+  else h += `<div><button class="btn" type="button" data-sa="attack" ${b.left > 0 && !SEC.busy ? '' : 'disabled'}>${b.left > 0 ? 'Löö Varju' : 'Tänased löögid on tehtud'}</button></div>`;
+  if (b.claim > 0) h += `<div><button class="btn" type="button" data-sa="claim" ${SEC.busy ? 'disabled' : ''}>🎁 Võta Varju preemia</button></div>`;
+  if ((b.top || []).length) h += `<div class="sec-top">${b.top.map((t, i) => `<div class="${t.me ? 'me' : ''}"><span>${i + 1}. ${esc(t.name || 'Kalur')}</span><b>${fmt(t.dmg)}</b></div>`).join('')}</div>`;
+  return h + '</div>';
+}
+function secCastle() {
+  const d = SEC.d, ca = d.castle || {}, n = (d.pieces || []).length;
+  if (!ca.open) return `<div class="fv-card sec-castle"><h2>🏰 Udulinn</h2><p class="lead">${ca.need_boat ? 'Kõik seitse tükki on koos! Kaart näitab Udulinna järvesaarel. Sinna pääsemiseks osta Töökojast paat.' : `Udulinn on veel udu sees. Kui kõik seitse kaarditükki on koos (sul on ${n}), ilmub see kaardile.`}</p></div>`;
+  const myths = ca.myths || [], own = myths.filter(m => m.own).length;
+  return `<div class="fv-card sec-castle"><h2>🏰 Udulinn</h2><p class="lead">Udu hajus ja järvesaarel seisab Udukuninga linnus. Igas saalis on üks müütiline ese. Esemed toimivad kohe ja jäävad sulle igaveseks.</p>${secHalls(ca)}</div>
+    ${secBoss(ca.boss || {})}
+    <div class="fv-card"><h2>Müütilised esemed <small class="lead">${own} / 7</small></h2><div class="sec-myths">${myths.map(m => `<div class="sec-myth ${m.own ? 'own' : ''}"><span class="e">${MYTH_IC[m.id] || '✨'}</span><b>${m.own ? esc(m.name) : '???'}</b><small>${m.own ? esc(m.descr) : 'Leia: ' + esc(m.src)}</small></div>`).join('')}
+      <div class="sec-myth"><span class="e">❔</span><b>???</b><small>Udukuninga kroonika peidab veel üht</small></div><div class="sec-myth"><span class="e">💍</span><b>???</b><small>Pärija ese – kui kõik teised on koos</small></div></div></div>`;
 }
 function tabSaladus() {
   if (!SEC.d) { loadSec(true); return '<div class="fv-card"><p class="lead">Avan Saladuste raamatut…</p></div>' }
@@ -148,6 +220,7 @@ function tabSaladus() {
   h += `<div class="fv-card"><h2>Aardekaart</h2><canvas class="sec-map" aria-label="Aardekaart"></canvas>
     <div class="sec-pl">${[1, 2, 3, 4, 5, 6, 7].map(n => `<div class="${have[n] ? 'got' : ''}"><b class="n">${n}</b><span>${have[n] ? `<b>Leitud:</b> ${esc(have[n].src)}` : SEC_PIECES[n]}</span></div>`).join('')}</div></div>`;
   h += secCave();
+  h += secCastle();
   h += `<div class="fv-card"><h2>Salajased ülesanded</h2><p class="lead">Neid ülesandeid ei ole kuskil kirjas. Raamat annab ainult vihje – ülejäänu pead ise välja mõtlema.</p>
     <div class="sec-list">${sc.map(s => s.found
       ? `<div class="sec-s got"><b>🔮 ${esc(s.name)}</b><small>${esc(s.descr)}</small><small>Avastatud ${new Date(s.at).toLocaleDateString('et-EE')} · +${fmt(s.gold)} kulda${s.item ? ` · ${itemName(s.item)}${s.qty > 1 ? ' ×' + s.qty : ''}` : ''}</small></div>`
@@ -164,15 +237,25 @@ function secShow(sec) {
 function secShowNow() {
   if (!SEC.queue.length) return;
   if (UI.modalView) { SEC.qT = setTimeout(secShowNow, 1200); return }
-  const all = SEC.queue.splice(0), found = all.flatMap(s => s.found || []), pieces = all.flatMap(s => s.pieces || []), cave = all.some(s => s.cave);
+  const all = SEC.queue.splice(0), found = all.flatMap(s => s.found || []), pieces = all.flatMap(s => s.pieces || []), cave = all.some(s => s.cave), castle = all.some(s => s.castle);
   if (typeof sfx === 'function') sfx('levelup');
   showModal(() => `<div class="rays"></div>${Array.from({ length: 8 }, (_, i) => `<i class="mote" style="left:${8 + i * 11}%;top:${26 + (i * 43) % 54}%;animation-delay:${(i * .41) % 3}s"></i>`).join('')}
     <div class="ribbon">${found.length ? 'Avastasid saladuse!' : 'Leidsid kaarditüki!'}</div>
     <div class="emblem"><div class="emblem-in"><b style="font-size:46px">${found.length ? '🔮' : '🗺️'}</b><small>${found.length ? 'saladus' : 'tükk'}</small></div></div>
     ${found.map(f => `<h2>${esc(f.name)}</h2><p class="sub">${esc(f.descr)}</p>`).join('')}
     <div class="unlock-list">${found.map(f => `<span>+${fmt(f.gold)} kulda</span>${(f.items || []).map(x => `<span>${itemName(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>`).join('')}`).join('')}${pieces.map(n => `<span>🗺️ Kaarditükk nr ${n}</span>`).join('')}</div>
-    ${cave ? '<p class="sub"><b>Kaardile ilmus tee Kristallikoopasse!</b></p>' : ''}
+    ${cave ? '<p class="sub"><b>Kaardile ilmus tee Kristallikoopasse!</b></p>' : ''}${castle ? '<p class="sub"><b>Kõik seitse tükki on koos! Kaardile ilmus Udulinn.</b></p>' : ''}
     <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Edasi</button><button class="btn" type="button" data-sa="book">Ava Saladuste raamat</button></div>`, 'lvlup');
+}
+
+function secMythModal(id) {
+  const m = ((SEC.d && SEC.d.castle && SEC.d.castle.myths) || []).find(x => x.id === id) || { name: id, descr: '' };
+  if (typeof sfx === 'function') sfx('levelup');
+  const show = () => { if (UI.modalView) { setTimeout(show, 1200); return }
+    showModal(() => `<div class="rays"></div><div class="ribbon">Müütiline ese</div><div class="emblem"><div class="emblem-in"><b style="font-size:48px">${MYTH_IC[id] || '✨'}</b><small>müüt</small></div></div>
+      <h2>${esc(m.name)}</h2><p class="sub">${esc(m.descr)}</p><p class="nextl">Ese toimib kohe ja jääb sulle igaveseks.</p>
+      <button class="btn" type="button" data-act="closeModal">Imeline!</button>`, 'lvlup') };
+  setTimeout(show, 300);
 }
 
 /* ---------- laiendused olemasolevatele funktsioonidele ---------- */
@@ -182,12 +265,16 @@ function secShowNow() {
   const baseRender = renderFV;
   renderFV = function (force) { baseRender(force); try { paintSecMap() } catch (e) { } };
   const baseBadges = fvBadges;
-  fvBadges = function () { const b = baseBadges(); if (SEC.d && SEC.d.cave_open && !SEC.d.run && SEC.d.lanterns > 0) b.saladus = SEC.d.lanterns; return b };
+  fvBadges = function () { const b = baseBadges(); if (SEC.d) { const bo = SEC.d.castle && SEC.d.castle.open && SEC.d.castle.boss || {}; const n = (SEC.d.cave_open && !SEC.d.run ? SEC.d.lanterns : 0) + (bo.killed ? 0 : Math.max(0, bo.left || 0)) + (bo.claim || 0); if (n > 0) b.saladus = n } return b };
   const baseRefresh = refreshFS;
   refreshFS = async function () { const r = await baseRefresh(); if (!SEC.d && !SEC.loading) loadSec(false); return r };
   const baseNews = newsText;
-  newsText = function (n) { if (n.kind === 'secret') return `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''} avastas Udukuninga saladuse! 🔮 (kokku ${(n.data || {}).n || 1})`; return baseNews(n) };
-  NEWS_IC.secret = '🔮';
+  newsText = function (n) {
+    const who = `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''}`, d = n.data || {};
+    if (n.kind === 'myth') return `${who} leidis Udulinnast müütilise eseme: <b style="color:#ffd27a">${esc(d.myth || '')}</b>!`;
+    if (n.kind === 'vari') return `${who} andis Kuninga Varjule (${esc(d.name || '')}) viimase löögi! Vari on sel nädalal alistatud. ⚔️`;
+    if (n.kind === 'secret') return `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''} avastas Udukuninga saladuse! 🔮 (kokku ${(n.data || {}).n || 1})`; return baseNews(n) };
+  NEWS_IC.secret = '🔮'; NEWS_IC.myth = '👑'; NEWS_IC.vari = '⚔️';
   const baseAdv = TABS.seiklused.r;
   TABS.seiklused.r = () => {
     const h = baseAdv();
@@ -200,7 +287,7 @@ function secShowNow() {
 }
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-sa],[data-fa="tab"][data-arg="saladus"]'); if (!el || el.disabled) return;
-  if (el.dataset.fa === 'tab') { SEC.ev = null; loadSec(false); return }
+  if (el.dataset.fa === 'tab') { SEC.ev = null; SEC.atk = null; SEC.confirm = null; loadSec(false); return }
   const a = el.dataset.sa;
   if (a === 'book') { closeModal(); openFishView('saladus'); return }
   if (SEC.busy) return; SEC.busy = true; renderFV(true);
@@ -209,6 +296,23 @@ document.addEventListener('click', async e => {
     if (a === 'start') { r = await rpc('secret_cave_start'); SEC.ev = null }
     else if (a === 'go') r = await rpc('secret_cave_go', { p_door: +el.dataset.arg });
     else if (a === 'leave') r = await rpc('secret_cave_leave');
+    else if (a === 'hall') {
+      if (el.dataset.arg === 'raamatukogu' && SEC.confirm !== 'raamatukogu') { SEC.confirm = 'raamatukogu'; SEC.busy = false; renderFV(true); return }
+      SEC.confirm = null; r = await rpc('secret_castle_hall', { p_hall: el.dataset.arg });
+    }
+    else if (a === 'riddle') r = await rpc('secret_castle_hall', { p_hall: 'peegel', p_answer: +el.dataset.arg });
+    else if (a === 'attack') r = await rpc('secret_boss_attack');
+    else if (a === 'claim') r = await rpc('secret_boss_claim');
+    if (r && (a === 'hall' || a === 'riddle' || a === 'attack' || a === 'claim')) {
+      const { hall_result, attack, prizes, myth, sec, levels, ach, ...st } = r; SEC.d = st;
+      if (attack) { SEC.atk = attack; if (typeof sfx === 'function') sfx(attack.killed ? 'levelup' : 'pop') }
+      if (hall_result && !hall_result.ok) toast('Vale vastus! Peegel tumenes. Uus mõistatus ilmub tunni aja pärast.', 'bad');
+      if (hall_result && hall_result.ok) secMythModal(hall_result.myth);
+      (prizes || []).forEach(p => toast(`Kuninga Vari: ${p.killed ? `${p.place}. koht lööjate seas` : 'Vari jäi alistamata, aga sa võitlesid'}! +${fmt(p.gold)} kulda${itemsTxt(p.items)}`, 'gold', 'fame'));
+      if (myth) secMythModal('kuuong');
+      await refreshFS(); afterLevels(levels); afterAch(ach);
+      r = null;
+    }
     if (r) {
       SEC.ev = r.event || null; const { event, sec, levels, ach, ...st } = r; SEC.d = st;
       if (event && event.type === 'collapse' && typeof sfx === 'function') sfx('bad');

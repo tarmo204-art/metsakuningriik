@@ -35,8 +35,21 @@ NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte
   6–7 = järgmised osad. Tükid 1–3 avavad Kristallikoopa.
 - Kristallikoobas: 3 laternat päevas, käigud vesi/tuul/kristall, server veeretab (`secret_cave_*`).
   Ese `koopakristall` tuleb ainult koopast (fx_give_random jätab selle välja).
-- 2. osa plaan: Udulinnus (vajab 7 tükki + paati), nädala boss Kuninga Vari, müütilised esemed.
-  3. osa: legendaarsete kalade iganädalased vihjed (Kalurite kroonika), haruldased loomad.
+
+**Udukuninga saladus, 2. osa** (valmis 12.11.2026) – schema.sql jaotised 2j ja 6i, saladus.js.
+- Tükk 6: püük paadikohas (merel), tükk 7: püük Kalatunni ajal (mõlemal kasvav tõenäosus).
+- Udulinn avaneb: 7 tükki + vähemalt üks paat (`fx_castle_open`). 4 saali (`secret_castle_hall`):
+  värav (3000 kulda + 5 koopakristalli), peegel (mõistatus `fx_riddle`, vale vastus = 1 h ootust),
+  raamatukogu (5 kala, igast haruldusest 1–5 kõige väiksem), kristall (koopas 12. sügavus + 10 kristalli).
+- Müütilised esemed `secret_myths`/`fisher_myth`, kontroll `fx_myth(u, id)`: udukroon +10% müük
+  (fx_sell_value), hõbesarv +10% kogemust (fish_land), varjuvõrk pool vähem põgenemisi (fish_land),
+  kristallsüda 4 laternat (`fx_lanterns`), kuuõng +0.03 haruldusboonust (fx_rarity_weights).
+- Kuninga Vari: ühine nädalaboss (`secret_boss`, `secret_boss_dmg`), 5 lööki päevas, elu =
+  max(15000, 8000 × eelmise nädala lööjad), iga nädala kuju kardab üht ilma (×2 kahju, torm ×1,5).
+  Preemia `secret_boss_claim` (ühe korra), esimene alistamine annab Kuuõnge.
+- Uued saladused: varivoit, nork, linnaisand (kokku 13). Uudised: `myth`, `vari`.
+- 3. osa plaan: Kalurite kroonika (iganädalased legendaarse kala vihjed → 6. müütiline ese),
+  haruldased loomad, Pärija sõrmus (7. ese, kõik teised koos) + tiitel „Udukuninga pärija“.
 
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)

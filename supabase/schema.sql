@@ -601,6 +601,48 @@ insert into public.secret_defs (id,name,descr,hint,reward_gold,reward_item,rewar
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, hint=excluded.hint, reward_gold=excluded.reward_gold,
   reward_item=excluded.reward_item, reward_qty=excluded.reward_qty, sort=excluded.sort;
 
+-- 2j. Udukuninga saladus, 2. osa: Udulinnus, Kuninga Vari ja müütilised esemed
+alter table public.secret_state add column if not exists sea_tries int not null default 0;
+alter table public.secret_state add column if not exists kt_tries int not null default 0;
+create table if not exists public.secret_myths (
+  id text primary key, name text not null, descr text not null, src text not null, sort int not null default 0
+);
+create table if not exists public.fisher_myth (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  myth text not null references public.secret_myths(id), at timestamptz not null default now(), primary key (user_id, myth)
+);
+create table if not exists public.secret_castle (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  halls text[] not null default '{}', riddle int not null default floor(random() * 6)::int, riddle_wait timestamptz,
+  atk_day date, atk_n int not null default 0
+);
+create table if not exists public.secret_boss (
+  week date primary key, hp int not null, max_hp int not null, killed_at timestamptz, killer uuid references auth.users(id) on delete set null
+);
+create table if not exists public.secret_boss_dmg (
+  week date not null, user_id uuid not null references auth.users(id) on delete cascade,
+  dmg int not null default 0, hits int not null default 0, claimed boolean not null default false, primary key (week, user_id)
+);
+do $$ declare t text; begin
+  foreach t in array array['secret_myths','fisher_myth','secret_castle','secret_boss','secret_boss_dmg'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+insert into public.secret_myths (id,name,descr,src,sort) values
+ ('udukroon','Udukuninga kroon','Kalade müügihind +10%.','Väravasaal',1),
+ ('hobesarv','Hõbesarv','Kalapüügist +10% rohkem kogemust.','Peeglisaal',2),
+ ('varjuvork','Varjuvõrk','Kalad pääsevad õnge otsast poole harvem.','Raamatukogu',3),
+ ('kristallsuda','Kristallsüda','Kristallikoopas on iga päev 4 laternat.','Kristallisaal',4),
+ ('kuuong','Kuuõng','Haruldased kalad näkkavad sagedamini (nagu +1 kaluriõnn).','Troonisaal: Kuninga Vari',5)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, src=excluded.src, sort=excluded.sort;
+insert into public.secret_defs (id,name,descr,hint,reward_gold,reward_item,reward_qty,sort) values
+ ('varivoit','Varjude kütt','Andsid Kuninga Varjule viimase löögi.','Troonisaali vari langeb ainult ühe käe läbi.',3000,'koopakristall',3,11),
+ ('nork','Nõrk koht','Lõid Kuninga Varju ilmaga, mida ta kardab.','Igal varjul on ilm, mida ta kardab.',1000,null,0,12),
+ ('linnaisand','Udulinna isand','Avasid Udulinnas kõik neli saali.','Värav, peegel, raamatud ja kristallid – kõik peavad avanema.',5000,'soomus',1,13)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, hint=excluded.hint, reward_gold=excluded.reward_gold,
+  reward_item=excluded.reward_item, reward_qty=excluded.reward_qty, sort=excluded.sort;
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
@@ -706,7 +748,8 @@ begin
   select * into r from public.fish_rods where id = coalesce(f.rod, 'algaja');
   select * into b from public.fish_baits where id = p_bait;
   bonus := coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
-           + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0);
+           + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0)
+           + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end;
   for i in 1..6 loop
     avail[i] := exists (select 1 from public.fish_species s where s.rarity = i and p_spot = any(s.spots)
                  and s.min_level <= coalesce(f.level,1) and (not s.night_only or night)
@@ -1071,7 +1114,7 @@ begin
       return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach);
     end if;
   end if;
-  if random() < (case when wthr = 'torm' then 0.06 else 0.03 end) then
+  if random() < (case when wthr = 'torm' then 0.06 else 0.03 end) * (case when fx_myth(u, 'varjuvork') then 0.5 else 1 end) then
     update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
     return jsonb_build_object('ok', false, 'reason', 'escaped', 'name', s.name, 'rarity', s.rarity);
   end if;
@@ -1096,7 +1139,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0)));
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end));
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -1105,7 +1148,7 @@ begin
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
     'xp', xp, 'levels', to_jsonb(levels), 'ach', ach)
     || jsonb_build_object('sec', fx_secret_ev(u, 'catch', jsonb_build_object('species', s.id, 'weather', wthr,
-         'killed', coalesce((kt ->> 'killed')::boolean, false))));
+         'killed', coalesce((kt ->> 'killed')::boolean, false), 'boat', sp.boat is not null, 'kt', kt is not null)));
 end $$;
 
 -- Turuhinnad (muutuvad iga päev, müües sama kala ühel päeval palju langeb hind)
@@ -1127,7 +1170,8 @@ begin
   sold := coalesce(sold, 0);
   avgw := (s.min_w + s.max_w) / 2;
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
-       * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u)))
+       * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
+            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end)
        * (case when c.bought then 0.6 else 1 end);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
@@ -2143,6 +2187,17 @@ begin
     if coalesce((d ->> 'killed')::boolean, false) then cand := cand || 'koletis'::text; end if;
     if not exists (select 1 from secret_found where user_id = u and secret = 'udukalur') and d ->> 'weather' = 'udu'
        and (select count(*) from fish_catches where user_id = u and not bought and weather = 'udu' and caught_at >= t0) >= 5 then cand := cand || 'udukalur'::text; end if;
+    -- 2. osa: kaarditükk 6 merelt, kaarditükk 7 Kalatunnist
+    if coalesce((d ->> 'boat')::boolean, false) and not exists (select 1 from secret_pieces where user_id = u and piece = 6) then
+      if random() < 0.12 + 0.08 * st.sea_tries then
+        if fx_piece_give(u, 6, 'Merepudeli kiri') then v_pieces := v_pieces || 6; end if;
+      else update secret_state set sea_tries = sea_tries + 1 where user_id = u; end if;
+    end if;
+    if coalesce((d ->> 'kt')::boolean, false) and not exists (select 1 from secret_pieces where user_id = u and piece = 7) then
+      if random() < 0.10 + 0.06 * st.kt_tries then
+        if fx_piece_give(u, 7, 'Kalatunni koletise kõhust') then v_pieces := v_pieces || 7; end if;
+      else update secret_state set kt_tries = kt_tries + 1 where user_id = u; end if;
+    end if;
     if not exists (select 1 from secret_found where user_id = u and secret = 'sada')
        and (select count(*) from fish_catches where user_id = u and not bought and caught_at >= t0) >= 100 then cand := cand || 'sada'::text; end if;
   elsif ev = 'junk' then
@@ -2166,6 +2221,11 @@ begin
     if d -> 'species' ? 'kuldkala' then cand := cand || 'helde'::text; end if;
   elsif ev = 'like' then
     if (select count(*) from fish_aq_likes where visitor = u and day = fx_today()) >= 3 then cand := cand || 'naaber'::text; end if;
+  elsif ev = 'boss' then
+    if coalesce((d ->> 'killed')::boolean, false) then cand := cand || 'varivoit'::text; end if;
+    if coalesce((d ->> 'weak')::boolean, false) then cand := cand || 'nork'::text; end if;
+  elsif ev = 'hall' then
+    if (select cardinality(halls) from secret_castle where user_id = u) >= 4 then cand := cand || 'linnaisand'::text; end if;
   elsif ev = 'cave' then
     dep := coalesce((d ->> 'depth')::int, 0);
     if dep >= 15 then cand := cand || 'sugavus'::text; end if;
@@ -2184,7 +2244,8 @@ begin
   end if;
   if jsonb_array_length(v_found) = 0 and cardinality(v_pieces) = 0 then return null; end if;
   return jsonb_build_object('found', v_found, 'pieces', to_jsonb(v_pieces),
-    'cave', (v_pieces && array[1, 2, 3]) and fx_cave_open(u));
+    'cave', (v_pieces && array[1, 2, 3]) and fx_cave_open(u),
+    'castle', (v_pieces && array[1, 2, 3, 4, 5, 6, 7]) and (select count(*) from secret_pieces where user_id = u) = 7);
 end $$;
 
 create or replace function public.fx_cave_open(u uuid) returns boolean language sql stable as
@@ -2206,8 +2267,8 @@ begin
                 from secret_defs d left join secret_found f on f.secret = d.id and f.user_id = u),
     'pieces', (select coalesce(jsonb_agg(jsonb_build_object('n', piece, 'src', source, 'at', at) order by piece), '[]') from secret_pieces where user_id = u),
     'cave_open', fx_cave_open(u),
-    'lanterns', 3 - case when st.cave_day = fx_today() then st.lanterns else 0 end,
-    'run', st.run, 'best_depth', st.best_depth, 'cave_runs', st.cave_runs);
+    'lanterns', fx_lanterns(u) - case when st.cave_day = fx_today() then st.lanterns else 0 end, 'lanterns_max', fx_lanterns(u),
+    'run', st.run, 'best_depth', st.best_depth, 'cave_runs', st.cave_runs, 'castle', fx_castle_state(u));
 end $$;
 
 -- Kristallikoobas: iga päev 3 laternat. Iga samm on serveri veeretatud.
@@ -2220,7 +2281,7 @@ begin
   if not fx_cave_open(u) then raise exception 'Kristallikoobas on veel peidus. Leia enne kolm esimest kaarditükki.'; end if;
   if st.run is not null then raise exception 'Sa oled juba koopas'; end if;
   if st.cave_day is distinct from fx_today() then st.lanterns := 0; end if;
-  if st.lanterns >= 3 then raise exception 'Tänased laternad on otsas. Uued laternad tulevad kesköösel.'; end if;
+  if st.lanterns >= fx_lanterns(u) then raise exception 'Tänased laternad on otsas. Uued laternad tulevad kesköösel.'; end if;
   update secret_state set cave_day = fx_today(), lanterns = st.lanterns + 1, cave_runs = cave_runs + 1,
     run = jsonb_build_object('depth', 0, 'gold', 0, 'items', '[]'::jsonb, 'doors', fx_cave_doors(), 'steps', 0)
     where user_id = u;
@@ -2277,6 +2338,179 @@ begin
     'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
 end $$;
 
+
+-- ---------------------------------------------------------------------
+-- 6i. Udukuninga saladus, 2. osa: Udulinnus, Kuninga Vari, müütilised esemed
+-- ---------------------------------------------------------------------
+create or replace function public.fx_myth(u uuid, p_id text) returns boolean language sql stable as
+$$ select exists (select 1 from public.fisher_myth where user_id = u and myth = p_id) $$;
+create or replace function public.fx_lanterns(u uuid) returns int language sql stable as
+$$ select 3 + case when public.fx_myth(u, 'kristallsuda') then 1 else 0 end $$;
+create or replace function public.fx_castle_open(u uuid) returns boolean language sql stable as
+$$ select (select count(*) from public.secret_pieces where user_id = u) = 7
+     and coalesce((select cardinality(boats) from public.fishers where user_id = u), 0) >= 1 $$;
+-- Peeglisaali mõistatused (vastus ainult serveris)
+create or replace function public.fx_riddle(i int) returns jsonb language sql immutable as $$
+  select (array[
+    '{"q":"Mida rohkem sellest ära võtad, seda suuremaks see läheb.","o":["Auk","Järv","Vari","Mägi"],"a":0}',
+    '{"q":"Mul on suu, aga ma ei räägi. Mul on säng, aga ma ei maga.","o":["Kala","Jõgi","Loss","Paat"],"a":1}',
+    '{"q":"Mida rohkem mind on, seda vähem sa näed.","o":["Vesi","Kuld","Pimedus","Tuul"],"a":2}',
+    '{"q":"Ma rändan ilma jalgadeta ja nutan ilma silmadeta.","o":["Kell","Kala","Vari","Pilv"],"a":3}',
+    '{"q":"Mis läheb ainult üles, aga ei tule kunagi alla?","o":["Vanus","Kivi","Lind","Vihm"],"a":0}',
+    '{"q":"Mul on võtmed, aga ühtegi ust ma ei ava.","o":["Vang","Klaver","Kirst","Kuningas"],"a":1}'
+  ])[1 + ((i % 6) + 6) % 6]::jsonb $$;
+create or replace function public.fx_boss_week() returns date language sql stable as
+$$ select date_trunc('week', public.fx_today())::date $$;
+-- Iga nädal on Kuninga Vari natuke erinev: tal on ilm, mida ta kardab (siis teevad löögid topelt kahju)
+create or replace function public.fx_boss_form(w date) returns jsonb language sql immutable as $$
+  select (array[
+    '{"name":"Udune Vari","weak":"udu","descr":"Ta peidab end udu sisse – aga udus on ta ise nähtav."}',
+    '{"name":"Vihmavari","weak":"vihm","descr":"Vihmapiisad paljastavad ta kuju."}',
+    '{"name":"Pilvede Vari","weak":"pilves","descr":"Pilvise taevaga kaotab ta oma varju."}',
+    '{"name":"Kesköö Vari","weak":"paike","descr":"Ta kardab päikesevalgust üle kõige."}'
+  ])[1 + (extract(week from w)::int % 4)]::jsonb $$;
+create or replace function public.fx_boss(w date) returns public.secret_boss language plpgsql as $$
+declare b secret_boss; n int;
+begin
+  select * into b from secret_boss where week = w;
+  if b.week is null then
+    select count(*) into n from secret_boss_dmg where week = w - 7 and dmg > 0;
+    insert into secret_boss(week, hp, max_hp) values (w, greatest(15000, 8000 * n), greatest(15000, 8000 * n)) on conflict do nothing;
+    select * into b from secret_boss where week = w;
+  end if;
+  return b;
+end $$;
+
+create or replace function public.fx_castle_state(u uuid) returns jsonb language plpgsql stable as $$
+declare cs secret_castle; w date := fx_boss_week(); b secret_boss; frm jsonb := fx_boss_form(fx_boss_week()); me secret_boss_dmg; rd jsonb; open boolean := fx_castle_open(u); n7 int;
+begin
+  select * into cs from secret_castle where user_id = u;
+  select count(*) into n7 from secret_pieces where user_id = u;
+  select * into b from secret_boss where week = w;
+  select * into me from secret_boss_dmg where week = w and user_id = u;
+  rd := fx_riddle(coalesce(cs.riddle, 0));
+  return jsonb_build_object(
+    'open', open, 'need_boat', n7 = 7 and not open,
+    'halls', to_jsonb(coalesce(cs.halls, '{}')),
+    'riddle', case when open and not ('peegel' = any(coalesce(cs.halls, '{}'))) then jsonb_build_object('q', rd -> 'q', 'o', rd -> 'o') end,
+    'riddle_wait', case when cs.riddle_wait > now() then cs.riddle_wait end,
+    'myths', (select coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name, 'descr', m.descr, 'src', m.src, 'own', f.at is not null) order by m.sort), '[]')
+              from secret_myths m left join fisher_myth f on f.myth = m.id and f.user_id = u),
+    'boss', jsonb_build_object('week', w, 'ends', ((w + 7)::timestamp at time zone 'Europe/Tallinn'), 'name', frm -> 'name', 'weak', frm -> 'weak', 'descr', frm -> 'descr',
+      'hp', coalesce(b.hp, greatest(15000, 8000 * (select count(*) from secret_boss_dmg where week = w - 7 and dmg > 0))),
+      'max_hp', coalesce(b.max_hp, greatest(15000, 8000 * (select count(*) from secret_boss_dmg where week = w - 7 and dmg > 0))),
+      'killed', b.killed_at is not null, 'killer', (select name from profiles where id = b.killer),
+      'my_dmg', coalesce(me.dmg, 0), 'my_hits', coalesce(me.hits, 0),
+      'left', 5 - case when cs.atk_day = fx_today() then cs.atk_n else 0 end,
+      'top', (select coalesce(jsonb_agg(jsonb_build_object('name', case when p.hidden and x.user_id <> u then 'Salapärane kalur' else p.name end, 'dmg', x.dmg, 'me', x.user_id = u) order by x.dmg desc), '[]')
+              from (select * from secret_boss_dmg where week = w and dmg > 0 order by dmg desc limit 5) x join profiles p on p.id = x.user_id),
+      'claim', (select count(*) from secret_boss_dmg d left join secret_boss bb on bb.week = d.week
+                where d.user_id = u and d.dmg > 0 and not d.claimed and (d.week < w or bb.killed_at is not null))));
+end $$;
+
+-- Udulinna saalid. Iga saal annab ühe müütilise eseme (ainult üks kord).
+create or replace function public.secret_castle_hall(p_hall text, p_answer int default null) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; cs secret_castle; v_myth text; ids bigint[]; rd jsonb; sec jsonb;
+begin
+  f := fx_fisher(u);
+  if not fx_castle_open(u) then raise exception 'Udulinn on veel udu sees. Vaja on kõiki seitset kaarditükki ja paati.'; end if;
+  insert into secret_castle(user_id) values (u) on conflict do nothing;
+  select * into cs from secret_castle where user_id = u for update;
+  if p_hall = any(cs.halls) then raise exception 'See saal on juba avatud'; end if;
+  if p_hall = 'varav' then
+    if f.gold < 3000 then raise exception 'Värava avamiseks on kalurikassas vaja 3000 kulda'; end if;
+    perform fx_pay_items(u, '{"koopakristall":5}');
+    update fishers set gold = gold - 3000 where user_id = u;
+    v_myth := 'udukroon';
+  elsif p_hall = 'peegel' then
+    if cs.riddle_wait > now() then raise exception 'Peegel on veel tume. Uus mõistatus ilmub tunni aja pärast vale vastusest.'; end if;
+    if p_answer is null then raise exception 'Vali vastus'; end if;
+    rd := fx_riddle(cs.riddle);
+    if p_answer <> (rd ->> 'a')::int then
+      update secret_castle set riddle_wait = now() + interval '1 hour', riddle = (cs.riddle + 1 + floor(random() * 5)::int) % 6 where user_id = u;
+      return secret_state() || jsonb_build_object('hall_result', jsonb_build_object('ok', false, 'hall', 'peegel'));
+    end if;
+    v_myth := 'hobesarv';
+  elsif p_hall = 'raamatukogu' then
+    select array_agg(id) into ids from (select distinct on (rarity) id from fish_catches
+      where user_id = u and status = 'kept' and rarity between 1 and 5 order by rarity, weight) z;
+    if coalesce(array_length(ids, 1), 0) < 5 then
+      raise exception 'Raamatukoguhoidja vajab saagist ühte kala igast haruldusest: tavaline, ebatavaline, haruldane, eepiline ja legendaarne.';
+    end if;
+    update fish_catches set status = 'exchanged' where id = any(ids) and user_id = u;
+    v_myth := 'varjuvork';
+  elsif p_hall = 'kristall' then
+    if coalesce((select best_depth from secret_state where user_id = u), 0) < 12 then
+      raise exception 'Kristallisaali uks avaneb ainult neile, kes on käinud Kristallikoopas vähemalt 12. sügavusel.';
+    end if;
+    perform fx_pay_items(u, '{"koopakristall":10}');
+    v_myth := 'kristallsuda';
+  else raise exception 'Tundmatu saal'; end if;
+  update secret_castle set halls = halls || p_hall where user_id = u;
+  insert into fisher_myth(user_id, myth) values (u, v_myth) on conflict do nothing;
+  perform fx_news(u, 'myth', jsonb_build_object('myth', (select name from secret_myths where id = v_myth)));
+  sec := fx_secret_ev(u, 'hall', '{}');
+  return secret_state() || jsonb_build_object('hall_result', jsonb_build_object('ok', true, 'hall', p_hall, 'myth', v_myth), 'sec', sec);
+end $$;
+
+-- Kuninga Vari: ühine nädala boss. 5 lööki päevas, kahju arvutab server.
+create or replace function public.secret_boss_attack() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; cs secret_castle; w date := fx_boss_week(); b secret_boss; frm jsonb := fx_boss_form(fx_boss_week());
+  v_dmg int; weak boolean; killed boolean := false; wthr text := fx_weather(); sec jsonb;
+begin
+  f := fx_fisher(u);
+  if not fx_castle_open(u) then raise exception 'Troonisaali pääseb ainult Udulinnast'; end if;
+  insert into secret_castle(user_id) values (u) on conflict do nothing;
+  select * into cs from secret_castle where user_id = u for update;
+  if cs.atk_day is distinct from fx_today() then cs.atk_n := 0; end if;
+  if cs.atk_n >= 5 then raise exception 'Sinu tänased 5 lööki on tehtud. Uued löögid tulevad kesköösel.'; end if;
+  perform pg_advisory_xact_lock(hashtext('kuningavari' || w::text));
+  b := fx_boss(w);
+  if b.killed_at is not null then raise exception 'Kuninga Vari on sel nädalal juba alistatud. Võta oma preemia!'; end if;
+  weak := wthr = frm ->> 'weak';
+  v_dmg := 80 + f.level * 6 + least(f.prestige, 40) * 15 + (select count(*) from fisher_myth where user_id = u)::int * 60 + floor(random() * 81)::int;
+  v_dmg := round(v_dmg * case when weak then 2 else 1 end * case when wthr = 'torm' then 1.5 else 1 end);
+  v_dmg := least(v_dmg, b.hp);
+  update secret_boss set hp = hp - v_dmg where week = w returning * into b;
+  if b.hp <= 0 then
+    update secret_boss set killed_at = now(), killer = u where week = w; killed := true;
+    perform fx_news(u, 'vari', jsonb_build_object('name', frm ->> 'name'));
+  end if;
+  insert into secret_boss_dmg(week, user_id, dmg, hits) values (w, u, v_dmg, 1)
+    on conflict (week, user_id) do update set dmg = secret_boss_dmg.dmg + v_dmg, hits = secret_boss_dmg.hits + 1;
+  update secret_castle set atk_day = fx_today(), atk_n = cs.atk_n + 1 where user_id = u;
+  sec := fx_secret_ev(u, 'boss', jsonb_build_object('killed', killed, 'weak', weak));
+  return secret_state() || jsonb_build_object('attack', jsonb_build_object('dmg', v_dmg, 'weak', weak, 'storm', wthr = 'torm', 'killed', killed), 'sec', sec);
+end $$;
+
+-- Preemiad: kui Vari on alistatud (või nädal läbi), saab iga lööja preemia ühe korra
+create or replace function public.secret_boss_claim() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); w date := fx_boss_week(); r record; place int; g int; v_items jsonb; res jsonb := '[]'; got_myth boolean := false; levels int[] := '{}';
+begin
+  perform fx_fisher(u);
+  for r in select d.*, bb.killed_at from secret_boss_dmg d left join secret_boss bb on bb.week = d.week
+           where d.user_id = u and d.dmg > 0 and not d.claimed and (d.week < w or bb.killed_at is not null) order by d.week for update of d loop
+    select count(*) + 1 into place from secret_boss_dmg where week = r.week and dmg > r.dmg;
+    v_items := '[]';
+    if r.killed_at is not null then
+      g := 1500 + least(3000, r.dmg / 5) + case place when 1 then 1500 when 2 then 900 when 3 then 500 else 0 end;
+      v_items := fx_give_item(u, 'koopakristall', 2) || fx_give_random(u, 5, 1);
+      if not fx_myth(u, 'kuuong') then
+        insert into fisher_myth(user_id, myth) values (u, 'kuuong') on conflict do nothing; got_myth := true;
+        perform fx_news(u, 'myth', jsonb_build_object('myth', 'Kuuõng'));
+      end if;
+      levels := levels || fx_add_xp(u, 600);
+    else
+      g := 400 + least(1000, r.dmg / 10);
+      levels := levels || fx_add_xp(u, 150);
+    end if;
+    update fishers set gold = gold + g where user_id = u;
+    update secret_boss_dmg set claimed = true where week = r.week and user_id = u;
+    res := res || jsonb_build_object('week', r.week, 'place', place, 'killed', r.killed_at is not null, 'gold', g, 'items', v_items, 'dmg', r.dmg);
+  end loop;
+  return secret_state() || jsonb_build_object('prizes', res, 'myth', got_myth, 'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
@@ -2290,7 +2524,8 @@ do $$ declare r record; begin
               'fish_rod_upgrade','fish_enchant','fish_boat_buy',
               'fish_market_list','fish_market_cancel','fish_market_buy','fish_market_browse','fish_market_mine',
               'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute','fish_kalatund','fish_kt_claim',
-              'secret_state','secret_cave_start','secret_cave_go','secret_cave_leave')) loop
+              'secret_state','secret_cave_start','secret_cave_go','secret_cave_leave',
+              'secret_castle_hall','secret_boss_attack','secret_boss_claim')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
