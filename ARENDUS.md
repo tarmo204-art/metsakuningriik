@@ -25,6 +25,19 @@ püsiva müügiboonuse +1%/täht (max +30%, `fx_star_bonus`). Saavutused `taht1/
 Edetabel sorteerib tase → tähed. Mäng näitab tähte päises ja pidulikus aknas (`starCheck` kalapuuk.js).
 NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte käivitada.
 
+**Udukuninga saladus, 1. osa** (valmis 12.11.2026) – `src/saladus.js` + schema.sql jaotised 2i ja 6h.
+- Saladuste raamat = kalapüügi vahekaart `saladus` (+ kaart kuningriigi seiklustes). Laiendused
+  registreerivad vahekaardi `FTAB_FN` kaudu (kalapuuk.js). `rpc` on mähitud: iga tulemus, kus on
+  `sec`, näitab „Avastasid saladuse!“ akna.
+- 10 salajast ülesannet (`secret_defs`), kontroll ühes kohas `fx_secret_ev(u, ev, d)`; sündmused:
+  catch, junk, chest (fish_land), release (fish_use), quest (fish_quest_claim), like (fish_aquarium_like), cave.
+- Kaarditükid (`secret_pieces`, 1–7): 1 kirst, 2 kaks saladust, 3 ülesanne, 4–5 Kristallikoobas,
+  6–7 = järgmised osad. Tükid 1–3 avavad Kristallikoopa.
+- Kristallikoobas: 3 laternat päevas, käigud vesi/tuul/kristall, server veeretab (`secret_cave_*`).
+  Ese `koopakristall` tuleb ainult koopast (fx_give_random jätab selle välja).
+- 2. osa plaan: Udulinnus (vajab 7 tükki + paati), nädala boss Kuninga Vari, müütilised esemed.
+  3. osa: legendaarsete kalade iganädalased vihjed (Kalurite kroonika), haruldased loomad.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
