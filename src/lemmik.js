@@ -41,6 +41,21 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fc-pips{display:flex;gap:4px}.fc-pips i{width:14px;height:8px;border-radius:3px;background:rgba(255,255,255,.1)}
 .fc-pips i.on{background:var(--dc);box-shadow:0 0 6px color-mix(in srgb,var(--dc) 60%,transparent)}
 .fc-hid{color:#7f98a2;font-style:italic}
+.fc-tape{padding-top:20px}
+.fc-tape .tp{position:relative;height:30px;border-radius:5px;overflow:visible;
+  background:linear-gradient(180deg,#ffe066,#f2c230 60%,#d9a514);box-shadow:inset 0 -2px 0 rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.35)}
+.fc-tape .tk{position:absolute;inset:0;overflow:hidden;border-radius:5px}
+.fc-tape .tk i{position:absolute;top:0;width:1px;height:9px;background:rgba(40,25,0,.7)}
+.fc-tape em{position:absolute;bottom:2px;transform:translateX(-50%);font:700 9.5px system-ui;color:#3a2600;font-style:normal;white-space:nowrap}
+.fc-tape .nz,.fc-tape .gz{position:absolute;top:11px;height:6px;border-radius:3px}
+.fc-tape .nz{background:#1f8a7a;box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+.fc-tape .gz{background:repeating-linear-gradient(135deg,#c2410c 0 4px,#f97316 4px 8px);box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+.fc-tape .pin{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:#e11d48;box-shadow:0 0 6px rgba(225,29,72,.7)}
+.fc-tape .pin::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:#e11d48;border:2px solid #fff}
+.fc-tape .pin b{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font:700 10px system-ui;color:#ffc2d0;white-space:nowrap}
+.fc-sz{display:grid;gap:4px;margin-top:6px;font-size:13.5px;color:#d8e8ec}
+.fc-sz .d{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+.fc-sz .d.n{background:#1f8a7a}.fc-sz .d.g{background:repeating-linear-gradient(135deg,#c2410c 0 3px,#f97316 3px 6px)}.fc-sz .d.r{background:#e11d48;border-radius:50%}
 .fc-go{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .fav-strip{display:grid;gap:8px;padding:10px 12px;border-radius:14px;background:linear-gradient(110deg,rgba(255,143,176,.12),rgba(255,255,255,.03));border:1px solid rgba(255,143,176,.22)}
 .fav-strip > small{color:#e8c4d0;font-size:12.5px}
@@ -72,6 +87,28 @@ function fcDayRing(times, now) {
   return `<svg viewBox="0 0 64 64" aria-hidden="true">${s}</svg>`;
 }
 
+/* ---------- mõõdulint: tavaline suurus, hiiglased ja sinu rekord ---------- */
+function fcTape(s, b) {
+  const gm = s.max_w * FISH_GIANT, L = (w) => s.max_len ? s.max_len * Math.cbrt(w / s.max_w) : null;
+  const top = L(gm) || 1, pos = (w) => Math.max(0, Math.min(100, (L(w) || 0) / top * 100));
+  const a = pos(s.min_w), m = pos(s.max_w), rec = b ? pos(+b.max) : null;
+  // sentimeetrimärgid: samm sõltub kala suurusest
+  const step = [1, 2, 5, 10, 20, 50, 100, 200][[12, 25, 60, 120, 250, 600, 1200, 1e9].findIndex(x => top <= x)];
+  let ticks = ''; for (let v = step; v < top; v += step) { const x = v / top * 100; ticks += `<i style="left:${x.toFixed(2)}%"></i>`; }
+  const lbl = (v) => v >= 100 ? fmt1(v / 100) + ' m' : Math.round(v) + ' cm';
+  const nums = []; for (let k = 1; k <= 3; k++) { const v = Math.round(top * k / 4 / step) * step; if (v > 0 && v < top) nums.push(`<em style="left:${(v / top * 100).toFixed(2)}%">${lbl(v)}</em>`) }
+  return `<div class="fc-tape" role="img" aria-label="Tavaliselt ${fRange(fKg(s.min_w), fKg(s.max_w))}, suurim võimalik ${fSize(s, gm)}${b ? ', sinu rekord ' + fSize(s, +b.max) : ''}">
+      <div class="tp"><div class="tk">${ticks}</div>${nums.join('')}
+        <span class="nz" style="left:${a.toFixed(1)}%;width:${(m - a).toFixed(1)}%"></span><span class="gz" style="left:${m.toFixed(1)}%;width:${(100 - m).toFixed(1)}%"></span>
+        ${rec != null ? `<span class="pin" style="left:${rec.toFixed(1)}%"><b>sinu rekord</b></span>` : ''}</div>
+    </div>
+    <div class="fc-sz">
+      <span><i class="d n"></i>Tavaliselt <b>${fRange(fKg(s.min_w), fKg(s.max_w))}</b>${s.max_len ? ` · ${fRange(fLen(s, s.min_w), fLen(s, s.max_w))}` : ''}</span>
+      <span><i class="d g"></i>Suurim võimalik (hiiglane) <b>${fSize(s, gm)}</b></span>
+      ${b ? `<span><i class="d r"></i>Sinu rekord <b>${fSize(s, +b.max)}</b> · püütud ${b.n}×</span>` : ''}
+    </div>`;
+}
+
 /* ---------- kalakaart ---------- */
 function fishCard(id) {
   const s = FD.sp[id]; if (!s) return;
@@ -97,7 +134,7 @@ function fishCard(id) {
             <div class="fc-row"><span class="ic">🕐</span><div class="v"><small>Parim aeg</small>
               ${b ? (times.length ? `<div class="fc-time">${fcDayRing(times, now)}<div class="tl">${times.map(t => `<span>${DP[t] ? DP[t][0] + ' ' + DP[t][1] + ' <small style="color:#8fb0ba">' + DP[t][2] + '</small>' : t}</span>`).join('')}${bestNow ? '<span class="now">✨ Praegu on parim aeg!</span>' : ''}</div></div>` : '<span>Igal ajal</span>') : '<span class="fc-hid">???</span>'}</div></div>
             <div class="fc-row"><span class="ic">💪</span><div class="v"><small>Raskus</small><div class="fc-pips" style="--dc:${df[2]}" aria-label="Raskus ${s2.difficulty} / 10">${pips}</div></div></div>
-            <div class="fc-row"><span class="ic">⚖️</span><div class="v"><small>${s2.real === false ? 'Kaal ja pikkus' : 'Kaal ja pikkus päriselus'}</small><span>${fRange(fKg(s2.min_w), fKg(s2.max_w))}${s2.max_len ? ` · ${fRange(fLen(s2, s2.min_w), fLen(s2, s2.max_w))}` : ''}${b ? ` · sinu rekord <b>${fSize(s2, +b.max)}</b> · püütud ${b.n}×` : ''}</span></div></div>
+            <div class="fc-row"><span class="ic">📏</span><div class="v"><small>Mängus püütav suurus${s2.real === false ? '' : ' · päris kala mõõdud'}</small>${fcTape(s2, b)}</div></div>
           </div>
           <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : ''}</div>
         </div>`;

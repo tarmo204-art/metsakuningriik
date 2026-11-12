@@ -91,6 +91,8 @@ kolmikkonksud, pöörlid, varjud ja läiked. Uue sööda lisamisel lisa sinna om
 isend; hiiglane ×1,25–1,6 läheneb rekordile), `max_len` cm suurima kaalu juures, `real=false` muinasjutukaladel.
 Seeme on schema.sql-is pärast liikide sisestust (kehtib igal käivitusel). Püügi jaotus `power(random(), 2.2)`,
 kaal 3 komakohaga alla 1 kg. Mängus `fKg` (alla 1 kg grammides), `fLen`, `fSize`, `fRange` (kalapuuk.js).
+Mängu maksimum = hiiglane `max_w × FISH_GIANT (1,6)` – sama mis fish_cast'is; kui seda muudad, muuda mõlemas.
+Kalakaardil mõõdulint `fcTape` (lemmik.js), kalaraamatus „kuni X kg · Y cm“.
 
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
