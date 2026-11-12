@@ -682,6 +682,18 @@ insert into public.secret_defs (id,name,descr,hint,reward_gold,reward_item,rewar
  ('loomaisand','Metsa sõber','Kõik viis haruldast looma elavad sinu kuningriigis.','Hirv, rebane, orav, konn ja kull – kas nad kõik on sinu juures?',5000,'soomus',1,15)
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, hint=excluded.hint, reward_gold=excluded.reward_gold,
   reward_item=excluded.reward_item, reward_qty=excluded.reward_qty, sort=excluded.sort;
+
+-- 2l. Igapäevane sisselogimise jada (7 päeva ring). Preemia ainult üks kord päevas (Tallinna aeg).
+create table if not exists public.daily_streak (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  streak int not null default 0, best int not null default 0, total int not null default 0, last_day date
+);
+alter table public.daily_streak enable row level security;
+revoke all on public.daily_streak from anon, authenticated;
+insert into public.secret_defs (id,name,descr,hint,reward_gold,reward_item,reward_qty,sort) values
+ ('jarjekindel','Järjekindel kalur','Tulid mängu 30 päeva järjest.','Kes käib järve ääres iga päev, sellele avaldab järv oma saladused.',4000,'mustparl',1,16)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, hint=excluded.hint, reward_gold=excluded.reward_gold,
+  reward_item=excluded.reward_item, reward_qty=excluded.reward_qty, sort=excluded.sort;
 insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
  ('parija','Udukuninga pärija','Pane sõrme Udukuninga Pärija sõrmus','Udukuninga pärija',20000,0,94)
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
@@ -2682,6 +2694,57 @@ begin
   return secret_state() || jsonb_build_object('ring', true, 'ach', fx_check_ach(u));
 end $$;
 
+
+-- ---------------------------------------------------------------------
+-- 6k. Igapäevane sisselogimise jada
+-- ---------------------------------------------------------------------
+create or replace function public.daily_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); r daily_streak; d date := fx_today(); cur int; can boolean;
+begin
+  perform fx_fisher(u);
+  select * into r from daily_streak where user_id = u;
+  can := r.last_day is distinct from d;
+  -- jada kehtib, kui eile või täna on preemia võetud; muidu algab uuesti
+  cur := case when r.last_day = d or r.last_day = d - 1 then r.streak else 0 end;
+  return jsonb_build_object('streak', cur, 'best', coalesce(r.best, 0), 'total', coalesce(r.total, 0), 'can', can,
+    'day', case when can then (cur % 7) + 1 else ((cur - 1) % 7) + 1 end, 'today', d,
+    'broken', r.last_day is not null and r.last_day < d - 1 and coalesce(r.streak, 0) > 1);
+end $$;
+
+create or replace function public.daily_claim() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r daily_streak; d date := fx_today(); n int; day int; g int := 0; v_items jsonb := '[]'; bb text; kd jsonb := '{}'; sec jsonb; x jsonb; bq int := 0;
+begin
+  f := fx_fisher(u);
+  insert into daily_streak(user_id) values (u) on conflict do nothing;
+  select * into r from daily_streak where user_id = u for update;
+  if r.last_day = d then raise exception 'Tänane preemia on juba võetud. Uus preemia tuleb kesköösel.'; end if;
+  n := case when r.last_day = d - 1 then r.streak + 1 else 1 end;
+  day := ((n - 1) % 7) + 1;
+  if day = 1 then g := 200;
+  elsif day = 2 then
+    select id into bb from fish_baits where consumable and min_level <= f.level order by sort desc limit 1;
+    if bb is not null then bq := 10; update fishers set baits = jsonb_set(baits, array[bb], to_jsonb(coalesce((baits ->> bb)::int, 0) + 10)) where user_id = u; end if;
+  elsif day = 3 then v_items := fx_give_random(u, 3, 1);
+  elsif day = 4 then g := 500;
+  elsif day = 5 then v_items := fx_give_item(u, 'koopakristall', 1);
+  elsif day = 6 then kd := '{"map":1}';
+  else
+    g := 1500 + 50 * f.level;
+    v_items := fx_give_random(u, 5, 2) || fx_give_item(u, 'koopakristall', 2);
+    kd := '{"fame":100}';
+  end if;
+  if g > 0 then update fishers set gold = gold + g where user_id = u; end if;
+  if kd <> '{}' then perform fx_inbox(u, kd, 'Päeva preemia'); end if;
+  update daily_streak set streak = n, best = greatest(best, n), total = total + 1, last_day = d where user_id = u;
+  if n = 30 or n = 100 then perform fx_news(u, 'streak', jsonb_build_object('n', n)); end if;
+  if n >= 30 then
+    x := fx_secret_give(u, 'jarjekindel');
+    if x is not null then sec := jsonb_build_object('found', jsonb_build_array(x), 'pieces', '[]'::jsonb); end if;
+  end if;
+  return daily_state() || jsonb_build_object('claimed', jsonb_build_object('day', day, 'streak', n, 'gold', g, 'items', v_items,
+    'bait', bb, 'bait_qty', bq, 'kingdom', kd), 'sec', sec);
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
@@ -2697,7 +2760,7 @@ do $$ declare r record; begin
               'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute','fish_kalatund','fish_kt_claim',
               'secret_state','secret_cave_start','secret_cave_go','secret_cave_leave',
               'secret_castle_hall','secret_boss_attack','secret_boss_claim',
-              'secret_animal_tame','secret_animal_gifts','secret_ring')) loop
+              'secret_animal_tame','secret_animal_gifts','secret_ring','daily_state','daily_claim')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

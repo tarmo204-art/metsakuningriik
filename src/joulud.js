@@ -108,6 +108,7 @@ function openWelcome() {
       <div class="sec-h" style="margin:0">Päevapreemia <small>${d.can ? (d.streakNext > 1 ? `${d.streakNext}. päev järjest!` : 'alusta uut seeriat') : 'tänane on võetud'}</small></div>
       <div class="xmday">${DAILY.map((r, i) => `<div class="${(d.can ? i < cur : i <= cur) ? 'got' : d.can && i === cur ? 'now' : ''}"><em>${(d.can ? i < cur : i <= cur) ? '✅' : DAY_IC[i]}</em><b>${i + 1}. päev</b><span>${rewardText(r)}</span></div>`).join('')}</div>
       <p class="lead" style="margin:0;font-size:13px">Tule iga päev tagasi: mida pikem seeria, seda suurem kingitus. 7. päeval ootab kõige suurem auhind.</p>
+      ${typeof fdayLine === 'function' ? fdayLine() : ''}
       ${d.can ? `<button class="btn" type="button" data-act="welDaily">Võta päevapreemia: ${rewardText(DAILY[d.idx])}</button>` : ''}
       ${xm ? `<div class="sec-h" style="margin:4px 0 0">Advendikalender 🎄 <small>${xm} ${xm === 1 ? 'luuk ootab' : 'luuki ootavad'}</small></div><button class="btn" type="button" data-act="welXmas" style="background:linear-gradient(180deg,#d8414a,#9a1c24);color:#fff">Ava advendikalender</button>` : ''}
       <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Hiljem</button></div></div>`;

@@ -127,6 +127,7 @@ function remTodo() {
     }
     if (d.chron) { total++; if (d.chron.done) done++; else add({ c: C.sec, t: 'Kalurite kroonika mõistatus', s: `${(d.chron.hints || []).length} / 3 vihjet avatud`, tab: 'saladus', b: 'Loe' }) }
   }
+  if (typeof S !== 'undefined' && S && S.daily && typeof dailyState === 'function') { const dd = dailyState(); total++; if (dd.can) add({ c: C.gold, claim: true, hot: true, act: 'daily', t: 'Päevapreemia ootab', s: dd.streakNext > 1 ? `${dd.streakNext}. päev järjest` + (typeof FDAY !== 'undefined' && FDAY.d && FDAY.d.can ? ' · koos kalapüügi boonusega' : '') : 'Alusta uut seeriat', b: 'Võta' }); else done++ }
   // tähtsamad ette: praegu toimuv, siis preemiad, siis muu
   T.sort((a, b) => (b.hot ? 2 : 0) + (b.claim ? 1 : 0) - (a.hot ? 2 : 0) - (a.claim ? 1 : 0));
   return { T, done, total };
@@ -141,7 +142,7 @@ function remSoon() {
   E.push({ t: wx, c: '#86cde0', x: 'Ilm vahetub', s: bo && !bo.killed ? `Kuninga Vari kardab ${(typeof SEC_WEAK !== 'undefined' && SEC_WEAK[bo.weak] ? SEC_WEAK[bo.weak][1] : bo.weak)}` : 'Mõni kala ujub ainult kindla ilmaga' });
   const nightAt = (() => { const h = remTallinn(n); return h >= 21 || h < 5 ? null : n + (21 - h) * 36e5 })();
   if (nightAt) E.push({ t: nightAt, c: '#7c8fd6', x: 'Öö algab', s: 'Öösel näkkavad öökalad' });
-  E.push({ t: remMidnight(), c: '#97d983', x: 'Uus päev', s: 'Uued tellimused, ülesanded' + (d && d.cave_open ? ', laternad' : '') + (bo ? ' ja löögid' : '') });
+  E.push({ t: remMidnight(), c: '#97d983', x: 'Uus päev', s: 'Uued tellimused, ülesanded' + (d && d.cave_open ? ', laternad' : '') + (bo ? ', löögid' : '') + (typeof S !== 'undefined' && S && S.daily && typeof dailyState === 'function' && !dailyState().can ? ' ja päevapreemia' : '') });
   if (d && d.chron && !d.chron.done && d.chron.stage < 3) {
     const wk = new Date(d.chron.week + 'T00:00:00+02:00').getTime(), at = wk + (d.chron.stage === 1 ? 2 : 4) * 864e5;
     if (at > n) E.push({ t: at, c: '#b48cff', x: 'Kroonika uus vihje', s: d.chron.stage === 1 ? 'Selgub koht' : 'Selgub kala nimi' });
@@ -191,7 +192,7 @@ function remHtml() {
     const showAll = REM.all, rows = showAll ? T : T.slice(0, 5);
     h += `<div class="rem-body"><div class="rem-sec"><h3>Tegemata</h3>${rows.length ? rows.map(r => `<div class="rem-row ${r.claim ? 'claim' : ''} ${r.hot ? 'hot' : ''}" style="--c:${r.c}"><span class="dot"></span>
         <div class="tx"><span>${esc(r.t)}</span>${r.s ? `<small>${esc(r.s)}</small>` : ''}${r.p != null ? `<div class="rem-bar"><i style="width:${Math.round(r.p * 100)}%"></i></div>` : ''}</div>
-        ${r.tab && r.tab !== FV.tab ? `<button class="rem-go" type="button" data-fa="tab" data-arg="${r.tab}">${r.b || 'Ava'}</button>` : '<span></span>'}</div>`).join('')
+        ${r.act ? `<button class="rem-go" type="button" data-daily="open">${r.b || 'Ava'}</button>` : r.tab && r.tab !== FV.tab ? `<button class="rem-go" type="button" data-fa="tab" data-arg="${r.tab}">${r.b || 'Ava'}</button>` : '<span></span>'}</div>`).join('')
         : `<div class="rem-done">🎣 Kõik on tehtud. Nüüd on hea aeg lihtsalt püüda.</div>`}
         ${T.length > 5 ? `<button class="rem-more" type="button" data-rem="all">${showAll ? 'Näita vähem' : `Näita veel ${T.length - 5}`}</button>` : ''}</div>
       <div class="rem-sec"><h3>Tulemas</h3><div class="rem-tl">${E.map(e => `<div class="rem-ev" style="--c:${e.c}"><time>${remClock(e.t)}</time><span class="pin"></span><div class="tx"><span>${esc(e.x)} <small>${remIn(e.t - remNow())}</small></span><small>${esc(e.s)}</small></div></div>`).join('')}</div></div></div>`;

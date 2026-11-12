@@ -67,9 +67,15 @@ NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte
 andmetest, ilma uute päringuteta) ja „Tulemas“ ajajoon. Avatud/peidetud olek localStorage `mk.remOpen`.
 Uue igapäevase asja lisamisel lisa see ka `remTodo()` / `remSoon()` sisse.
 
+**Päevapreemia kalapüügi boonus** (12.11.2026) – `src/paev.js`, schema.sql 2l + 6k.
+Kuningriigi päevapreemia oli juba olemas (engine.js `claimDaily`, tervitusaken joulud.js `openWelcome`,
+kuningriigi kaart ui.js) – NB: nimi `DAILY` on seal kasutusel. `claimDaily` on mähitud: sisseloginud
+mängija saab samast nupust ka serveri boonuse (`daily_claim`: 7 päeva ring, 7. päev aardekirst,
+30 päeva järjest → saladus `jarjekindel`). Rida `fdayLine()` näitab boonust tervitusaknas ja kaardil.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
-2. Ideed: igapäevane sisselogimise jada (7 päeva, server annab), nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
+2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
    tähtede vitriin teiste akvaariumi/külastuse vaates.
 
 Reeglid: ära lõhu olemasolevat mängu, raha/esemeid ei tohi saada topelt, tehingud ja võistlused

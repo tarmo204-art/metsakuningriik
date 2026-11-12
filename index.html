@@ -2436,6 +2436,7 @@ function renderKingdomTab() {
   let h = `<h2>${esc(S.kingdom)}</h2><p class="lead">Valitseja ${esc(S.name)} · Päev ${dayNum()} · ${RATES.residents} elanikku · ${S.buildings.length} hoonet · laomaht ${fmt(RATES.cap)}</p>`;
   h += `<div class="card"><div class="sec-h" style="margin:0">Päevapreemia <small>${S.daily.streak ? 'järjest ' + S.daily.streak + ' päeva' : 'alusta seeriat'}</small></div>
     <div class="daily">${DAILY.map((r, i) => { const claimedToday = !d.can, cur = (S.daily.streak - 1) % 7; const got = claimedToday ? i <= cur : i < d.idx; const next = d.can && i === d.idx; return `<div class="${got ? 'got' : ''} ${next ? 'next' : ''}"><b>${i + 1}.</b>${ic(Object.keys(r).includes('fame') ? 'fame' : 'gold')}<span>${r.gold}</span></div>` }).join('')}</div>
+    ${typeof fdayLine === 'function' ? fdayLine() : ''}
     ${d.can ? `<button class="btn" type="button" data-act="daily">Võta päevapreemia: ${rewardText(DAILY[d.idx])}</button>` : '<p class="lead">Tänane preemia on võetud. Tule homme tagasi, et seeriat jätkata.</p>'}</div>`;
   h += `<div class="card"><div class="sec-h" style="margin:0">Lõkkeplats <small>3 marja + 1 vesi → 2 toitu</small></div><p class="lead">Elanikud vajavad toitu. Kui põlde veel pole, valmista toitu marjadest.</p>
     ${S.res.food >= RATES.cap - 1 ? '<p class="lead" style="color:var(--amber-2)">Toiduladu on täis.</p>' : ''}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" type="button" data-act="cook" data-arg="1" ${S.res.berries >= 3 && S.res.water >= 1 && S.res.food < RATES.cap - 1 ? '' : 'disabled'}>Valmista 2 toitu</button><button class="btn sm" type="button" data-act="cook" data-arg="5" ${S.res.berries >= 15 && S.res.water >= 5 && S.res.food < RATES.cap - 1 ? '' : 'disabled'}>Valmista 10 toitu</button><button class="btn sm ghost" type="button" data-act="cook" data-arg="999" ${S.res.berries >= 3 && S.res.water >= 1 && S.res.food < RATES.cap - 1 ? '' : 'disabled'}>Kõik marjad toiduks</button></div></div>`;
@@ -4102,6 +4103,7 @@ function openWelcome() {
       <div class="sec-h" style="margin:0">Päevapreemia <small>${d.can ? (d.streakNext > 1 ? `${d.streakNext}. päev järjest!` : 'alusta uut seeriat') : 'tänane on võetud'}</small></div>
       <div class="xmday">${DAILY.map((r, i) => `<div class="${(d.can ? i < cur : i <= cur) ? 'got' : d.can && i === cur ? 'now' : ''}"><em>${(d.can ? i < cur : i <= cur) ? '✅' : DAY_IC[i]}</em><b>${i + 1}. päev</b><span>${rewardText(r)}</span></div>`).join('')}</div>
       <p class="lead" style="margin:0;font-size:13px">Tule iga päev tagasi: mida pikem seeria, seda suurem kingitus. 7. päeval ootab kõige suurem auhind.</p>
+      ${typeof fdayLine === 'function' ? fdayLine() : ''}
       ${d.can ? `<button class="btn" type="button" data-act="welDaily">Võta päevapreemia: ${rewardText(DAILY[d.idx])}</button>` : ''}
       ${xm ? `<div class="sec-h" style="margin:4px 0 0">Advendikalender 🎄 <small>${xm} ${xm === 1 ? 'luuk ootab' : 'luuki ootavad'}</small></div><button class="btn" type="button" data-act="welXmas" style="background:linear-gradient(180deg,#d8414a,#9a1c24);color:#fff">Ava advendikalender</button>` : ''}
       <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Hiljem</button></div></div>`;
@@ -7404,6 +7406,7 @@ function remTodo() {
     }
     if (d.chron) { total++; if (d.chron.done) done++; else add({ c: C.sec, t: 'Kalurite kroonika mõistatus', s: `${(d.chron.hints || []).length} / 3 vihjet avatud`, tab: 'saladus', b: 'Loe' }) }
   }
+  if (typeof S !== 'undefined' && S && S.daily && typeof dailyState === 'function') { const dd = dailyState(); total++; if (dd.can) add({ c: C.gold, claim: true, hot: true, act: 'daily', t: 'Päevapreemia ootab', s: dd.streakNext > 1 ? `${dd.streakNext}. päev järjest` + (typeof FDAY !== 'undefined' && FDAY.d && FDAY.d.can ? ' · koos kalapüügi boonusega' : '') : 'Alusta uut seeriat', b: 'Võta' }); else done++ }
   // tähtsamad ette: praegu toimuv, siis preemiad, siis muu
   T.sort((a, b) => (b.hot ? 2 : 0) + (b.claim ? 1 : 0) - (a.hot ? 2 : 0) - (a.claim ? 1 : 0));
   return { T, done, total };
@@ -7418,7 +7421,7 @@ function remSoon() {
   E.push({ t: wx, c: '#86cde0', x: 'Ilm vahetub', s: bo && !bo.killed ? `Kuninga Vari kardab ${(typeof SEC_WEAK !== 'undefined' && SEC_WEAK[bo.weak] ? SEC_WEAK[bo.weak][1] : bo.weak)}` : 'Mõni kala ujub ainult kindla ilmaga' });
   const nightAt = (() => { const h = remTallinn(n); return h >= 21 || h < 5 ? null : n + (21 - h) * 36e5 })();
   if (nightAt) E.push({ t: nightAt, c: '#7c8fd6', x: 'Öö algab', s: 'Öösel näkkavad öökalad' });
-  E.push({ t: remMidnight(), c: '#97d983', x: 'Uus päev', s: 'Uued tellimused, ülesanded' + (d && d.cave_open ? ', laternad' : '') + (bo ? ' ja löögid' : '') });
+  E.push({ t: remMidnight(), c: '#97d983', x: 'Uus päev', s: 'Uued tellimused, ülesanded' + (d && d.cave_open ? ', laternad' : '') + (bo ? ', löögid' : '') + (typeof S !== 'undefined' && S && S.daily && typeof dailyState === 'function' && !dailyState().can ? ' ja päevapreemia' : '') });
   if (d && d.chron && !d.chron.done && d.chron.stage < 3) {
     const wk = new Date(d.chron.week + 'T00:00:00+02:00').getTime(), at = wk + (d.chron.stage === 1 ? 2 : 4) * 864e5;
     if (at > n) E.push({ t: at, c: '#b48cff', x: 'Kroonika uus vihje', s: d.chron.stage === 1 ? 'Selgub koht' : 'Selgub kala nimi' });
@@ -7468,7 +7471,7 @@ function remHtml() {
     const showAll = REM.all, rows = showAll ? T : T.slice(0, 5);
     h += `<div class="rem-body"><div class="rem-sec"><h3>Tegemata</h3>${rows.length ? rows.map(r => `<div class="rem-row ${r.claim ? 'claim' : ''} ${r.hot ? 'hot' : ''}" style="--c:${r.c}"><span class="dot"></span>
         <div class="tx"><span>${esc(r.t)}</span>${r.s ? `<small>${esc(r.s)}</small>` : ''}${r.p != null ? `<div class="rem-bar"><i style="width:${Math.round(r.p * 100)}%"></i></div>` : ''}</div>
-        ${r.tab && r.tab !== FV.tab ? `<button class="rem-go" type="button" data-fa="tab" data-arg="${r.tab}">${r.b || 'Ava'}</button>` : '<span></span>'}</div>`).join('')
+        ${r.act ? `<button class="rem-go" type="button" data-daily="open">${r.b || 'Ava'}</button>` : r.tab && r.tab !== FV.tab ? `<button class="rem-go" type="button" data-fa="tab" data-arg="${r.tab}">${r.b || 'Ava'}</button>` : '<span></span>'}</div>`).join('')
         : `<div class="rem-done">🎣 Kõik on tehtud. Nüüd on hea aeg lihtsalt püüda.</div>`}
         ${T.length > 5 ? `<button class="rem-more" type="button" data-rem="all">${showAll ? 'Näita vähem' : `Näita veel ${T.length - 5}`}</button>` : ''}</div>
       <div class="rem-sec"><h3>Tulemas</h3><div class="rem-tl">${E.map(e => `<div class="rem-ev" style="--c:${e.c}"><time>${remClock(e.t)}</time><span class="pin"></span><div class="tx"><span>${esc(e.x)} <small>${remIn(e.t - remNow())}</small></span><small>${esc(e.s)}</small></div></div>`).join('')}</div></div></div>`;
@@ -7490,6 +7493,64 @@ document.addEventListener('click', e => {
 });
 // kellaajad ja osuti püsivad värsked ka siis, kui midagi muud ei muutu
 setInterval(() => { if (FV.open && FV.tab === 'puuk' && (FV.phase === 'idle' || FV.phase === 'result') && !FV.busy) renderFV() }, 60000);
+
+/* =====================================================================
+   Päevapreemia kalapüügi boonus.
+   Mängus on juba kuningriigi päevapreemia (engine.js claimDaily + tervitusaken joulud.js).
+   Sisseloginud mängija saab samast nupust lisaks serveri kontrollitud kalapüügi boonuse
+   (daily_state / daily_claim, 7 päeva ring, 7. päeval suur aardekirst). Eraldi akent ei ole.
+   ===================================================================== */
+const FDAY = { d: null, loading: false };
+const FDAY_R = ['200 kulda kalurikassasse', '10 sööta', 'juhuslik ese', '500 kulda kalurikassasse', 'koopakristall', 'aardekaart kuningriiki', 'suur aardekirst'];
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+.fday{display:flex;gap:10px;align-items:center;margin:0;padding:9px 12px;border-radius:12px;font-size:13.5px;line-height:1.4;color:#d8eef4;
+  background:linear-gradient(110deg,rgba(47,106,132,.45),rgba(47,106,132,.15));border:1px solid rgba(134,205,224,.25);text-align:left}
+.fday .e{font-size:22px}.fday b{color:#ffe2a0}.fday small{display:block;color:#9cc0ca;font-size:12px}
+.fday.done{opacity:.7}
+</style>`);
+
+async function fdayLoad() {
+  if (!CL.user || FDAY.loading) return; FDAY.loading = true;
+  try { FDAY.d = await rpc('daily_state') } catch (e) { }
+  FDAY.loading = false;
+  if (UI.modalView) renderModal(); if (FV.open) renderFV();
+}
+// rida tervitusaknas ja kuningriigi päevapreemia kaardil
+function fdayLine() {
+  if (!CL.user || !FDAY.d) return '';
+  const d = FDAY.d, nx = d.can ? d.day : (d.day % 7) + 1;
+  return d.can
+    ? `<p class="fday"><span class="e">🎣</span><span>Lisaks kalapüügi boonus: <b>${FDAY_R[d.day - 1]}</b><small>Kalapüügi jada ${d.streak} päeva · 7. päeval suur aardekirst</small></span></p>`
+    : `<p class="fday done"><span class="e">🎣</span><span>Kalapüügi boonus on täna võetud<small>Homme: ${FDAY_R[nx - 1]} · jada ${d.streak} päeva</small></span></p>`;
+}
+{
+  // sama nupp annab nüüd ka kalapüügi boonuse
+  const baseClaim = claimDaily;
+  claimDaily = function () {
+    const can = dailyState().can; baseClaim();
+    if (!can || !CL.user) return;
+    rpc('daily_claim').then(r => {
+      const { claimed: c, sec, ...st } = r; FDAY.d = st;
+      const parts = [c.gold ? `+${fmt(c.gold)} kulda kalurikassasse` : '', c.bait_qty ? `+${c.bait_qty} sööta` : '', ...(c.items || []).map(x => itemName(x.id) + (x.qty > 1 ? ' ×' + x.qty : '')),
+        c.kingdom && c.kingdom.map ? 'aardekaart kuningriiki' : '', c.kingdom && c.kingdom.fame ? `+${c.kingdom.fame} kuulsust` : ''].filter(Boolean);
+      setTimeout(() => toast(`Kalapüügi boonus (${c.streak}. päev järjest${c.day === 7 ? ', aardekirst!' : ''}): ${parts.join(', ')}`, 'gold', 'fish'), 900);
+      if (c.kingdom && Object.keys(c.kingdom).length && typeof claimInbox === 'function') setTimeout(claimInbox, 1500);
+      if (FV.open) refreshFS().then(() => renderFV(true));
+      if (UI.modalView) renderModal(true);
+    }).catch(() => fdayLoad());
+  };
+  const baseEnter = enterGame;
+  enterGame = function () { baseEnter(); if (CL.user) fdayLoad() };
+  const baseRefreshD = refreshFS;
+  refreshFS = async function () { const r = await baseRefreshD(); if (!FDAY.d && !FDAY.loading) fdayLoad(); return r };
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-daily="open"]'); if (!el) return;
+  if (typeof openWelcome === 'function') openWelcome();
+});
+// kesköö järel tuleb uus päev
+setInterval(() => { if (CL.user && FDAY.d && !FDAY.d.can) fdayLoad() }, 10 * 60000);
 
 </script>
 </body></html>
