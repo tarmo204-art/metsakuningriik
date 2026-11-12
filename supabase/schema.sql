@@ -550,6 +550,9 @@ on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=e
 
 -- Etapp 6: prestiižitähtede saavutused
 insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('vana1','Vana kala','Püüa vana kala (oma liigi suuremate seast)',null,500,0,95),
+ ('vana25','Vanade kalade tundja','Püüa 25 vana või legendaarset kala','Vanakalur',3000,0,96),
+ ('legvana5','Aegade kalur','Püüa 5 legendaarse vanusega kala (hiiglast)','Aegade kalur',8000,0,97),
  ('taht1','Esimene täht','Teeni pärast 50. taset esimene prestiižitäht','Tähekalur',3000,0,90),
  ('taht5','Viis tähte','Teeni 5 prestiižitähte','Kuldtähe kalur',8000,0,91),
  ('taht10','Tähistaevas','Teeni 10 prestiižitähte','Tähtede valitseja',15000,0,92),
@@ -892,6 +895,11 @@ update public.fish_species s set max_len = v.ln, real = false from (values
  ('sugavusedraakon',900)
 ) as v(id, ln) where s.id = v.id;
 
+-- Kala eluiga aastates (päris kaladel ligikaudne päris eluiga). Vanus arvutatakse pikkusest kasvuvalemiga.
+-- Vanuseklass kaalu järgi: noor < 30%, täiskasvanud < 75%, vana kuni max_w, legendaarne üle max_w (hiiglane).
+alter table public.fish_species add column if not exists max_age int;
+update public.fish_species s set max_age = v.a from (values ('ahven',22),('sarg',14),('roosarg',17),('kiisk',10),('tobias',7),('laternkala',4),('teib',16),('latikas',25),('raim',12),('lest',15),('tint',10),('viidikas',6),('nurg',15),('lepamaim',10),('luukarits',4),('ogalik',4),('trulling',8),('hink',5),('voldas',10),('kilu',6),('mustmudil',5),('liivamudil',2),('linask',20),('haug',30),('sainas',20),('koha',20),('tursk',25),('siig',20),('raabis',10),('vimb',15),('turb',20),('koger',10),('emakala',8),('merihark',15),('hobekoger',10),('makrell',17),('nokkhaug',18),('merinoel',5),('madunoel',5),('peled',15),('mudamaim',5),('vingerjas',10),('ojasilm',6),('angerjas',50),('luts',20),('harjus',14),('vikerforell',11),('karpkala',40),('meriforell',20),('lohe',13),('paalia',15),('toogjas',15),('joeforell',18),('joesilm',7),('hobekarp',20),('kammeljas',25),('amuur',20),('kirveskala',3),('saga',80),('tuur',100),('tuun',40),('merikurat',24),('mookkala',25),('airukala',20),('kuusarg',20),('jaaahven',25),('kristallahven',30),('pilvekala',20),('paikesekarp',30),('vihmaforell',15),('uduhobe',25),('kuldahven',40),('kuningkarp',60),('virmaliskala',50),('udukala',40),('vikerkaarekala',30),('tormihaug',50),('kuuangerjas',100),('joekuningas',150),('merivaim',200),('jaahaug',80),('haldjakala',300),('valgukala',60),('kuldkala',1000),('igijaavaim',1000),('leviaatan',3000),('jarvelohe',500),('sugavusedraakon',5000)) as v(id, a) where s.id = v.id;
+
 -- Lantide parandused: ahven ja säga võtavad lanti, karpkala mitte (lisab/eemaldab, ei kirjuta muud üle)
 update public.fish_species set baits = array_remove(baits, 'kuldvobler') where id = 'kuningkarp' and 'kuldvobler' = any(baits);
 update public.fish_species s set baits = array_append(s.baits, v.b) from (values ('ahven','hobelant'),('jaaahven','hobelant'),('saga','kuldvobler'),('kuningkarp','leib')) as v(id, b)
@@ -1064,6 +1072,9 @@ begin
       when 'suur10' then maxw >= 10 when 'suur50' then maxw >= 50 when 'suur100' then maxw >= 100 when 'hiiglane' then coalesce(hasgiant,false)
       when 'tavalised' then ncommon >= ncommon_all when 'kohad' then nspots >= 6 when 'koik' then nall >= nall_total
       when 'tase10' then f.level >= 10 when 'tase25' then f.level >= 25 when 'tase50' then f.level >= 50
+      when 'vana1' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 1
+      when 'vana25' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 25
+      when 'legvana5' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and (c.giant or c.weight > fs.max_w)) >= 5
       when 'parija' then exists (select 1 from public.fisher_myth where user_id = u and myth = 'parijasormus')
       when 'taht1' then f.prestige >= 1 when 'taht5' then f.prestige >= 5 when 'taht10' then f.prestige >= 10 when 'taht25' then f.prestige >= 25
       when 'oo' then f.night >= 50 when 'prugi' then f.junk >= 10 when 'kirst' then f.chests >= 5
@@ -1195,8 +1206,10 @@ begin
   f := fx_fisher(u);
   -- vanad pooleli jäänud viskamised loetakse kaotatuks
   update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked') and created_at < now() - interval '3 minutes';
-  select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx)), '{}') into book
-    from (select species, count(*) n, max(weight) mx from fish_catches where user_id = u and not bought group by species) x;
+  select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx, 'fa', fa, 'fs', fsp, 'ra', ra, 'rs', rsp)), '{}') into book
+    from (select species, count(*) n, max(weight) mx, min(caught_at) fa, (array_agg(spot order by caught_at))[1] fsp,
+            (array_agg(caught_at order by weight desc, caught_at))[1] ra, (array_agg(spot order by weight desc, caught_at))[1] rsp
+          from fish_catches where user_id = u and not bought group by species) x;
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,

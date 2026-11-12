@@ -102,6 +102,11 @@ mini-mõõdulint, märgid rekord/uus liik/lemmiksööt. Sõnastus „Sinu <nimi>
 või madalamast klassist kala, kelle `baits` sisaldab lanti (hobelant/kuldvobler/draakonilant); muidu tavaline valik.
 Testitud: landiga järvedel/jõel ~92% röövkalu (enne 23–45%). Uue röövkala lisamisel pane tema `baits` sisse ka lant.
 
+**Kala vanus ja avastus** (12.11.2026) – `fish_species.max_age` (eluiga aastates). Klass kaalu järgi: noor < 30%,
+täiskasvanud < 75%, vana ≤ max_w, legendaarne > max_w (sama loogika serveri saavutustes vana1/vana25/legvana5).
+Aastad kasvuvalemiga (`fAgeYears`, kalapuuk.js). fish_state book: `fa/fs` (avastus) ja `ra/rs` (rekord) aeg ja koht.
+Kalakaardil read „Vanus“ (`fcAges`) ja „Sinu kalaraamatust“; vanuse märk tulemuses, saagis ja kiitusbänneris.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

@@ -23,3 +23,4 @@ Väljale `baits` kirjuta kala lemmiksöödad (nt `{uss,mais}`) ja väljale `time
 (`{hommik}`, `{päev}`, `{õhtu}` või `{öö}`, võib ka mitu). Tühjaks jättes pole kalal lemmikut.
 Väljale `max_len` kirjuta kala pikkus sentimeetrites tema suurima kaalu (`max_w`) juures. Mäng arvutab
 sellest iga püütud kala pikkuse. Kui kala on välja mõeldud, pane `real` väärtuseks `false`.
+Väljale `max_age` kirjuta, mitu aastat kala elab. Selle järgi arvutab mäng püütud kala vanuse.

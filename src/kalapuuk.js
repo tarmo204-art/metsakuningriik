@@ -6,6 +6,13 @@ function fKg(w) { w = +w; if (!isFinite(w)) return ''; if (w < 1) return Math.ma
 function fLen(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return ''; const L = sp.max_len * Math.cbrt(Math.max(0, +w) / sp.max_w); return L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
 function fRange(a, b) { const m = /^(.*) (g|kg|cm|m)$/; const x = String(a).match(m), y = String(b).match(m); return x && y && x[2] === y[2] ? `${x[1]}–${y[1]} ${y[2]}` : `${a}–${b}` }
 const FISH_GIANT = 1.6; // hiiglane võib olla kuni 1,6 × max_w (fish_cast)
+// kala vanus: klass kaalu järgi (noor < 30%, täiskasvanud < 75%, vana kuni max_w, legendaarne üle selle)
+// aastad kasvuvalemiga L(t) = L∞(1 − e^(−kt)), k = 3,9 / eluiga (kala jõuab eluea lõpuks 98% maksimumpikkusest)
+const AGE_CLS = [['noor', '🌱', 'Noor', '#8fd17a'], ['taiskasvanud', '🐟', 'Täiskasvanud', '#5ac8e8'], ['vana', '🍂', 'Vana', '#f2b552'], ['legend', '👑', 'Legendaarne', '#c58cff']];
+function fAgeCls(sp, w) { const p = (w - sp.min_w) / Math.max(1e-9, sp.max_w - sp.min_w); return w > sp.max_w * 1.0001 ? 3 : p >= .75 ? 2 : p >= .3 ? 1 : 0 }
+function fAgeYears(sp, w) { if (!sp || !sp.max_age) return null; const r = Math.min(.999, Math.cbrt(Math.max(0, w) / (sp.max_w * FISH_GIANT)) / 1.03); return -Math.log(1 - r) / (3.9 / sp.max_age) }
+function fAgeTxt(t) { return t == null ? '' : t < 1 ? 'alla aasta' : '~' + fmt(Math.round(t)) + ' a' }
+function fAge(sp, w) { if (!sp) return null; const c = AGE_CLS[fAgeCls(sp, +w)], t = fAgeYears(sp, +w); return { k: c[0], ic: c[1], name: c[2], col: c[3], years: t, txt: c[1] + ' ' + c[2] + (t != null ? ' · ' + fAgeTxt(t) : '') } }
 function fSize(sp, w) { const l = fLen(sp, w); return fKg(w) + (l ? ' · ' + l : '') }
 const RAR2 = { 1: ['Tavaline', '#c3d3a4'], 2: ['Ebatavaline', '#8fd17a'], 3: ['Haruldane', '#6cb8ff'], 4: ['Eepiline', '#c58cff'], 5: ['Legendaarne', '#ffb347'], 6: ['Müütiline', '#ff6b9a'] };
 const JUNK2 = { saabas: ['Vana saabas', 'Keegi on siin kunagi märjaks saanud.'], purk: ['Plekkpurk', 'Purgi põhjas kõlises 3 kuldmünti.'], kepp: ['Triivpuu', 'Lihtsalt üks märg oks. Vähemalt said harjutada.'], pudel: ['Pudelipost', 'Pudelis oli aardekaart! See saadeti sinu kuningriiki.'], karp: ['Merekarp', 'Põhjamudast tuli ilus karp. See läks sinu kotti.'] };
@@ -970,7 +977,7 @@ function tabSaak() {
   const inv = FS.inventory || [], kept = inv.filter(x => !x.trophy), tro = inv.filter(x => x.trophy);
   FV.sel = new Set([...FV.sel].filter(id => kept.some(x => x.id === id)));
   const selN = FV.sel.size;
-  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}</div>` };
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${FD.sp[x.species] ? ' · ' + fAge(FD.sp[x.species], +x.weight).ic : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}</div>` };
   let h = `<div class="fv-card"><h2>Saak</h2><p class="lead">Klõpsa kaladel, et neid valida. Müümisel saad kulda kalurikassasse. Toit ja kuulsus lähevad sinu kuningriiki. Turuhinnad muutuvad iga päev ja kui müüd ühel päeval palju sama kala, langeb selle hind.</p>
     <div class="chips"><span class="chip">${kept.length} kala saagis</span><span class="chip">Valitud: ${selN}</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">

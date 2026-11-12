@@ -65,9 +65,15 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fav-f.best{border-color:rgba(255,210,122,.7);box-shadow:0 0 12px rgba(255,200,110,.35)}
 .fav-f.best::after{content:"🕐";font-size:11px}
 .fav-chip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:8px;font:800 12px system-ui;vertical-align:middle;color:#3a0b1c;background:linear-gradient(180deg,#ffc2d4,#ff8fb0);animation:favPop .5s cubic-bezier(.2,1.7,.4,1) both}
+.age-chip{display:inline-block;margin:2px 0 0;padding:2px 9px;border-radius:999px;font:700 12px system-ui;color:#fff;background:color-mix(in srgb,var(--ac) 28%,rgba(0,0,0,.25));border:1px solid var(--ac);justify-self:start}
+.fc-ages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.fc-ages div{padding:6px 6px 5px;border-radius:8px;background:rgba(255,255,255,.05);border-top:3px solid var(--ac);display:grid;gap:1px;min-width:0}
+.fc-ages b{font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fc-ages small{font-size:11px;color:#9cb8c2}
+.fc-ages div.on{background:color-mix(in srgb,var(--ac) 22%,transparent);box-shadow:0 0 0 1px var(--ac)}
+.fc-disc{display:grid;gap:3px;font-size:13.5px;color:#e8f2f4}
 .fav-chip.t{color:#2a1a05;background:linear-gradient(180deg,#ffe2a0,#f2b552)}
 @keyframes favPop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
-@media (max-width:560px){.fc-cv{height:180px}.fc-name h2{font-size:25px}}
+@media (max-width:560px){.fc-ages{grid-template-columns:repeat(2,minmax(0,1fr))}.fc-cv{height:180px}.fc-name h2{font-size:25px}}
 @media (prefers-reduced-motion:reduce){.fav-chip{animation:none}}
 </style>`);
 
@@ -85,6 +91,17 @@ function fcDayRing(times, now) {
   s += `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="3.5" fill="#fff" style="filter:drop-shadow(0 0 3px #fff)"/>`;
   s += `<text x="${C}" y="${C + 5}" text-anchor="middle" font-size="14">${DP[now] ? DP[now][0] : ''}</text>`;
   return `<svg viewBox="0 0 64 64" aria-hidden="true">${s}</svg>`;
+}
+
+/* ---------- vanus ja avastus ---------- */
+function fcDate(d) { return new Date(d).toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' }) }
+function fcSpot(id) { return FD.spot[id] ? FD.spot[id].name : (id || '') }
+function fcAges(s, b) {
+  if (!s.max_age) return '';
+  const lim = [s.min_w + .3 * (s.max_w - s.min_w), s.min_w + .75 * (s.max_w - s.min_w), s.max_w], my = b ? fAgeCls(s, +b.max) : -1;
+  const rng = [`kuni ${fKg(lim[0])}`, `${fRange(fKg(lim[0]), fKg(lim[1]))}`, `${fRange(fKg(lim[1]), fKg(lim[2]))}`, `üle ${fKg(lim[2])}`];
+  return `<div class="fc-ages">${AGE_CLS.map((c, i) => `<div class="${i === my ? 'on' : ''}" style="--ac:${c[3]}"><b>${c[1]} ${c[2]}</b><small>${rng[i]}</small><small>${fAgeTxt(fAgeYears(s, i === 0 ? lim[0] : i === 1 ? lim[1] : i === 2 ? lim[2] : s.max_w * FISH_GIANT))}</small></div>`).join('')}</div>
+    ${b ? `<span style="font-size:13.5px;color:#e8f2f4">Sinu rekordkala: <b>${fAge(s, +b.max).txt}</b></span>` : ''}`;
 }
 
 /* ---------- mõõdulint: tavaline suurus, hiiglased ja sinu rekord ---------- */
@@ -134,6 +151,8 @@ function fishCard(id) {
             <div class="fc-row"><span class="ic">🕐</span><div class="v"><small>Parim aeg</small>
               ${b ? (times.length ? `<div class="fc-time">${fcDayRing(times, now)}<div class="tl">${times.map(t => `<span>${DP[t] ? DP[t][0] + ' ' + DP[t][1] + ' <small style="color:#8fb0ba">' + DP[t][2] + '</small>' : t}</span>`).join('')}${bestNow ? '<span class="now">✨ Praegu on parim aeg!</span>' : ''}</div></div>` : '<span>Igal ajal</span>') : '<span class="fc-hid">???</span>'}</div></div>
             <div class="fc-row"><span class="ic">💪</span><div class="v"><small>Raskus</small><div class="fc-pips" style="--dc:${df[2]}" aria-label="Raskus ${s2.difficulty} / 10">${pips}</div></div></div>
+            <div class="fc-row"><span class="ic">🎂</span><div class="v"><small>Vanus · ${s2.real === false ? 'muinasjutu järgi elab' : 'elab'} kuni ~${fmt(s2.max_age || 0)} aastat</small>${fcAges(s2, b)}</div></div>
+            ${b && b.fa ? `<div class="fc-row"><span class="ic">📖</span><div class="v"><small>Sinu kalaraamatust</small><div class="fc-disc"><span>Avastasid <b>${fcDate(b.fa)}</b> · ${esc(fcSpot(b.fs))}</span>${b.ra && b.n > 1 ? `<span>🏆 Rekord püütud <b>${fcDate(b.ra)}</b> · ${esc(fcSpot(b.rs))}</span>` : ''}</div></div></div>` : ''}
             <div class="fc-row"><span class="ic">📏</span><div class="v"><small>Mängus püütav suurus${s2.real === false ? '' : ' · päris kala mõõdud'}</small>${fcTape(s2, b)}</div></div>
           </div>
           <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : ''}</div>
@@ -199,6 +218,7 @@ function favStrip() {
   const baseResult = resultCard;
   resultCard = function () {
     let h = baseResult(); const r = FV.result;
+    if (r && r.kind === 'fish' && FD.sp[r.species] && typeof fAge === 'function') { const ag = fAge(FD.sp[r.species], +r.weight); h = h.replace(/(<h3>[^<]*<\/h3>)/, `$1<span class="age-chip" style="--ac:${ag.col}">${ag.txt}</span>`) }
     if (r && r.kind === 'fish' && (r.fav || r.best)) {
       const chips = `${r.fav ? '<span class="fav-chip">❤ Lemmiksööt</span>' : ''}${r.best ? '<span class="fav-chip t">🕐 Parim aeg</span>' : ''}`;
       h = h.replace(/(kogemust[^<]*(?:<span class="kx2"[^>]*>×2<\/span>)?)/, '$1' + chips);

@@ -27,6 +27,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kit .sup{font-weight:800;color:color-mix(in srgb,var(--kc) 60%,#fff);font-size:14px}
 .kit-chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
 .kit-chips span{padding:2px 9px;border-radius:999px;font:800 12px system-ui;background:rgba(255,255,255,.14);color:#fff}
+.kit-chips .age{background:color-mix(in srgb,var(--ac) 30%,rgba(0,0,0,.2));border:1px solid var(--ac);color:#fff}
 .kit-chips .rec{background:linear-gradient(180deg,#ffe2a0,#f2b552);color:#2a1a05}
 .kit-chips .new{background:linear-gradient(180deg,#b8f5c4,#5ccf7a);color:#0a2a12}
 .kit-chips .fav{background:linear-gradient(180deg,#ffc2d4,#ff8fb0);color:#3a0b1c}
@@ -56,7 +57,8 @@ function kitShow(r) {
   const col = tier === 'hiid' ? '#f2b552' : (RAR2[s.rarity] || RAR2[1])[1];
   // mõõdulint pikkuse järgi (sama mis kalakaardil)
   const L = (x) => s.max_len ? Math.cbrt(x / s.max_w) : x / s.max_w, top = L(gm), pos = (x) => Math.max(0, Math.min(100, L(x) / top * 100));
-  const chips = [r.record || r.new_species ? (r.new_species ? '<span class="new">📖 Uus liik</span>' : '<span class="rec">🏆 Isiklik rekord</span>') : '', r.fav ? '<span class="fav">❤ Lemmiksööt</span>' : ''].filter(Boolean).join('');
+  const ag = typeof fAge === 'function' ? fAge(s, w) : null;
+  const chips = [ag ? `<span class="age" style="--ac:${ag.col}">${ag.txt}</span>` : '', r.record || r.new_species ? (r.new_species ? '<span class="new">📖 Uus liik</span>' : '<span class="rec">🏆 Isiklik rekord</span>') : '', r.fav ? '<span class="fav">❤ Lemmiksööt</span>' : ''].filter(Boolean).join('');
   const conf = tier === 'suur' || tier === 'hiid' ? Array.from({ length: tier === 'hiid' ? 26 : 14 }, (_, i) => `<i class="cf" style="left:${(4 + i * 92 / (tier === 'hiid' ? 26 : 14)).toFixed(1)}%;background:${['#ffd286', '#ff8fb0', '#7ae0ff', '#b8f5c4', '#fff'][i % 5]};--x:${((i % 2 ? 1 : -1) * (10 + (i * 7) % 30))}px;--d:${(.1 + (i % 7) * .09).toFixed(2)}s"></i>`).join('') : '';
   kitHide();
   const el = document.createElement('div'); el.className = 'kit ' + tier; el.style.setProperty('--kc', col); el.setAttribute('role', 'status');
