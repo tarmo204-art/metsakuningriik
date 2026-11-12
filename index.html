@@ -4445,7 +4445,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fv-lvl{display:flex;align-items:center;gap:10px;min-width:0}
 .fv-badge{width:52px;height:56px;display:grid;place-items:center;align-content:center;border-radius:12px 12px 24px 24px;background:radial-gradient(circle at 50% 30%,#2f6a84,#173a4a);border:2px solid #86cde0;line-height:1;flex:none}
 .fv-badge b{font-family:var(--f-head);font-size:21px;color:#d8f4ff}.fv-badge small{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#9cc8d8}
-.fv-xp{width:170px;height:8px;border-radius:9px;background:rgba(0,0,0,.4);overflow:hidden}.fv-xp i{display:block;height:100%;background:linear-gradient(90deg,#5ac8e8,#c8f2ff);border-radius:9px;transition:width .4s}
+.fv-star{position:absolute;right:-10px;bottom:-8px;font:700 11px system-ui;color:#3a2600;background:linear-gradient(180deg,#ffe39a,#e9a640);border-radius:9px;padding:2px 6px;box-shadow:0 2px 6px rgba(0,0,0,.45);white-space:nowrap}.fv-xp.star i{background:linear-gradient(90deg,#e9a640,#ffe39a)}.fv-xp{width:170px;height:8px;border-radius:9px;background:rgba(0,0,0,.4);overflow:hidden}.fv-xp i{display:block;height:100%;background:linear-gradient(90deg,#5ac8e8,#c8f2ff);border-radius:9px;transition:width .4s}
 .fv-purse{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid rgba(242,181,82,.4);font-weight:800}
 .fv-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
 .fv-stat{padding:9px 11px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(134,205,224,.15);min-width:0}
@@ -4590,6 +4590,7 @@ async function refreshFS() {
   if (S) S.fishCache = { level: FS.level, total: FS.total };
   if (!FV.spot || (FD.spot[FV.spot] && (FD.spot[FV.spot].min_level > FS.level || (FD.spot[FV.spot].boat && !(FS.boats || []).includes(FD.spot[FV.spot].boat))))) FV.spot = 'metsajarv';
   if (FS.inbox > 0) claimInbox();
+  starCheck();
   return FS;
 }
 async function loadOdds() {
@@ -5126,16 +5127,16 @@ function paintFishCanvases(root) {
 
 /* ---------- vaate kujundus ---------- */
 function fvHeader() {
-  const need = FS.xp_need || 1, pct = FS.level >= 50 ? 100 : Math.min(100, FS.xp / need * 100);
+  const max = FS.level >= 50 && !!FS.pxp_need, stars = FS.prestige || 0, need = max ? (FS.pxp_need || 1) : (FS.xp_need || 1), have = max ? (FS.pxp || 0) : FS.xp, pct = Math.min(100, have / need * 100);
   const big = FS.biggest_species && FD.sp[FS.biggest_species] ? `${FD.sp[FS.biggest_species].name} ${fmt1(+FS.biggest)} kg` : '—';
   const rod = FD.rod[FS.rod], bait = FD.bait[FS.bait];
   const baitCnt = bait && bait.consumable ? ` (${(FS.baits || {})[bait.id] || 0})` : '';
   const rare = [3, 4, 5, 6].reduce((a, r) => a + ((FS.by_rarity || {})[r] || 0), 0);
   return `<div class="fv-top"><button class="btn ghost sm" type="button" data-fa="close">← Kuningriik</button><h1>Kalapüük</h1>
       <div class="fv-purse" title="Kalurikassa: kuld, mille teenid kalapüügiga">${ic('gold')}<span class="num">${fmt(FS.gold)}</span></div></div>
-    <div class="fv-top" style="gap:14px"><div class="fv-lvl"><div class="fv-badge"><b>${FS.level}</b><small>tase</small></div><div style="display:grid;gap:3px;min-width:0">
-      <b style="font-size:15px">${FS.title ? esc(FS.title) : 'Kalur'}</b><div class="fv-xp"><i style="width:${pct.toFixed(1)}%"></i></div>
-      <small class="num" style="color:#9cb8c4">${FS.level >= 50 ? 'Maksimaalne tase!' : `${fmt(FS.xp)} / ${fmt(need)} kogemust · järgmise tasemeni ${fmt(need - FS.xp)}`}</small></div></div>
+    <div class="fv-top" style="gap:14px"><div class="fv-lvl"><div class="fv-badge" style="position:relative"><b>${FS.level}</b><small>tase</small>${stars ? `<span class="fv-star" title="Prestiižitähed">★${stars}</span>` : ''}</div><div style="display:grid;gap:3px;min-width:0">
+      <b style="font-size:15px">${FS.title ? esc(FS.title) : 'Kalur'}</b><div class="fv-xp${max ? ' star' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <small class="num" style="color:#9cb8c4">${FS.level >= 50 && !max ? 'Maksimaalne tase!' : max ? `<span title="Pärast 50. taset koguneb kogemus prestiižitähtedeks. Iga täht annab kulda, eseme ja +1% kalade müügihinda (kuni +30%).">★ ${fmt(have)} / ${fmt(need)} tähekogemust · järgmise täheni ${fmt(need - have)}${stars ? ` · müük +${Math.round((FS.star_bonus || 0) * 100)}%` : ''}</span>` : `${fmt(FS.xp)} / ${fmt(need)} kogemust · järgmise tasemeni ${fmt(need - FS.xp)}`}</small></div></div>
       <div class="chips" style="margin-left:auto">${weatherChips()}</div></div>
     <div class="fv-stats">
       <div class="fv-stat"><small>Püütud kalu</small><b class="num">${fmt(FS.total)}</b></div>
@@ -5462,7 +5463,7 @@ function tabVoistlus() {
       ${c.mine ? `<p class="lead">Sinu koht: <b>${c.mine.place}.</b> (${val(c.mine)})</p>` : ''}
       ${c.last.length ? `<p class="lead" style="font-size:12.5px">Eelmine kord: ${c.last.map(r => `${r.place}. ${esc(r.name)}${r.me ? ' (sina)' : ''}`).join(', ')}</p>` : ''}</div>`;
   }
-  h += `</div><div class="fv-card"><h2>Kuningriigi kalapüügi edetabel</h2>${C.leaderboard.length ? lbHtml({ who: 'Kalur', cols: ['Tase', 'Kalu', 'Suurim'], main: 0, hideM: [2], podium: true, rows: C.leaderboard.map((r, i) => ({ place: i + 1, name: r.name, sub: r.title, me: r.me, vals: [r.level, fmt(r.total), fmt1(+r.biggest) + ' kg'] })) }) : '<p class="lead">Edetabel on veel tühi.</p>'}</div>`;
+  h += `</div><div class="fv-card"><h2>Kuningriigi kalapüügi edetabel</h2>${C.leaderboard.length ? lbHtml({ who: 'Kalur', cols: ['Tase', 'Kalu', 'Suurim'], main: 0, hideM: [2], podium: true, rows: C.leaderboard.map((r, i) => ({ place: i + 1, name: r.name, sub: r.title, me: r.me, vals: [r.level + (r.stars ? ' ★' + r.stars : ''), fmt(r.total), fmt1(+r.biggest) + ' kg'] })) }) : '<p class="lead">Edetabel on veel tühi.</p>'}</div>`;
   return h;
 }
 
@@ -5515,6 +5516,7 @@ function newsText(n) {
     case 'chest': return `${who} leidis kuldse aardekirstu ja ${fmt(d.gold || 0)} kulda!`;
     case 'comp': return `${who} võitis võistluse „${COMPN[d.comp] ? COMPN[d.comp][0] : d.comp}“!`;
     case 'level': return `${who} jõudis kalapüügi ${d.level}. tasemele!`;
+    case 'star': return `${who} teenis <b style="color:#ffd27a">${d.star}. prestiižitähe</b>! ★`;
     case 'monument': return `${who} viis lõpule sõpruse monumendi ${d.stage}. etapi! Kõik panustajad said preemia.`;
     case 'enchant': return `${who} lisas õngele ${esc(d.rod || '')} võimsa võlu: ${esc(d.ench || '')} III!`;
     case 'boat': return `${who} ostis uue paadi: ${esc(d.boat || '')}!`;
@@ -5525,7 +5527,7 @@ function newsText(n) {
   }
   return who;
 }
-const NEWS_IC = { monument: '🏛️', enchant: '✨', boat: '⛵', house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐' };
+const NEWS_IC = { monument: '🏛️', enchant: '✨', boat: '⛵', house: '🏠', first: '📖', catch: '✨', giant: '🐋', chest: '👑', comp: '🏆', level: '⭐', star: '🌟' };
 function newsAgo(at) { const m = Math.floor((Date.now() - new Date(at)) / 60000); if (m < 1) return 'just nüüd'; if (m < 60) return m + ' min tagasi'; const h = Math.floor(m / 60); if (h < 24) return h + ' h tagasi'; return new Date(at).toLocaleDateString('et-EE', { day: 'numeric', month: 'long' }) }
 function newsHtml(max) {
   if (!NEWS.list) return '<p class="lead">Laadin uudiseid…</p>';
@@ -5563,6 +5565,21 @@ function tabTellimus() {
 }
 
 /* ---------- preemiad ja tasemed ---------- */
+// Etapp 6: uus prestiižitäht (server annab tähe; siin ainult näitame seda üks kord)
+function starCheck() {
+  const L = FS && FS.prestige_last; if (!L || !L.star) return;
+  let seen = 0; try { seen = +localStorage.getItem('mk.starSeen') || 0 } catch (e) { }
+  if (L.star <= seen || Date.now() - new Date(L.at) > 864e5) return;
+  if (UI.modalView) { clearTimeout(FV.starT); FV.starT = setTimeout(starCheck, 1500); return }
+  try { localStorage.setItem('mk.starSeen', L.star) } catch (e) { }
+  if (typeof sfx === 'function') sfx('levelup');
+  showModal(() => `<div class="rays"></div>${Array.from({ length: 10 }, (_, i) => `<i class="mote" style="left:${6 + i * 9}%;top:${24 + (i * 41) % 56}%;animation-delay:${(i * .31) % 3}s"></i>`).join('')}
+    <div class="ribbon">Prestiižitäht</div><div class="emblem"><div class="emblem-in"><b>★${L.star}</b><small>täht</small></div></div>
+    <h2>Tähtede kalur!</h2><p class="sub">Järvede vaimud lisasid sinu nimele uue tähe.</p>
+    <div class="ulabel">Preemia</div><div class="unlock-list"><span>+${fmt(L.gold || 0)} kulda kalurikassasse</span>${(L.items || []).map(x => `<span>${itemName(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>`).join('')}<span>Kalade müügihind nüüd +${Math.round((FS.star_bonus || 0) * 100)}%</span></div>
+    <p class="nextl">Järgmise täheni: ${fmt((FS.pxp_need || 0) - (FS.pxp || 0))} kogemust.</p>
+    <button class="btn" type="button" data-act="closeModal">Edasi püüki</button>`, 'lvlup');
+}
 function afterAch(list) { (list || []).forEach(a => toast(`Kalapüügi saavutus: ${a.name}${a.title ? ` · uus tiitel „${a.title}“` : ''}${a.gold ? ` · +${a.gold} kulda` : ''}`, 'gold', 'fame')) }
 function afterLevels(lv) {
   if (!lv || !lv.length) return;
@@ -5573,6 +5590,7 @@ function afterLevels(lv) {
   FD.baits.filter(s => s.min_level >= from && s.min_level <= to).forEach(s => u.push([s.consumable ? 'Sööt' : 'Peibutis', s.name]));
   FD.species.filter(s => s.min_level >= from && s.min_level <= to && s.min_level > 1).forEach(s => u.push(['Uus kala', '???']));
   [5, 12, 20].filter(l => l >= from && l <= to).forEach(() => u.push(['Eriülesanne', 'Uus köögitellimus']));
+  if (to >= 50) u.push(['Uus eesmärk', 'prestiižitähed ★']);
   showModal(() => `<div class="rays"></div>${Array.from({ length: 8 }, (_, i) => `<i class="mote" style="left:${10 + i * 11}%;top:${30 + (i * 37) % 50}%;animation-delay:${(i * .37) % 3}s"></i>`).join('')}
     <div class="ribbon">Kalapüügi tase tõusis</div><div class="emblem"><div class="emblem-in"><b>${to}</b><small>kalur</small></div></div>
     <h2>Osav kalur!</h2><p class="sub">Järvede vaimud on sinu oskusi märganud.</p>
@@ -5828,7 +5846,7 @@ function startFishing() { openFishView('puuk') }
   const base = TABS.seiklused.r;
   TABS.seiklused.r = () => {
     const h = base();
-    const c = `<div class="card adv"><div class="advhead"><span class="ic lg">${ICON.fish}</span><div><h3>Kalapüük</h3><p class="lead">Kuus püügikohta, ${FD.loaded ? FD.species.length : '40+'} kalaliiki, õngeridvad, söödad, kalaraamat ja võistlused teiste mängijatega. Kalapüügil on oma tase 1–50.</p></div></div>
+    const c = `<div class="card adv"><div class="advhead"><span class="ic lg">${ICON.fish}</span><div><h3>Kalapüük</h3><p class="lead">Kuus püügikohta, ${FD.loaded ? FD.species.length : '40+'} kalaliiki, õngeridvad, söödad, kalaraamat ja võistlused teiste mängijatega. Kalapüügil on oma tase 1–50, seejärel prestiižitähed.</p></div></div>
       ${S && S.fishCache ? `<dl class="stats"><dt>Kalapüügi tase</dt><dd>${S.fishCache.level}</dd><dt>Püütud kalu</dt><dd>${S.fishCache.total}</dd></dl>` : ''}
       <div><button class="btn sm" type="button" data-act="openFish">Ava kalapüük</button></div></div>`;
     return h.replace(/<\/div>$/, '') + c + '</div>';

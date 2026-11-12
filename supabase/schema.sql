@@ -291,6 +291,12 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- 2h. Etapp 6: prestiižitähed. Pärast 50. taset koguneb kogemus tähtedeks (★1, ★2, …).
+--     Tase ei lähe tagasi ja midagi ei lukustu. Iga täht: kulda, ese ja +1% kalade müügihinda (kuni +30%).
+alter table public.fishers add column if not exists prestige int not null default 0;
+alter table public.fishers add column if not exists pxp int not null default 0;
+alter table public.fishers add column if not exists prestige_last jsonb;
+
 -- ---------------------------------------------------------------------
 -- 3. Algandmed
 -- ---------------------------------------------------------------------
@@ -542,6 +548,15 @@ insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
+-- Etapp 6: prestiižitähtede saavutused
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('taht1','Esimene täht','Teeni pärast 50. taset esimene prestiižitäht','Tähekalur',3000,0,90),
+ ('taht5','Viis tähte','Teeni 5 prestiižitähte','Kuldtähe kalur',8000,0,91),
+ ('taht10','Tähistaevas','Teeni 10 prestiižitähte','Tähtede valitseja',15000,0,92),
+ ('taht25','Järvede legend','Teeni 25 prestiižitähte','Järvede legend',40000,0,93)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
@@ -591,19 +606,43 @@ begin
   return f;
 end $$;
 
+-- Prestiižitähe jaoks vajalik kogemus (p = juba olemasolevate tähtede arv)
+create or replace function public.fx_star_need(p int) returns int language sql immutable as
+$$ select 15000 + 2500 * least(greatest(p, 0), 40) $$;
+-- Tähtede püsiv müügiboonus: +1% iga tähe kohta, kokku kuni +30%
+create or replace function public.fx_star_bonus(p int) returns numeric language sql immutable as
+$$ select least(0.30, greatest(coalesce(p, 0), 0) * 0.01) $$;
+
 create or replace function public.fx_add_xp(u uuid, amount int) returns int[] language plpgsql as $$
-declare f public.fishers; gained int[] := '{}';
+declare f public.fishers; gained int[] := '{}'; rest int := 0; g int; v_gold int := 0; v_items jsonb; v_last jsonb;
 begin
   select * into f from public.fishers where user_id = u for update;
-  if f.level >= 50 then return gained; end if;
-  f.xp := f.xp + greatest(0, amount);
-  while f.level < 50 and f.xp >= public.fx_xp_need(f.level) loop
-    f.xp := f.xp - public.fx_xp_need(f.level);
-    f.level := f.level + 1;
-    gained := gained || f.level;
-  end loop;
-  if f.level >= 50 then f.xp := 0; end if;
-  update public.fishers set xp = f.xp, level = f.level where user_id = u;
+  if f.level < 50 then
+    f.xp := f.xp + greatest(0, amount);
+    while f.level < 50 and f.xp >= public.fx_xp_need(f.level) loop
+      f.xp := f.xp - public.fx_xp_need(f.level);
+      f.level := f.level + 1;
+      gained := gained || f.level;
+    end loop;
+    if f.level >= 50 then rest := f.xp; f.xp := 0; end if;
+  else
+    rest := greatest(0, amount);
+  end if;
+  -- 50. tasemel läheb kogemus prestiižitähtedesse
+  if f.level >= 50 and rest > 0 then
+    f.pxp := f.pxp + rest;
+    while f.pxp >= public.fx_star_need(f.prestige) loop
+      f.pxp := f.pxp - public.fx_star_need(f.prestige);
+      f.prestige := f.prestige + 1;
+      g := 1500 + 250 * f.prestige;
+      v_gold := v_gold + g;
+      v_items := public.fx_give_random(u, least(5, 2 + f.prestige / 3), 1 + (f.prestige % 5 = 0)::int);
+      v_last := jsonb_build_object('star', f.prestige, 'gold', g, 'items', v_items, 'at', now());
+      perform public.fx_news(u, 'star', jsonb_build_object('star', f.prestige));
+    end loop;
+  end if;
+  update public.fishers set xp = f.xp, level = f.level, pxp = f.pxp, prestige = f.prestige, gold = gold + v_gold,
+    prestige_last = coalesce(v_last, prestige_last) where user_id = u;
   return gained;
 end $$;
 
@@ -667,6 +706,7 @@ begin
       when 'suur10' then maxw >= 10 when 'suur50' then maxw >= 50 when 'suur100' then maxw >= 100 when 'hiiglane' then coalesce(hasgiant,false)
       when 'tavalised' then ncommon >= ncommon_all when 'kohad' then nspots >= 6 when 'koik' then nall >= nall_total
       when 'tase10' then f.level >= 10 when 'tase25' then f.level >= 25 when 'tase50' then f.level >= 50
+      when 'taht1' then f.prestige >= 1 when 'taht5' then f.prestige >= 5 when 'taht10' then f.prestige >= 10 when 'taht25' then f.prestige >= 25
       when 'oo' then f.night >= 50 when 'prugi' then f.junk >= 10 when 'kirst' then f.chests >= 5
       when 'kuldkala' then coalesce(hasgold,false) when 'tellimused' then f.orders_done >= 20
       when 'voitja' then f.comp_wins >= 1 when 'murdja' then f.broken >= 5
@@ -817,7 +857,8 @@ begin
     'gear', fx_gear(u), 'boats', to_jsonb(f.boats),
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
-    'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes);
+    'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
+    || jsonb_build_object('prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
 
 create or replace function public.fish_odds(p_spot text, p_bait text) returns numeric[] language plpgsql security definer set search_path = public as $$
@@ -1038,7 +1079,8 @@ begin
   sold := coalesce(sold, 0);
   avgw := (s.min_w + s.max_w) / 2;
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
-       * (1 + coalesce((fx_house(u)).sell_bonus, 0)) * (case when c.bought then 0.6 else 1 end);
+       * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u)))
+       * (case when c.bought then 0.6 else 1 end);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return greatest(1, round(v));
@@ -1260,9 +1302,9 @@ begin
     res := res || jsonb_build_object(cmp, jsonb_build_object('top', top, 'mine', mine, 'last', last,
              'ends', per.p_to, 'claimed', exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = prev.p_start)));
   end loop;
-  select coalesce(jsonb_agg(jsonb_build_object('name', p.name, 'title', f.title, 'level', f.level, 'total', f.total,
-           'biggest', f.biggest, 'rare', f.rare, 'me', f.user_id = u) order by f.level desc, f.xp desc, f.total desc), '[]')
-    into lb from (select * from fishers order by level desc, xp desc, total desc limit 30) f
+  select coalesce(jsonb_agg(jsonb_build_object('name', p.name, 'title', f.title, 'level', f.level, 'stars', f.prestige, 'total', f.total,
+           'biggest', f.biggest, 'rare', f.rare, 'me', f.user_id = u) order by f.level desc, f.prestige desc, f.pxp desc, f.xp desc, f.total desc), '[]')
+    into lb from (select * from fishers order by level desc, prestige desc, pxp desc, xp desc, total desc limit 30) f
     join profiles p on p.id = f.user_id where not p.hidden or f.user_id = u;
   return res || jsonb_build_object('leaderboard', lb);
 end $$;

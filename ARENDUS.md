@@ -18,11 +18,17 @@ vesi/puud/kivid), koostöö (monument, kingid, külastused), kalapüük etapid 1
 (ilmakalad, esemed, ülesanded, märgid, uudised, kalamaja+akvaarium, õngede täiustus/võlud, paadid,
 mereveed, **mängijate kalaturg**).
 
+**Etapp 6 – prestiižitähed** (valmis 12.11.2026): tase jääb 50 peale, kogemus koguneb edasi
+tähtedeks (`fishers.prestige`, `pxp`, `prestige_last`). Täht vajab `fx_star_need(p) = 15000 + 2500·p`
+kogemust, annab 1500+250·täht kulda + juhusliku eseme (iga 5. täht 2 eset), uudise `star` ja
+püsiva müügiboonuse +1%/täht (max +30%, `fx_star_bonus`). Saavutused `taht1/5/10/25` tiitlitega.
+Edetabel sorteerib tase → tähed. Mäng näitab tähte päises ja pidulikus aknas (`starCheck` kalapuuk.js).
+NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte käivitada.
+
 ## Järgmised plaanid
-1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1.)
-2. Etapp 6: prestiiž pärast kalapüügi 50. taset.
-3. Ideed: jõulusündmus (detsember), äpina paigaldamine (PWA), mobiilis kaardi suum,
-   koduloomad, külalisteraamat, hooaja edetabel, varukoopiad.
+1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
+2. Ideed: mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
+   tähtede vitriin teiste akvaariumi/külastuse vaates.
 
 Reeglid: ära lõhu olemasolevat mängu, raha/esemeid ei tohi saada topelt, tehingud ja võistlused
 kontrollib server, kõik salvestub.
