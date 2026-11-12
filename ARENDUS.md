@@ -48,8 +48,19 @@ NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte
   max(15000, 8000 × eelmise nädala lööjad), iga nädala kuju kardab üht ilma (×2 kahju, torm ×1,5).
   Preemia `secret_boss_claim` (ühe korra), esimene alistamine annab Kuuõnge.
 - Uued saladused: varivoit, nork, linnaisand (kokku 13). Uudised: `myth`, `vari`.
-- 3. osa plaan: Kalurite kroonika (iganädalased legendaarse kala vihjed → 6. müütiline ese),
-  haruldased loomad, Pärija sõrmus (7. ese, kõik teised koos) + tiitel „Udukuninga pärija“.
+
+**Udukuninga saladus, 3. osa** (valmis 12.11.2026) – schema.sql jaotised 2k ja 6j, saladus.js.
+- Kalurite kroonika: `fx_chron(nädal)` valib kõigile sama kala + koha (≤30. tase, max tavaline paat)
+  + ilma + päev/öö. Vihjed avanevad E / K / R (`fx_part3_state`). Õige püük (kontroll fx_secret_ev
+  'catch') → 2500 kulda + 2 koopakristalli kord nädalas (`secret_chron`), esimesel korral müüt Hõbesoomus
+  (õng murdub poole harvem). Saladus `kroonik3`.
+- Haruldased loomad (`secret_animals`, `fisher_animals`): ilmuvad püügil (hirv/rebane/orav 0,6%),
+  koopas (konn 4%) ja Varju löömisel (kull 4%); ootavad 48 h (`secret_state.animal`).
+  `secret_animal_tame` võtab soovitud esemed, `secret_animal_gifts` kord päevas → kuningriigi postkasti
+  (kuld/toit/kuulsus/kaart) + konn annab eseme. Saladus `loomaisand`.
+- Pärija sõrmus (`secret_ring`): kui 6 müüti koos → 7. müüt (+1 latern, +1 löök, `fx_boss_hits`),
+  20000 kulda + 500 kuulsust kuningriiki, saavutus `parija` tiitliga „Udukuninga pärija“.
+- Saladusi kokku 15. Uudised: kroonika, animal, parija.
 
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)

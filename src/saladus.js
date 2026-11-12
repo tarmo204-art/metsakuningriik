@@ -20,7 +20,8 @@ const SEC_HALLS = [
   ['kristall', '💠', 'Kristallisaal', 'Uks avaneb ainult neile, kes on käinud Kristallikoopa sügavuses.', 'kristallsuda']
 ];
 const SEC_WEAK = { udu: ['udu', 'udu'], vihm: ['vihm', 'vihma'], pilves: ['pilvine ilm', 'pilvist ilma'], paike: ['päike', 'päikest'] };
-const MYTH_IC = { udukroon: '👑', hobesarv: '📯', varjuvork: '🥅', kristallsuda: '💠', kuuong: '🌙' };
+const MYTH_IC = { udukroon: '👑', hobesarv: '📯', varjuvork: '🥅', kristallsuda: '💠', kuuong: '🌙', hobesoomus: '🛡️', parijasormus: '💍' };
+const ANIMAL_IC = { valgehirv: '🦌', kuldrebane: '🦊', lendorav: '🐿️', kristallkonn: '🐸', udukull: '🦉' };
 const SEC_KIND = {
   vesi: ['💧', 'Kuuled vett', 'Kõige ohutum. Vees võib leida esemeid.', '#5ac8e8'],
   tuul: ['🌬️', 'Tunned tuuletõmmet', 'Viib kaks sammu sügavamale, aga on ohtlikum.', '#b8d8c8'],
@@ -68,6 +69,15 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sec-myth{border-radius:12px;padding:10px;text-align:center;display:grid;gap:3px;justify-items:center;background:rgba(0,0,0,.3);border:1px dashed rgba(200,184,232,.25)}
 .sec-myth .e{font-size:30px;filter:grayscale(1) brightness(.4)}.sec-myth.own .e{filter:drop-shadow(0 0 10px rgba(255,214,120,.7))}
 .sec-myth.own{border:1px solid rgba(255,210,122,.55);background:radial-gradient(90% 80% at 50% 20%,rgba(255,210,122,.16),rgba(0,0,0,.3))}
+.sec-chron{background:radial-gradient(90% 80% at 100% 0%,rgba(255,200,120,.15),transparent 60%),rgba(20,26,30,.85);border-color:rgba(255,200,120,.25)}
+.sec-scroll{padding:12px 14px;border-radius:10px;background:linear-gradient(180deg,#efdcb0,#dcc08a);color:#3a2408;font-family:Georgia,serif;font-size:15px;line-height:1.55;display:grid;gap:4px}
+.sec-scroll i{color:#7a5a30;font-size:13px}
+.sec-animals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sec-an{border-radius:12px;padding:10px;display:grid;gap:3px;justify-items:center;text-align:center;background:rgba(0,0,0,.28);border:1px dashed rgba(150,200,150,.25)}
+.sec-an .e{font-size:34px;filter:brightness(0) opacity(.45)}.sec-an.own{border:1px solid rgba(151,217,131,.5);background:radial-gradient(90% 80% at 50% 20%,rgba(151,217,131,.14),rgba(0,0,0,.28))}
+.sec-an.own .e{filter:drop-shadow(0 0 8px rgba(200,255,180,.4))}.sec-an b{font-size:13px}.sec-an small{font-size:11px;color:#a8b8b0;line-height:1.35}
+.sec-visit{display:grid;grid-template-columns:56px minmax(0,1fr);gap:10px;align-items:center;padding:12px;border-radius:12px;background:linear-gradient(120deg,rgba(151,217,131,.2),rgba(255,210,122,.12));border:1px solid rgba(151,217,131,.5)}
+.sec-visit .e{font-size:44px;animation:pop .6s cubic-bezier(.2,1.6,.4,1) both}
 .sec-myth b{font-size:13px}.sec-myth small{font-size:11px;color:#a8b2c4;line-height:1.35}
 @media (max-width:560px){.sec-door small.d{display:none}.sec-door{padding:18px 4px 10px}}
 </style>`);
@@ -207,7 +217,30 @@ function secCastle() {
   return `<div class="fv-card sec-castle"><h2>🏰 Udulinn</h2><p class="lead">Udu hajus ja järvesaarel seisab Udukuninga linnus. Igas saalis on üks müütiline ese. Esemed toimivad kohe ja jäävad sulle igaveseks.</p>${secHalls(ca)}</div>
     ${secBoss(ca.boss || {})}
     <div class="fv-card"><h2>Müütilised esemed <small class="lead">${own} / 7</small></h2><div class="sec-myths">${myths.map(m => `<div class="sec-myth ${m.own ? 'own' : ''}"><span class="e">${MYTH_IC[m.id] || '✨'}</span><b>${m.own ? esc(m.name) : '???'}</b><small>${m.own ? esc(m.descr) : 'Leia: ' + esc(m.src)}</small></div>`).join('')}
-      <div class="sec-myth"><span class="e">❔</span><b>???</b><small>Udukuninga kroonika peidab veel üht</small></div><div class="sec-myth"><span class="e">💍</span><b>???</b><small>Pärija ese – kui kõik teised on koos</small></div></div></div>`;
+      </div>${d.ring_ready ? `<div class="sec-ev good">💍 Kõik kuus eset on koos ja Pärija sõrmus ärkas! <button class="btn sm" type="button" data-sa="ring" ${SEC.busy ? 'disabled' : ''}>Pane sõrmus sõrme</button></div>` : ''}</div>`;
+}
+function secChron() {
+  const c = SEC.d.chron; if (!c) return '';
+  const next = c.done ? '' : c.stage === 1 ? 'Järgmine rida ilmub kolmapäeval.' : c.stage === 2 ? 'Viimane rida ilmub reedel.' : '';
+  return `<div class="fv-card sec-chron"><h2>📖 Kalurite kroonika</h2>
+    <p class="lead">Igal esmaspäeval ilmub vanasse kroonikasse uus mõistatus: mis kala, kus, mis ilmaga ja mis ajal. Kes selle kala täpselt nii püüab, saab 2500 kulda ja 2 koopakristalli. Esimesel korral annab kroonika ka müütilise eseme <b>Hõbesoomus</b>.</p>
+    <div class="sec-scroll">${(c.hints || []).map(t => `<span>${esc(t)}</span>`).join('')}${next ? `<i>${next}</i>` : ''}</div>
+    ${c.done && c.answer ? `<div class="sec-ev good">✅ Lahendatud! Püüdsid <b>${esc(c.answer.name)}</b> (${fmt1(+c.answer.weight)} kg) paigas ${esc(c.answer.spot)}.</div>` : ''}
+    <div class="sec-depth"><span>Sel nädalal lahendanud: <b>${c.solvers}</b></span><span>Sinu lahendatud nädalaid: <b>${c.weeks}</b></span></div></div>`;
+}
+function secAnimals() {
+  const d = SEC.d, list = d.animals || [], v = d.visitor; if (!list.length) return '';
+  let h = `<div class="fv-card"><h2>🐾 Haruldased loomad <small class="lead">${list.filter(a => a.own).length} / ${list.length}</small></h2>
+    <p class="lead">Salajastes paikades võid kohata haruldast looma. Kui annad talle, mida ta soovib, kolib ta sinu kuningriiki ja toob iga päev kingituse.</p>`;
+  if (v) {
+    const a = list.find(x => x.id === v.id) || { name: v.id, wants: {} }, wants = Object.entries(a.wants || {}), ok = wants.every(([k, q]) => ((FS.items || {})[k] || 0) >= q);
+    h += `<div class="sec-visit"><span class="e">${ANIMAL_IC[v.id] || '🐾'}</span><div style="display:grid;gap:5px"><b>${esc(a.name)} ootab sind!</b>
+      <small>Ta soovib: ${wants.map(([k, q]) => { const have = (FS.items || {})[k] || 0; return `<span style="color:${have >= q ? 'var(--ok)' : 'var(--bad)'}">${itemName(k)} ${Math.min(have, q)}/${q}</span>` }).join(', ')} · lahkub ${new Date(v.until).toLocaleString('et-EE', { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</small>
+      <div><button class="btn sm" type="button" data-sa="tame" ${ok && !SEC.busy ? '' : 'disabled'}>Anna ja kutsu kuningriiki</button></div></div></div>`;
+  }
+  if (d.gift_ready) h += `<div><button class="btn" type="button" data-sa="gifts" ${SEC.busy ? 'disabled' : ''}>🎁 Võta loomade tänased kingitused</button></div>`;
+  h += `<div class="sec-animals">${list.map(a => `<div class="sec-an ${a.own ? 'own' : ''}"><span class="e">${ANIMAL_IC[a.id] || '🐾'}</span><b>${a.own ? esc(a.name) : '???'}</b><small>${a.own ? esc(a.gift) : esc(a.where)}</small></div>`).join('')}</div></div>`;
+  return h;
 }
 function tabSaladus() {
   if (!SEC.d) { loadSec(true); return '<div class="fv-card"><p class="lead">Avan Saladuste raamatut…</p></div>' }
@@ -220,6 +253,8 @@ function tabSaladus() {
   h += `<div class="fv-card"><h2>Aardekaart</h2><canvas class="sec-map" aria-label="Aardekaart"></canvas>
     <div class="sec-pl">${[1, 2, 3, 4, 5, 6, 7].map(n => `<div class="${have[n] ? 'got' : ''}"><b class="n">${n}</b><span>${have[n] ? `<b>Leitud:</b> ${esc(have[n].src)}` : SEC_PIECES[n]}</span></div>`).join('')}</div></div>`;
   h += secCave();
+  h += secChron();
+  h += secAnimals();
   h += secCastle();
   h += `<div class="fv-card"><h2>Salajased ülesanded</h2><p class="lead">Neid ülesandeid ei ole kuskil kirjas. Raamat annab ainult vihje – ülejäänu pead ise välja mõtlema.</p>
     <div class="sec-list">${sc.map(s => s.found
@@ -230,20 +265,24 @@ function tabSaladus() {
 
 /* ---------- avastuse teade ---------- */
 function secShow(sec) {
-  if (!sec || (!(sec.found || []).length && !(sec.pieces || []).length)) return;
+  if (!sec || (!(sec.found || []).length && !(sec.pieces || []).length && !sec.chron && !sec.animal)) return;
   SEC.queue.push(sec); SEC.d = null; loadSec(false);
   clearTimeout(SEC.qT); SEC.qT = setTimeout(secShowNow, 700);
 }
 function secShowNow() {
   if (!SEC.queue.length) return;
   if (UI.modalView) { SEC.qT = setTimeout(secShowNow, 1200); return }
-  const all = SEC.queue.splice(0), found = all.flatMap(s => s.found || []), pieces = all.flatMap(s => s.pieces || []), cave = all.some(s => s.cave), castle = all.some(s => s.castle);
+  const all = SEC.queue.splice(0), found = all.flatMap(s => s.found || []), pieces = all.flatMap(s => s.pieces || []), cave = all.some(s => s.cave), castle = all.some(s => s.castle), chron = all.map(s => s.chron).find(Boolean), animal = all.map(s => s.animal).find(Boolean);
+  const title = found.length ? 'Avastasid saladuse!' : chron ? 'Kroonika lahendatud!' : pieces.length ? 'Leidsid kaarditüki!' : 'Haruldane külaline!',
+    icon = found.length ? '🔮' : chron ? '📖' : pieces.length ? '🗺️' : (ANIMAL_IC[animal && animal.id] || '🐾'), sm = found.length ? 'saladus' : chron ? 'kroonika' : pieces.length ? 'tükk' : 'külaline';
   if (typeof sfx === 'function') sfx('levelup');
   showModal(() => `<div class="rays"></div>${Array.from({ length: 8 }, (_, i) => `<i class="mote" style="left:${8 + i * 11}%;top:${26 + (i * 43) % 54}%;animation-delay:${(i * .41) % 3}s"></i>`).join('')}
-    <div class="ribbon">${found.length ? 'Avastasid saladuse!' : 'Leidsid kaarditüki!'}</div>
-    <div class="emblem"><div class="emblem-in"><b style="font-size:46px">${found.length ? '🔮' : '🗺️'}</b><small>${found.length ? 'saladus' : 'tükk'}</small></div></div>
+    <div class="ribbon">${title}</div>
+    <div class="emblem"><div class="emblem-in"><b style="font-size:46px">${icon}</b><small>${sm}</small></div></div>
+    ${chron ? `<h2>Kroonika kala on püütud!</h2><p class="sub">Vana kroonika lehel süttis sinu nimi.</p>` : ''}
     ${found.map(f => `<h2>${esc(f.name)}</h2><p class="sub">${esc(f.descr)}</p>`).join('')}
-    <div class="unlock-list">${found.map(f => `<span>+${fmt(f.gold)} kulda</span>${(f.items || []).map(x => `<span>${itemName(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>`).join('')}`).join('')}${pieces.map(n => `<span>🗺️ Kaarditükk nr ${n}</span>`).join('')}</div>
+    <div class="unlock-list">${found.map(f => `<span>+${fmt(f.gold)} kulda</span>${(f.items || []).map(x => `<span>${itemName(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>`).join('')}`).join('')}${pieces.map(n => `<span>🗺️ Kaarditükk nr ${n}</span>`).join('')}${chron ? `<span>+${fmt(chron.gold)} kulda</span>${(chron.items || []).map(x => `<span>${itemName(x.id)} ×${x.qty}</span>`).join('')}${chron.myth ? '<span>🛡️ Müütiline ese: Hõbesoomus</span>' : ''}` : ''}</div>
+    ${animal ? `<p class="sub"><b>${esc(animal.name)}</b> ilmus sinu lähedale! Ta soovib: ${Object.entries(animal.wants || {}).map(([k, q]) => itemName(k) + ' ×' + q).join(', ')}. Ta ootab 48 tundi.</p>` : ''}
     ${cave ? '<p class="sub"><b>Kaardile ilmus tee Kristallikoopasse!</b></p>' : ''}${castle ? '<p class="sub"><b>Kõik seitse tükki on koos! Kaardile ilmus Udulinn.</b></p>' : ''}
     <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Edasi</button><button class="btn" type="button" data-sa="book">Ava Saladuste raamat</button></div>`, 'lvlup');
 }
@@ -265,16 +304,19 @@ function secMythModal(id) {
   const baseRender = renderFV;
   renderFV = function (force) { baseRender(force); try { paintSecMap() } catch (e) { } };
   const baseBadges = fvBadges;
-  fvBadges = function () { const b = baseBadges(); if (SEC.d) { const bo = SEC.d.castle && SEC.d.castle.open && SEC.d.castle.boss || {}; const n = (SEC.d.cave_open && !SEC.d.run ? SEC.d.lanterns : 0) + (bo.killed ? 0 : Math.max(0, bo.left || 0)) + (bo.claim || 0); if (n > 0) b.saladus = n } return b };
+  fvBadges = function () { const b = baseBadges(); if (SEC.d) { const bo = SEC.d.castle && SEC.d.castle.open && SEC.d.castle.boss || {}; const n = (SEC.d.cave_open && !SEC.d.run ? SEC.d.lanterns : 0) + (bo.killed ? 0 : Math.max(0, bo.left || 0)) + (bo.claim || 0) + (SEC.d.gift_ready ? 1 : 0) + (SEC.d.visitor ? 1 : 0) + (SEC.d.ring_ready ? 1 : 0); if (n > 0) b.saladus = n } return b };
   const baseRefresh = refreshFS;
   refreshFS = async function () { const r = await baseRefresh(); if (!SEC.d && !SEC.loading) loadSec(false); return r };
   const baseNews = newsText;
   newsText = function (n) {
     const who = `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''}`, d = n.data || {};
     if (n.kind === 'myth') return `${who} leidis Udulinnast müütilise eseme: <b style="color:#ffd27a">${esc(d.myth || '')}</b>!`;
+    if (n.kind === 'kroonika') return `${who} lahendas selle nädala Kalurite kroonika mõistatuse! 📖`;
+    if (n.kind === 'animal') return `${who} sõbrunes haruldase loomaga: <b>${esc(d.name || '')}</b>! 🐾`;
+    if (n.kind === 'parija') return `${who} pani sõrme Pärija sõrmuse ja on nüüd <b style="color:#ffd27a">Udukuninga pärija</b>! 💍`;
     if (n.kind === 'vari') return `${who} andis Kuninga Varjule (${esc(d.name || '')}) viimase löögi! Vari on sel nädalal alistatud. ⚔️`;
     if (n.kind === 'secret') return `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''} avastas Udukuninga saladuse! 🔮 (kokku ${(n.data || {}).n || 1})`; return baseNews(n) };
-  NEWS_IC.secret = '🔮'; NEWS_IC.myth = '👑'; NEWS_IC.vari = '⚔️';
+  NEWS_IC.secret = '🔮'; NEWS_IC.myth = '👑'; NEWS_IC.vari = '⚔️'; NEWS_IC.kroonika = '📖'; NEWS_IC.animal = '🐾'; NEWS_IC.parija = '💍';
   const baseAdv = TABS.seiklused.r;
   TABS.seiklused.r = () => {
     const h = baseAdv();
@@ -303,6 +345,14 @@ document.addEventListener('click', async e => {
     else if (a === 'riddle') r = await rpc('secret_castle_hall', { p_hall: 'peegel', p_answer: +el.dataset.arg });
     else if (a === 'attack') r = await rpc('secret_boss_attack');
     else if (a === 'claim') r = await rpc('secret_boss_claim');
+    else if (a === 'tame' || a === 'gifts' || a === 'ring') {
+      r = await rpc(a === 'tame' ? 'secret_animal_tame' : a === 'gifts' ? 'secret_animal_gifts' : 'secret_ring');
+      const { tamed, gifts, ring, sec, ach, ...st } = r; SEC.d = st;
+      if (tamed) toast(`${ANIMAL_IC[tamed.id] || ''} ${tamed.name} kolis sinu kuningriiki! Homsest toob ta kingitusi.`, 'gold', 'fame');
+      if (gifts) { const k = gifts.kingdom || {}; toast(`Loomad tõid kingitusi: ${[k.gold ? `+${fmt(k.gold)} kulda` : '', k.food ? `+${fmt(k.food)} toitu` : '', k.fame ? `+${fmt(k.fame)} kuulsust` : '', k.map ? `+${k.map} aardekaart` : '', (gifts.items || []).length ? itemsTxt(gifts.items, true) : ''].filter(Boolean).join(', ')}`, 'gold', 'fame'); if (typeof claimInbox === 'function') setTimeout(claimInbox, 500) }
+      if (ring) { secMythModal('parijasormus'); if (typeof claimInbox === 'function') setTimeout(claimInbox, 500) }
+      await refreshFS(); afterAch(ach); r = null;
+    }
     if (r && (a === 'hall' || a === 'riddle' || a === 'attack' || a === 'claim')) {
       const { hall_result, attack, prizes, myth, sec, levels, ach, ...st } = r; SEC.d = st;
       if (attack) { SEC.atk = attack; if (typeof sfx === 'function') sfx(attack.killed ? 'levelup' : 'pop') }
