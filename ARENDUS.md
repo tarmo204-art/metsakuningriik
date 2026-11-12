@@ -94,6 +94,10 @@ kaal 3 komakohaga alla 1 kg. Mängus `fKg` (alla 1 kg grammides), `fLen`, `fSize
 Mängu maksimum = hiiglane `max_w × FISH_GIANT (1,6)` – sama mis fish_cast'is; kui seda muudad, muuda mõlemas.
 Kalakaardil mõõdulint `fcTape` (lemmik.js), kalaraamatus „kuni X kg · Y cm“.
 
+**Kiitusbänner** (12.11.2026) – `src/kiitus.js` mähib `fxLand`: pärast kala väljatoomist „Vau! Sinu haug kaalub
+10 kg ja on 76 cm pikk!“. Tase oma liigi suuruse järgi (vaike/hea/suur/hiid), konfetti suurtel, kiired hiiglastel,
+mini-mõõdulint, märgid rekord/uus liik/lemmiksööt. Sõnastus „Sinu <nimi> kaalub…“ (nimetav, ei vaja käänamist).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
