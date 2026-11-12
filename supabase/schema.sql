@@ -704,7 +704,7 @@ on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=e
 alter table public.fish_species add column if not exists baits text[] not null default '{}';
 alter table public.fish_species add column if not exists times text[] not null default '{}';
 update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (values
- ('ahven','{uss,vagel}','{hommik,päev}'),
+ ('ahven','{uss,vagel,hobelant}','{hommik,päev}'),
  ('sarg','{vagel,leib,uss}','{hommik}'),
  ('roosarg','{leib,vagel}','{päev}'),
  ('tobias','{krevett,vagel}','{päev}'),
@@ -714,7 +714,7 @@ update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (
  ('latikas','{mais,uss}','{õhtu,öö}'),
  ('raim','{krevett,vagel}','{hommik}'),
  ('lest','{uss,krevett}','{päev}'),
- ('jaaahven','{vagel,uss}','{päev}'),
+ ('jaaahven','{vagel,uss,hobelant}','{päev}'),
  ('tint','{vagel}','{hommik}'),
  ('kuusarg','{valgus,leib}','{öö}'),
  ('viidikas','{leib,vagel}','{päev}'),
@@ -770,8 +770,8 @@ update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (
  ('amuur','{mais,leib}','{päev}'),
  ('kirveskala','{valgus}','{öö}'),
  ('kuldahven','{kuldvobler,uss}','{hommik}'),
- ('saga','{uss,valgus}','{öö}'),
- ('kuningkarp','{mais,kuldvobler}','{õhtu}'),
+ ('saga','{uss,valgus,kuldvobler}','{öö}'),
+ ('kuningkarp','{mais,leib}','{õhtu}'),
  ('tuur','{krevett,uss}','{öö}'),
  ('virmaliskala','{valgus}','{öö}'),
  ('udukala','{valgus,haldjatolm}','{öö}'),
@@ -891,6 +891,11 @@ update public.fish_species s set max_len = v.ln, real = false from (values
  ('jarvelohe',600),
  ('sugavusedraakon',900)
 ) as v(id, ln) where s.id = v.id;
+
+-- Lantide parandused: ahven ja säga võtavad lanti, karpkala mitte (lisab/eemaldab, ei kirjuta muud üle)
+update public.fish_species set baits = array_remove(baits, 'kuldvobler') where id = 'kuningkarp' and 'kuldvobler' = any(baits);
+update public.fish_species s set baits = array_append(s.baits, v.b) from (values ('ahven','hobelant'),('jaaahven','hobelant'),('saga','kuldvobler'),('kuningkarp','leib')) as v(id, b)
+  where s.id = v.id and not (v.b = any(s.baits));
 
 -- Igal kalal vähemalt üks lemmiksööt, mis on olemas juba siis, kui kala avaneb (lisab, ei kirjuta üle)
 update public.fish_species s set baits = array_append(s.baits, v.b) from (values
@@ -1227,7 +1232,7 @@ create or replace function public.fish_cast(p_spot text, p_bait text) returns js
 declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
-  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart();
+  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart(); lure boolean; rr int;
 begin
   f := fx_fisher(u);
   select * into sp from fish_spots where id = p_spot;
@@ -1259,7 +1264,21 @@ begin
     w := fx_rarity_weights(u, p_spot, p_bait);
     roll := random() * 100;
     for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
-    while rar >= 1 loop
+    -- Lant (peibutis, mis ei kulu ja on ostetud) meelitab peamiselt röövkalu: 85% juhtudest otsitakse
+    -- valitud või madalamast klassist kala, kelle lemmik on lant; muidu tavaline valik (rahulik kala harva).
+    lure := not b.consumable and b.price > 0;
+    if lure and random() < 0.85 then
+      rr := rar;
+      while rr >= 1 loop
+        select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= f.level
+          and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
+          and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
+          order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)) limit 1;
+        exit when s.id is not null;
+        rr := rr - 1;
+      end loop;
+    end if;
+    while s.id is null and rar >= 1 loop
       select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= f.level
         and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
         and (fs.weather is null or wthr = any(fs.weather))

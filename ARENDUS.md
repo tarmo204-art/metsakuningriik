@@ -98,6 +98,10 @@ Kalakaardil mõõdulint `fcTape` (lemmik.js), kalaraamatus „kuni X kg · Y cm�
 10 kg ja on 76 cm pikk!“. Tase oma liigi suuruse järgi (vaike/hea/suur/hiid), konfetti suurtel, kiired hiiglastel,
 mini-mõõdulint, märgid rekord/uus liik/lemmiksööt. Sõnastus „Sinu <nimi> kaalub…“ (nimetav, ei vaja käänamist).
 
+**Lantide loogika** (12.11.2026) – fish_cast: lant (`not consumable and price > 0`) otsib 85% juhtudest valitud
+või madalamast klassist kala, kelle `baits` sisaldab lanti (hobelant/kuldvobler/draakonilant); muidu tavaline valik.
+Testitud: landiga järvedel/jõel ~92% röövkalu (enne 23–45%). Uue röövkala lisamisel pane tema `baits` sisse ka lant.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
