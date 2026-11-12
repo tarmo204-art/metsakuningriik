@@ -62,9 +62,14 @@ NB: `supabase/parandus_ongid.sql` sisaldab vana `fish_state` – seda enam mitte
   20000 kulda + 500 kuulsust kuningriiki, saavutus `parija` tiitliga „Udukuninga pärija“.
 - Saladusi kokku 15. Uudised: kroonika, animal, parija.
 
+**Kaluri päev** (12.11.2026) – `src/meeldetuletus.js`: paneel püügi lehe ülaosas (mähib `tabPuuk`).
+24 tunni ketas (öö 21–05, Kalatund, ilmavahetus iga 3 h, kesköö, osuti), „Tegemata“ (FS/FV/KT/SEC
+andmetest, ilma uute päringuteta) ja „Tulemas“ ajajoon. Avatud/peidetud olek localStorage `mk.remOpen`.
+Uue igapäevase asja lisamisel lisa see ka `remTodo()` / `remSoon()` sisse.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
-2. Ideed: mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
+2. Ideed: igapäevane sisselogimise jada (7 päeva, server annab), nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
    tähtede vitriin teiste akvaariumi/külastuse vaates.
 
 Reeglid: ära lõhu olemasolevat mängu, raha/esemeid ei tohi saada topelt, tehingud ja võistlused
