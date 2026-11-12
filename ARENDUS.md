@@ -78,6 +78,12 @@ Server: `fx_kuma()`, `fx_xp_mult()` fish_land'is, tulemuses `x2`, fish_state `ku
 Välimus `src/ohtukuma.js`: mähib `drawBackdrop` (loojangutoon, päike, peegeldus), `drawFx` (sädemed),
 `fvHeader` (kuldne riba + ×2), `tabPuuk` (bänner). Kellaaeg muuta: `fx_kuma` ja `KUMA.from/to`.
 
+**Lemmiksööt ja parim aeg** (12.11.2026) – `fish_species.baits` ja `.times` (hommik/päev/õhtu/öö,
+`fx_daypart()`), kõigil 88 kalal täidetud. fish_cast valib klassi sees kaaluga ×4 lemmiksöödale ja ×2,5
+parimale ajale (testitud: haug landiga 54% vs leivaga 25%). fish_land annab `fav`/`best`.
+Mäng `src/lemmik.js`: kalakaart (`fishCard`, elav kala canvas'el, päevaring, raskuse täpid), vihjeriba
+püügi lehel (`favStrip`), „❤ Lemmiksööt“ märgid ja efekt. Püüdmata kalal on sööt ja aeg „???“.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

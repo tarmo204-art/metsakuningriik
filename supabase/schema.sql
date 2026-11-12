@@ -699,6 +699,101 @@ insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
+
+-- Lemmiksööt ja parim aeg (hommik 5–10, päev 10–17, õhtu 17–21, öö 21–5). Uuel kalal võib need tühjaks jätta.
+alter table public.fish_species add column if not exists baits text[] not null default '{}';
+alter table public.fish_species add column if not exists times text[] not null default '{}';
+update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (values
+ ('ahven','{uss,vagel}','{hommik,päev}'),
+ ('sarg','{vagel,leib,uss}','{hommik}'),
+ ('roosarg','{leib,vagel}','{päev}'),
+ ('tobias','{krevett,vagel}','{päev}'),
+ ('kiisk','{uss}','{õhtu,öö}'),
+ ('laternkala','{valgus}','{öö}'),
+ ('teib','{vagel,leib}','{päev}'),
+ ('latikas','{mais,uss}','{õhtu,öö}'),
+ ('raim','{krevett,vagel}','{hommik}'),
+ ('lest','{uss,krevett}','{päev}'),
+ ('jaaahven','{vagel,uss}','{päev}'),
+ ('tint','{vagel}','{hommik}'),
+ ('kuusarg','{valgus,leib}','{öö}'),
+ ('viidikas','{leib,vagel}','{päev}'),
+ ('nurg','{uss,vagel}','{hommik}'),
+ ('lepamaim','{leib}','{päev}'),
+ ('luukarits','{uss}','{päev}'),
+ ('ogalik','{vagel}','{päev}'),
+ ('trulling','{uss}','{õhtu}'),
+ ('hink','{uss}','{öö}'),
+ ('voldas','{vagel}','{hommik}'),
+ ('kilu','{krevett}','{öö}'),
+ ('mustmudil','{uss,krevett}','{päev}'),
+ ('liivamudil','{uss}','{hommik}'),
+ ('linask','{uss,mais}','{hommik,õhtu}'),
+ ('haug','{hobelant,kuldvobler}','{hommik,õhtu}'),
+ ('sainas','{mais,uss}','{hommik}'),
+ ('koha','{hobelant,uss}','{õhtu,öö}'),
+ ('tursk','{krevett,hobelant}','{päev}'),
+ ('siig','{vagel}','{hommik}'),
+ ('raabis','{vagel}','{päev}'),
+ ('kristallahven','{valgus,haldjatolm}','{öö}'),
+ ('vimb','{uss,mais}','{hommik}'),
+ ('pilvekala','{leib,uss}','{päev}'),
+ ('paikesekarp','{mais}','{päev}'),
+ ('turb','{uss,vagel}','{hommik}'),
+ ('koger','{mais,leib}','{päev}'),
+ ('emakala','{krevett}','{öö}'),
+ ('hobekoger','{mais}','{päev}'),
+ ('merihark','{krevett,uss}','{õhtu}'),
+ ('makrell','{hobelant,krevett}','{hommik}'),
+ ('nokkhaug','{hobelant}','{päev}'),
+ ('merinoel','{krevett}','{päev}'),
+ ('madunoel','{krevett}','{õhtu}'),
+ ('peled','{vagel}','{hommik}'),
+ ('mudamaim','{uss}','{õhtu}'),
+ ('vingerjas','{uss}','{öö}'),
+ ('ojasilm','{uss}','{öö}'),
+ ('angerjas','{uss,krevett}','{öö}'),
+ ('luts','{uss,valgus}','{öö}'),
+ ('harjus','{vagel}','{hommik}'),
+ ('vikerforell','{hobelant,vagel}','{hommik}'),
+ ('karpkala','{mais,uss}','{õhtu}'),
+ ('meriforell','{hobelant,krevett}','{hommik,õhtu}'),
+ ('lohe','{hobelant,kuldvobler}','{hommik}'),
+ ('paalia','{vagel,hobelant}','{päev}'),
+ ('vihmaforell','{uss}','{päev}'),
+ ('toogjas','{hobelant,uss}','{õhtu}'),
+ ('uduhobe','{valgus}','{hommik}'),
+ ('joeforell','{vagel,hobelant}','{õhtu}'),
+ ('joesilm','{valgus}','{öö}'),
+ ('hobekarp','{mais}','{päev}'),
+ ('kammeljas','{krevett}','{päev}'),
+ ('amuur','{mais,leib}','{päev}'),
+ ('kirveskala','{valgus}','{öö}'),
+ ('kuldahven','{kuldvobler,uss}','{hommik}'),
+ ('saga','{uss,valgus}','{öö}'),
+ ('kuningkarp','{mais,kuldvobler}','{õhtu}'),
+ ('tuur','{krevett,uss}','{öö}'),
+ ('virmaliskala','{valgus}','{öö}'),
+ ('udukala','{valgus,haldjatolm}','{öö}'),
+ ('vikerkaarekala','{haldjatolm,mais}','{päev}'),
+ ('tormihaug','{kuldvobler,hobelant}','{õhtu}'),
+ ('tuun','{kuldvobler,krevett}','{hommik}'),
+ ('merikurat','{valgus}','{öö}'),
+ ('kuuangerjas','{valgus,haldjatolm}','{öö}'),
+ ('joekuningas','{kuldvobler,haldjatolm}','{hommik}'),
+ ('merivaim','{haldjatolm,valgus}','{öö}'),
+ ('jaahaug','{kuldvobler}','{päev}'),
+ ('haldjakala','{haldjatolm}','{õhtu}'),
+ ('valgukala','{valgus,draakonilant}','{õhtu}'),
+ ('mookkala','{kuldvobler,draakonilant}','{päev}'),
+ ('airukala','{valgus,draakonilant}','{öö}'),
+ ('kuldkala','{haldjatolm,leib}','{hommik}'),
+ ('igijaavaim','{haldjatolm,draakonilant}','{öö}'),
+ ('leviaatan','{draakonilant}','{öö}'),
+ ('jarvelohe','{draakonilant,haldjatolm}','{õhtu}'),
+ ('sugavusedraakon','{draakonilant,valgus}','{öö}')
+) as v(id, b, t) where s.id = v.id and (s.baits = '{}' or s.times = '{}');
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
@@ -729,6 +824,10 @@ $$ select case w when 'pilves' then 0.02 when 'vihm' then 0.05 when 'udu' then 0
 create or replace function public.fx_weather_wait(w text) returns numeric language sql immutable as
 $$ select case w when 'paike' then 1.15 when 'vihm' then 0.85 when 'torm' then 0.9 else 1 end $$;
 
+-- Päevaosa kalade parima aja jaoks
+create or replace function public.fx_daypart() returns text language sql stable as $$
+  select case when h >= 5 and h < 10 then 'hommik' when h >= 10 and h < 17 then 'päev' when h >= 17 and h < 21 then 'õhtu' else 'öö' end
+  from (select extract(hour from now() at time zone 'Europe/Tallinn') as h) x $$;
 -- Õhtukuma: iga päev kell 19–22 (Tallinna aeg) annab kalapüük topelt kogemust
 create or replace function public.fx_kuma() returns boolean language sql stable as
 $$ select extract(hour from now() at time zone 'Europe/Tallinn') between 19 and 21 $$;
@@ -1008,7 +1107,7 @@ begin
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
-    || jsonb_build_object('kuma', fx_kuma(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
+    || jsonb_build_object('kuma', fx_kuma(), 'daypart', fx_daypart(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
 
 create or replace function public.fish_odds(p_spot text, p_bait text) returns numeric[] language plpgsql security definer set search_path = public as $$
@@ -1023,7 +1122,7 @@ create or replace function public.fish_cast(p_spot text, p_bait text) returns js
 declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
-  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric;
+  night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart();
 begin
   f := fx_fisher(u);
   select * into sp from fish_spots where id = p_spot;
@@ -1059,7 +1158,8 @@ begin
       select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= f.level
         and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
         and (fs.weather is null or wthr = any(fs.weather))
-        order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end, random() limit 1;
+        order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
+          -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)) limit 1;
       exit when s.id is not null;
       rar := rar - 1;
     end loop;
@@ -1210,7 +1310,7 @@ begin
   kt := fx_kt_add(u, s.id, s.rarity, c.weight, c.giant);
   return jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
-    'xp', xp, 'x2', fx_kuma(), 'levels', to_jsonb(levels), 'ach', ach)
+    'xp', xp, 'x2', fx_kuma(), 'fav', c.bait = any(s.baits), 'best', fx_daypart() = any(s.times), 'levels', to_jsonb(levels), 'ach', ach)
     || jsonb_build_object('sec', fx_secret_ev(u, 'catch', jsonb_build_object('species', s.id, 'weather', wthr,
          'killed', coalesce((kt ->> 'killed')::boolean, false), 'boat', sp.boat is not null, 'kt', kt is not null,
          'spot', c.spot, 'night', v_night, 'weight', c.weight)));

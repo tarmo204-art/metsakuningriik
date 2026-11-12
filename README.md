@@ -19,3 +19,5 @@ Rahulik metsakuningriigi brauserimäng koos serveri kontrollitud kalapüügiga.
 
 Lisa rida tabelisse `fish_species` (Supabase → Table Editor). Mäng loeb kalad andmebaasist,
 nii et koodi muuta pole vaja. Välja `look` abil saab määrata kala kuju ja värvid.
+Väljale `baits` kirjuta kala lemmiksöödad (nt `{uss,mais}`) ja väljale `times` parim aeg
+(`{hommik}`, `{päev}`, `{õhtu}` või `{öö}`, võib ka mitu). Tühjaks jättes pole kalal lemmikut.

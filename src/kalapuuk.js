@@ -1013,7 +1013,7 @@ function tabRaamat() {
     const list = FD.species.filter(s => s.rarity === r), [rn, rc] = RAR2[r];
     h += `<div class="sec-h" style="color:${rc}">${rn} <small>${list.filter(s => book[s.id]).length} / ${list.length}</small></div><div class="book">${list.map(s => {
       const b = book[s.id]; const where = s.spots.map(x => FD.spot[x] ? FD.spot[x].name : x).join(', ');
-      return `<div class="bcell" style="border-color:${b ? rc + '66' : 'transparent'}"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${b ? 0 : 1}"></canvas><b>${b ? esc(s.name) : '???'}</b><small>${b ? `Püütud ${b.n}× · rekord ${fmt1(+b.max)} kg` : `${fmt1(s.min_w)}–${fmt1(s.max_w)} kg`}</small><small>${esc(where)}${s.night_only ? ' · öösel' : ''}${s.winter_only ? ' · talvel' : ''}${s.weather ? ' · ainult ' + s.weather.map(w => WNAME[w] || w).join(', ') : ''}${s.min_level > FS.level ? ` · tase ${s.min_level}` : ''}</small></div>`;
+      return `<div class="bcell" style="border-color:${b ? rc + '66' : 'transparent'}"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${b ? 0 : 1}"></canvas><b>${b ? esc(s.name) : '???'}</b><small>${b ? `Püütud ${b.n}× · rekord ${fmt1(+b.max)} kg` : `${fmt1(s.min_w)}–${fmt1(s.max_w)} kg`}</small>${b && typeof DP !== 'undefined' && (s.baits || []).length ? `<small style="color:#ffc2d4">❤ ${(s.baits || []).map(fbaitName).join(', ')} · ${(s.times || []).map(t => DP[t] ? DP[t][0] : '').join(' ')}</small>` : ''}<small>${esc(where)}${s.night_only ? ' · öösel' : ''}${s.winter_only ? ' · talvel' : ''}${s.weather ? ' · ainult ' + s.weather.map(w => WNAME[w] || w).join(', ') : ''}${s.min_level > FS.level ? ` · tase ${s.min_level}` : ''}</small></div>`;
     }).join('')}</div>`;
   }
   h += '</div>';
