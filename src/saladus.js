@@ -225,7 +225,7 @@ function secChron() {
   return `<div class="fv-card sec-chron"><h2>📖 Kalurite kroonika</h2>
     <p class="lead">Igal esmaspäeval ilmub vanasse kroonikasse uus mõistatus: mis kala, kus, mis ilmaga ja mis ajal. Kes selle kala täpselt nii püüab, saab 2500 kulda ja 2 koopakristalli. Esimesel korral annab kroonika ka müütilise eseme <b>Hõbesoomus</b>.</p>
     <div class="sec-scroll">${(c.hints || []).map(t => `<span>${esc(t)}</span>`).join('')}${next ? `<i>${next}</i>` : ''}</div>
-    ${c.done && c.answer ? `<div class="sec-ev good">✅ Lahendatud! Püüdsid <b>${esc(c.answer.name)}</b> (${fmt1(+c.answer.weight)} kg) paigas ${esc(c.answer.spot)}.</div>` : ''}
+    ${c.done && c.answer ? `<div class="sec-ev good">✅ Lahendatud! Püüdsid <b>${esc(c.answer.name)}</b> (${fKg(+c.answer.weight)}) paigas ${esc(c.answer.spot)}.</div>` : ''}
     <div class="sec-depth"><span>Sel nädalal lahendanud: <b>${c.solvers}</b></span><span>Sinu lahendatud nädalaid: <b>${c.weeks}</b></span></div></div>`;
 }
 function secAnimals() {

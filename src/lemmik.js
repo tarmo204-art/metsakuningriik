@@ -88,6 +88,7 @@ function fishCard(id) {
           <button class="fc-x" type="button" data-act="closeModal" aria-label="Sulge">×</button></div>
         <div class="fc-body">
           <div class="fc-name"><h2>${b ? esc(s2.name) : '???'}</h2><span class="fc-diff" style="--dc:${df[2]}">${df[1]}</span></div>
+          ${s2.real === false ? `<p class="fc-descr" style="font-style:normal;color:#d8c4ff">✨ Muinasjutukala – seda kala päriselus ei ole, tema suurused on välja mõeldud.</p>` : ''}
           ${b && s2.descr ? `<p class="fc-descr">${esc(s2.descr)}</p>` : !b ? `<p class="fc-descr">Seda kala sa veel püüdnud ei ole. Püüa see, et saada teada tema lemmiksööt ja parim aeg.</p>` : ''}
           <div class="fc-info">
             <div class="fc-row"><span class="ic">📍</span><div class="v"><small>Elupaik</small><span>${esc(where)}${tags.length ? ` · ${tags.join(', ')}` : ''}</span></div></div>
@@ -96,7 +97,7 @@ function fishCard(id) {
             <div class="fc-row"><span class="ic">🕐</span><div class="v"><small>Parim aeg</small>
               ${b ? (times.length ? `<div class="fc-time">${fcDayRing(times, now)}<div class="tl">${times.map(t => `<span>${DP[t] ? DP[t][0] + ' ' + DP[t][1] + ' <small style="color:#8fb0ba">' + DP[t][2] + '</small>' : t}</span>`).join('')}${bestNow ? '<span class="now">✨ Praegu on parim aeg!</span>' : ''}</div></div>` : '<span>Igal ajal</span>') : '<span class="fc-hid">???</span>'}</div></div>
             <div class="fc-row"><span class="ic">💪</span><div class="v"><small>Raskus</small><div class="fc-pips" style="--dc:${df[2]}" aria-label="Raskus ${s2.difficulty} / 10">${pips}</div></div></div>
-            <div class="fc-row"><span class="ic">⚖️</span><div class="v"><small>Kaal</small><span>${fmt1(s2.min_w)}–${fmt1(s2.max_w)} kg${b ? ` · sinu rekord <b>${fmt1(+b.max)} kg</b> · püütud ${b.n}×` : ''}</span></div></div>
+            <div class="fc-row"><span class="ic">⚖️</span><div class="v"><small>${s2.real === false ? 'Kaal ja pikkus' : 'Kaal ja pikkus päriselus'}</small><span>${fRange(fKg(s2.min_w), fKg(s2.max_w))}${s2.max_len ? ` · ${fRange(fLen(s2, s2.min_w), fLen(s2, s2.max_w))}` : ''}${b ? ` · sinu rekord <b>${fSize(s2, +b.max)}</b> · püütud ${b.n}×` : ''}</span></div></div>
           </div>
           <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : ''}</div>
         </div>`;

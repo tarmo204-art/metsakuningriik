@@ -4424,6 +4424,11 @@ function lbHtml(cfg) {
 /* ================= KALAPÜÜK (serveri kontrollitud) ================= */
 ICON.fish = '<svg viewBox="0 0 20 20"><path d="M2 10 C5 4.5, 12 4.5, 15 10 C12 15.5, 5 15.5, 2 10Z" fill="#7fbcd2"/><path d="M14 10 L19 6 L18 10 L19 14Z" fill="#5a9ab4"/><circle cx="5.5" cy="9" r="1" fill="#1a1a1a"/><path d="M8 7 Q9.5 10 8 13" stroke="#4f8aa4" stroke-width="1" fill="none"/></svg>';
 TOOL_ICON.pyua = '<svg viewBox="0 0 20 20"><path d="M3 18 L15 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3 Q18 9 16 15" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="16" cy="15.5" r="1.8" fill="currentColor"/></svg>';
+// kala kaal (alla 1 kg grammides) ja pikkus päris kalade valemiga L = max_len · (kaal / max_w)^(1/3)
+function fKg(w) { w = +w; if (!isFinite(w)) return ''; if (w < 1) return Math.max(1, Math.round(w * 1000)) + ' g'; if (w < 100) return fmt1(w) + ' kg'; return fmt(Math.round(w)) + ' kg' }
+function fLen(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return ''; const L = sp.max_len * Math.cbrt(Math.max(0, +w) / sp.max_w); return L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
+function fRange(a, b) { const m = /^(.*) (g|kg|cm|m)$/; const x = String(a).match(m), y = String(b).match(m); return x && y && x[2] === y[2] ? `${x[1]}–${y[1]} ${y[2]}` : `${a}–${b}` }
+function fSize(sp, w) { const l = fLen(sp, w); return fKg(w) + (l ? ' · ' + l : '') }
 const RAR2 = { 1: ['Tavaline', '#c3d3a4'], 2: ['Ebatavaline', '#8fd17a'], 3: ['Haruldane', '#6cb8ff'], 4: ['Eepiline', '#c58cff'], 5: ['Legendaarne', '#ffb347'], 6: ['Müütiline', '#ff6b9a'] };
 const JUNK2 = { saabas: ['Vana saabas', 'Keegi on siin kunagi märjaks saanud.'], purk: ['Plekkpurk', 'Purgi põhjas kõlises 3 kuldmünti.'], kepp: ['Triivpuu', 'Lihtsalt üks märg oks. Vähemalt said harjutada.'], pudel: ['Pudelipost', 'Pudelis oli aardekaart! See saadeti sinu kuningriiki.'], karp: ['Merekarp', 'Põhjamudast tuli ilus karp. See läks sinu kotti.'] };
 const CHEST2 = { puu: ['Puidust kirst', '#c8955a'], hobe: ['Hõbekirst', '#d8e4ec'], kuld: ['Kuldne kirst', '#ffd060'] };
@@ -5130,7 +5135,7 @@ function paintFishCanvases(root) {
 /* ---------- vaate kujundus ---------- */
 function fvHeader() {
   const max = FS.level >= 50 && !!FS.pxp_need, stars = FS.prestige || 0, need = max ? (FS.pxp_need || 1) : (FS.xp_need || 1), have = max ? (FS.pxp || 0) : FS.xp, pct = Math.min(100, have / need * 100);
-  const big = FS.biggest_species && FD.sp[FS.biggest_species] ? `${FD.sp[FS.biggest_species].name} ${fmt1(+FS.biggest)} kg` : '—';
+  const big = FS.biggest_species && FD.sp[FS.biggest_species] ? `${FD.sp[FS.biggest_species].name} ${fKg(+FS.biggest)}` : '—';
   const rod = FD.rod[FS.rod], bait = FD.bait[FS.bait];
   const baitCnt = bait && bait.consumable ? ` (${(FS.baits || {})[bait.id] || 0})` : '';
   const rare = [3, 4, 5, 6].reduce((a, r) => a + ((FS.by_rarity || {})[r] || 0), 0);
@@ -5278,7 +5283,7 @@ async function doLand() {
     const r = await rpc('fish_land', { p_cast: FV.cast.cast_id });
     FV.hook = null;
     if (!r.ok) {
-      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} (${fmt1(+r.weight)} kg) oli liiga raske ja õng murdus. Paranda õng või osta tugevam.`); sparkleScene('#ff8a78'); }
+      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} (${fKg(+r.weight)}) oli liiga raske ja õng murdus. Paranda õng või osta tugevam.`); sparkleScene('#ff8a78'); }
       else if (r.reason === 'escaped') setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`);
       else setPhase('lost', 'Kala pääses minema.');
       await refreshFS(); afterAch(r.ach); renderFV(true);
@@ -5295,7 +5300,7 @@ async function doLand() {
 function resultMsg(r) {
   if (r.kind === 'junk') return `Õnge otsas oli ${JUNK2[r.junk][0].toLowerCase()}! ${JUNK2[r.junk][1]}`;
   if (r.kind === 'chest') return `${(CHEST2[r.tier] || CHEST2.puu)[0]}! Said ${r.gold} kulda${r.map ? ' ja aardekaardi (saadeti kuningriiki)' : ''}${itemsTxt(r.items)}.`;
-  return `${r.giant ? 'REKORDILISELT SUUR! ' : ''}Püüdsid: ${r.name}, ${fmt1(+r.weight)} kg!${r.new_species ? ' Uus liik kalaraamatus!' : r.record ? ' Uus isiklik rekord!' : ''}${r.items && r.items.length ? ` Kala kõhust leidsid: ${itemsTxt(r.items, true)}!` : ''}`;
+  return `${r.giant ? 'REKORDILISELT SUUR! ' : ''}Püüdsid: ${r.name}, ${fSize(FD.sp[r.species], +r.weight)}!${r.new_species ? ' Uus liik kalaraamatus!' : r.record ? ' Uus isiklik rekord!' : ''}${r.items && r.items.length ? ` Kala kõhust leidsid: ${itemsTxt(r.items, true)}!` : ''}`;
 }
 function itemName(id) { return (ITEM_IC[id] || '✨') + ' ' + (FD.item[id] ? FD.item[id].name : id) }
 function itemsTxt(list, bare) { if (!list || !list.length) return ''; const t = list.map(x => itemName(x.id) + (x.qty > 1 ? ' ×' + x.qty : '')).join(', '); return bare ? t : ' ning kotti: ' + t }
@@ -5312,7 +5317,7 @@ function resultCard() {
     return `<div class="result" style="--rc:${col}"><canvas data-fl="" data-junk="${r.kind === 'chest' ? 'chest_' + (r.tier || 'puu') : r.junk}" data-r="1"></canvas><div style="display:grid;gap:4px"><span class="rpill" style="color:${col}">${r.kind === 'chest' ? 'Aare' : 'Leid'}</span><h3>${r.kind === 'chest' ? ch[0] : JUNK2[r.junk][0]}</h3><p class="lead">+${r.xp} kogemust${r.x2 ? '<span class="kx2" title="Õhtukuma">×2</span>' : ''}${r.gold ? ` · +${r.gold} kulda` : ''}${r.map ? ' · aardekaart kuningriiki' : ''}</p>${itemsRow(r.items)}</div></div>` }
   const [rn, rc] = RAR2[r.rarity], inInv = (FS.inventory || []).some(x => x.id === r.catch_id), sp = FD.sp[r.species];
   return `<div class="result" style="--rc:${rc}"><canvas data-fl="${r.species}" data-r="${r.rarity}"></canvas><div style="display:grid;gap:4px"><span class="rpill" style="color:${rc}">${rn}</span><h3>${esc(r.name)}</h3>
-    <p class="lead">${fmt1(+r.weight)} kg · +${r.xp} kogemust${r.x2 ? '<span class="kx2" title="Õhtukuma">×2</span>' : ''}${r.giant ? ' · <b style="color:var(--amber-2)">rekordsuurus!</b>' : ''}${r.new_species ? ' · <b style="color:var(--ok)">uus liik!</b>' : r.record ? ' · <b style="color:var(--ok)">isiklik rekord!</b>' : ''}</p>
+    <p class="lead">${fSize(FD.sp[r.species], +r.weight)} · +${r.xp} kogemust${r.x2 ? '<span class="kx2" title="Õhtukuma">×2</span>' : ''}${r.giant ? ' · <b style="color:var(--amber-2)">rekordsuurus!</b>' : ''}${r.new_species ? ' · <b style="color:var(--ok)">uus liik!</b>' : r.record ? ' · <b style="color:var(--ok)">isiklik rekord!</b>' : ''}</p>
     <p class="lead" style="font-size:12.5px">${esc(sp ? sp.descr : '')}</p>${r.items && r.items.length ? '<small class="lead">Kala kõhust leitud:</small>' + itemsRow(r.items) : ''}</div>
     ${inInv ? `<div class="acts"><button class="btn sm" type="button" data-fa="use" data-arg="sell:${r.catch_id}">Müü (~${estPrice(r.catch_id)} kulda)</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="cook:${r.catch_id}">Toiduks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="release:${r.catch_id}">Lase vabaks</button><button class="btn sm ghost" type="button" data-fa="use" data-arg="trophy:${r.catch_id}">Trofeeriiulile</button>${FS.house ? `<button class="btn sm ghost" type="button" data-fa="aqput" data-arg="${r.catch_id}">Akvaariumi</button>` : ''}${r.rarity >= 4 ? `<button class="btn sm ghost" type="button" data-fa="exch" data-arg="${r.catch_id}">${r.species === 'kuldkala' ? 'Soovi midagi' : 'Vaheta preemia vastu'}</button>` : ''}<span class="lead" style="font-size:12px;align-self:center">või jäta saagi hulka</span></div>` : '<div class="acts"><span class="lead">Kala on kasutatud.</span></div>'}</div>`;
 }
@@ -5387,7 +5392,7 @@ function tabSaak() {
   const inv = FS.inventory || [], kept = inv.filter(x => !x.trophy), tro = inv.filter(x => x.trophy);
   FV.sel = new Set([...FV.sel].filter(id => kept.some(x => x.id === id)));
   const selN = FV.sel.size;
-  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fmt1(+x.weight)} kg${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}</div>` };
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}</div>` };
   let h = `<div class="fv-card"><h2>Saak</h2><p class="lead">Klõpsa kaladel, et neid valida. Müümisel saad kulda kalurikassasse. Toit ja kuulsus lähevad sinu kuningriiki. Turuhinnad muutuvad iga päev ja kui müüd ühel päeval palju sama kala, langeb selle hind.</p>
     <div class="chips"><span class="chip">${kept.length} kala saagis</span><span class="chip">Valitud: ${selN}</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -5436,7 +5441,7 @@ function tabRaamat() {
     const list = FD.species.filter(s => s.rarity === r), [rn, rc] = RAR2[r];
     h += `<div class="sec-h" style="color:${rc}">${rn} <small>${list.filter(s => book[s.id]).length} / ${list.length}</small></div><div class="book">${list.map(s => {
       const b = book[s.id]; const where = s.spots.map(x => FD.spot[x] ? FD.spot[x].name : x).join(', ');
-      return `<div class="bcell" style="border-color:${b ? rc + '66' : 'transparent'}"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${b ? 0 : 1}"></canvas><b>${b ? esc(s.name) : '???'}</b><small>${b ? `Püütud ${b.n}× · rekord ${fmt1(+b.max)} kg` : `${fmt1(s.min_w)}–${fmt1(s.max_w)} kg`}</small>${b && typeof DP !== 'undefined' && (s.baits || []).length ? `<small style="color:#ffc2d4">❤ ${(s.baits || []).map(fbaitName).join(', ')} · ${(s.times || []).map(t => DP[t] ? DP[t][0] : '').join(' ')}</small>` : ''}<small>${esc(where)}${s.night_only ? ' · öösel' : ''}${s.winter_only ? ' · talvel' : ''}${s.weather ? ' · ainult ' + s.weather.map(w => WNAME[w] || w).join(', ') : ''}${s.min_level > FS.level ? ` · tase ${s.min_level}` : ''}</small></div>`;
+      return `<div class="bcell" style="border-color:${b ? rc + '66' : 'transparent'}"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${b ? 0 : 1}"></canvas><b>${b ? esc(s.name) : '???'}</b><small>${b ? `Püütud ${b.n}× · rekord ${fSize(s, +b.max)}` : `${fRange(fKg(s.min_w), fKg(s.max_w))}${s.max_len ? ' · kuni ' + fLen(s, s.max_w) : ''}`}</small>${b && typeof DP !== 'undefined' && (s.baits || []).length ? `<small style="color:#ffc2d4">❤ ${(s.baits || []).map(fbaitName).join(', ')} · ${(s.times || []).map(t => DP[t] ? DP[t][0] : '').join(' ')}</small>` : ''}<small>${esc(where)}${s.night_only ? ' · öösel' : ''}${s.winter_only ? ' · talvel' : ''}${s.weather ? ' · ainult ' + s.weather.map(w => WNAME[w] || w).join(', ') : ''}${s.min_level > FS.level ? ` · tase ${s.min_level}` : ''}</small></div>`;
     }).join('')}</div>`;
   }
   h += '</div>';
@@ -5460,7 +5465,7 @@ function tabVoistlus() {
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ${unclaimed ? '' : 'ghost'}" type="button" data-fa="claim">${unclaimed ? 'Võta võidupreemiad!' : 'Kontrolli võidupreemiaid'}</button><button class="btn ghost sm" type="button" data-fa="reloadComp">Värskenda</button></div></div><div class="comps">`;
   for (const k of ['big', 'rare', 'most']) {
     const c = C[k], [nm, ds] = COMPN[k], ends = new Date(new Date(c.ends).getTime() - 60000);
-    const val = r => k === 'most' ? `${r.cnt} kala` : `${esc(FD.sp[r.species] ? FD.sp[r.species].name : r.species)} ${fmt1(+r.weight)} kg`;
+    const val = r => k === 'most' ? `${r.cnt} kala` : `${esc(FD.sp[r.species] ? FD.sp[r.species].name : r.species)} ${fKg(+r.weight)}`;
     h += `<div class="fv-card"><h3>${nm}</h3><p class="lead" style="font-size:12.5px">${ds} Lõpeb ${k === 'big' ? 'täna' : ends.toLocaleDateString('et-EE', { weekday: 'long', timeZone: 'Europe/Tallinn' })} kell 23:59.</p>
       ${c.top.length ? lbHtml({ who: 'Kalur', cols: [k === 'most' ? 'Kalu' : 'Kala'], cw: k === 'most' ? '' : '150px', rows: c.top.map(r => ({ place: r.place, name: r.name, sub: r.title, me: r.me, vals: [val(r)], colors: [k === 'most' ? '' : RAR2[r.rarity][1]] })) }) : '<p class="lead">Keegi pole veel osalenud. Ole esimene!</p>'}
       ${c.mine ? `<p class="lead">Sinu koht: <b>${c.mine.place}.</b> (${val(c.mine)})</p>` : ''}
@@ -5511,7 +5516,7 @@ function tabUlesanded() {
 const NEWS = { list: null, last: 0, unread: 0, seen: 0, at: 0 };
 try { NEWS.seen = +localStorage.getItem('mk.newsSeen') || 0 } catch (e) { }
 function newsText(n) {
-  const d = n.data || {}, sp = FD.sp[d.species], fn = sp ? sp.name : (d.species || 'kala'), w = d.weight ? ` (${fmt1(+d.weight)} kg)` : '', who = `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''}`;
+  const d = n.data || {}, sp = FD.sp[d.species], fn = sp ? sp.name : (d.species || 'kala'), w = d.weight ? ` (${fKg(+d.weight)})` : '', who = `<b>${esc(n.name)}</b>${n.title ? ` <small class="lead">${esc(n.title)}</small>` : ''}`;
   switch (n.kind) {
     case 'first': return `${who} püüdis kuningriigi esimesena liigi <b style="color:${RAR2[d.rarity || 3][1]}">${esc(fn)}</b>${w}!`;
     case 'catch': return `${who} püüdis ${({ 3: 'haruldase', 4: 'eepilise', 5: 'legendaarse', 6: 'müütilise' })[d.rarity || 5] || 'haruldase'} kala: <b style="color:${RAR2[d.rarity || 5][1]}">${esc(fn)}</b>${w}!`;
@@ -5679,9 +5684,9 @@ function tabMaja() {
     h += `<div class="fv-card"><h2>Akvaarium <small class="lead">${aq.length} / ${slots}</small></h2><div id="fvAqSlot"></div>
       <p class="lead">Ilu <b>${FS.aq_score || 0}</b> · külastajad toovad <b>${fmt(perDay)} kulda päevas</b> (kogub kuni 2 päeva) · imetlusi ${FS.aq_likes || 0}. Haruldased ja rekordsuured kalad on ilusamad. Akvaariumis olevat kala ei saa müüa.</p>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button class="btn sm" type="button" data-fa="aqcollect" ${FS.aq_pending > 0 ? '' : 'disabled'}>Korja ${fmt(FS.aq_pending || 0)} kulda</button></div>
-      ${aq.length ? `<div class="inv">${aq.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqtake" data-arg="${f.id}" role="button" tabindex="0" title="Võta akvaariumist välja" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fmt1(+f.weight)} kg · võta välja</small></div>` }).join('')}</div>` : ''}`;
+      ${aq.length ? `<div class="inv">${aq.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqtake" data-arg="${f.id}" role="button" tabindex="0" title="Võta akvaariumist välja" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fKg(+f.weight)} · võta välja</small></div>` }).join('')}</div>` : ''}`;
     const cand = (FS.inventory || []).slice().sort((a, b) => aqScore(b) - aqScore(a) || b.weight - a.weight).slice(0, 12);
-    h += aq.length < slots ? `<div class="sec-h">Lisa akvaariumi <small>sinu ilusaimad kalad</small></div>${cand.length ? `<div class="inv">${cand.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqput" data-arg="${f.id}" role="button" tabindex="0" style="border-color:${rc}44">${f.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fmt1(+f.weight)} kg · pane sisse</small></div>` }).join('')}</div>` : '<p class="lead">Saak on tühi. Püüa kalu, et neid akvaariumi panna.</p>'}` : '<p class="lead">Akvaarium on täis. Täienda kalamaja, et saada rohkem kohti, või võta mõni kala välja.</p>';
+    h += aq.length < slots ? `<div class="sec-h">Lisa akvaariumi <small>sinu ilusaimad kalad</small></div>${cand.length ? `<div class="inv">${cand.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" data-fa="aqput" data-arg="${f.id}" role="button" tabindex="0" style="border-color:${rc}44">${f.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn} · ilu ${aqScore(f)}</small><small>${fKg(+f.weight)} · pane sisse</small></div>` }).join('')}</div>` : '<p class="lead">Saak on tühi. Püüa kalu, et neid akvaariumi panna.</p>'}` : '<p class="lead">Akvaarium on täis. Täienda kalamaja, et saada rohkem kohti, või võta mõni kala välja.</p>';
     h += '</div>';
   }
   h += `<div class="fv-card"><h2>Teiste mängijate akvaariumid</h2><p class="lead">Külasta teisi kalureid ja imetle nende akvaariumi. Iga imetlus toob omanikule 15 kulda (üks kord päevas iga akvaariumi kohta).</p>`;
@@ -5696,7 +5701,7 @@ function visitHtml() {
     <p class="lead">${v.title ? esc(v.title) + ' · ' : ''}kalapüügi tase ${v.level} · ${esc(v.house_name || '')} · ilu ${v.score} · ${v.likes} imetlust</p>
     <canvas data-house="${v.house}" class="housecv"></canvas>
     <div id="fvAqSlot"></div>
-    ${v.fish.length ? `<div class="inv">${v.fish.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${f.giant ? ' · rekordsuurus' : ''}</small><small>${fmt1(+f.weight)} kg</small></div>` }).join('')}</div>` : '<p class="lead">Akvaarium on veel tühi.</p>'}
+    ${v.fish.length ? `<div class="inv">${v.fish.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${f.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+f.weight)}</small></div>` }).join('')}</div>` : '<p class="lead">Akvaarium on veel tühi.</p>'}
     <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
 }
 async function loadAqList() { if (AQ.loading) return; AQ.loading = true; try { AQ.list = await rpc('fish_aquariums') } catch (e) { AQ.list = [] } AQ.loading = false; if (FV.open && FV.tab === 'maja') renderFV() }
@@ -5876,7 +5881,7 @@ async function loadMarket(silent) {
       rpc('fish_market_mine')]);
     // teata uutest müükidest
     const sold = (mine.history || []).filter(x => x.side === 'sold' && x.status === 'sold' && new Date(x.at).getTime() > FMK.seenSold);
-    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fmt1(+x.weight)} kg) müüdi ${fmt(x.price)} kulla eest! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
+    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fKg(+x.weight)}) müüdi ${fmt(x.price)} kulla eest! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
     FMK.newSold = FV.tab === 'turg' && FV.open ? 0 : sold.length;
     FMK.list = list; FMK.mine = mine; FMK.at = Date.now();
   } catch (e) { if (!silent) toast(e.message, 'bad') }
@@ -5887,7 +5892,7 @@ function mkLeft(at) { const ms = new Date(at).getTime() + 72 * 3600e3 - Date.now
 function mkPct(price, base) { const p = Math.round(price / Math.max(1, base) * 100); return `<i class="${p <= 100 ? 'good' : p <= 180 ? 'mid' : 'hi'}" title="Hind võrreldes kala tavahinnaga">${p}% tavahinnast</i>` }
 function mkCard(m) {
   const sp = FD.sp[m.species] || { name: m.species }, [rn, rc] = RAR2[m.rarity], conf = FMK.confirm === m.id, poor = FS.gold < m.price;
-  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fmt1(+m.weight)} kg · müüja ${esc(m.seller)}</small>
+  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+m.weight)} · müüja ${esc(m.seller)}</small>
     <div class="pr">${fmt(m.price)}<small>kulda</small></div><div class="pr" style="font-size:12px">${mkPct(m.price, m.base)}</div><small>Aega jäänud: ${mkLeft(m.at)}</small>
     ${m.mine ? `<button class="btn sm ghost" type="button" data-fa="mkCancel" data-arg="${m.id}">Võta turult maha</button>` : `<button class="btn sm ${conf ? '' : 'ghost'}" type="button" data-fa="mkBuy" data-arg="${m.id}" ${poor ? 'disabled' : ''}>${poor ? 'Kulda ei jätku' : conf ? `Kinnita ost: ${fmt(m.price)} kulda` : 'Osta'}</button>`}</div>`;
 }
@@ -5903,7 +5908,7 @@ function tabTurg() {
     h += `<div class="fv-card"><h2>Müügil <small class="lead">${mine.open.length} / 10</small></h2>${mine.open.length ? `<div class="mkg">${mine.open.map(m => mkCard(Object.assign({ mine: true, seller: 'sina' }, m))).join('')}</div>` : '<p class="lead">Sul pole praegu ühtki kala müügil. Vali saagist kala ja vajuta „Pane turule“.</p>'}
       <div><button class="btn sm" type="button" data-fa="tab" data-arg="saak">Mine saagi juurde</button></div></div>`;
     const H = mine.history || [];
-    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fmt1(+x.weight)} kg</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
+    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fKg(+x.weight)}</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
     return h;
   }
   const spOpts = Object.values(FD.sp).filter(s => (FS.book || {})[s.id]).sort((a, b) => a.name.localeCompare(b.name, 'et'));
@@ -5920,7 +5925,7 @@ function showListing(id) {
   const sp = FD.sp[c.species], base = mkBase(c.species, +c.weight), min = Math.max(1, Math.ceil(base * .5)), max = base * 5, start = Math.round(base * 1.2), [rn, rc] = RAR2[c.rarity];
   FMK.lst = { base, min, max };
   showModal(() => `<h2>Pane turule: ${esc(sp.name)}</h2><div class="mkl"><canvas data-fl="${c.species}" data-r="${c.rarity}"></canvas>
-    <p style="margin:0"><b style="color:${rc}">${rn}</b> · ${fmt1(+c.weight)} kg${c.giant ? ' · rekordsuurus' : ''}${c.trophy ? ' · <b>trofee</b>' : ''}</p>
+    <p style="margin:0"><b style="color:${rc}">${rn}</b> · ${fKg(+c.weight)}${c.giant ? ' · rekordsuurus' : ''}${c.trophy ? ' · <b>trofee</b>' : ''}</p>
     <p class="lead" style="margin:0">Selle kala tavahind on <b>${fmt(base)} kulda</b>. Võid küsida ${fmt(min)} kuni ${fmt(max)} kulda. Liiga kõrge hinnaga kala ei pruugi keegi osta.</p>
     <input type="range" id="mkRange" min="${min}" max="${max}" step="1" value="${start}" aria-label="Hind">
     <div class="row"><label style="display:flex;gap:6px;align-items:center">Hind <input type="number" id="mkPrice" min="${min}" max="${max}" value="${start}" style="width:120px"> kulda</label></div>
@@ -7130,7 +7135,7 @@ function secChron() {
   return `<div class="fv-card sec-chron"><h2>📖 Kalurite kroonika</h2>
     <p class="lead">Igal esmaspäeval ilmub vanasse kroonikasse uus mõistatus: mis kala, kus, mis ilmaga ja mis ajal. Kes selle kala täpselt nii püüab, saab 2500 kulda ja 2 koopakristalli. Esimesel korral annab kroonika ka müütilise eseme <b>Hõbesoomus</b>.</p>
     <div class="sec-scroll">${(c.hints || []).map(t => `<span>${esc(t)}</span>`).join('')}${next ? `<i>${next}</i>` : ''}</div>
-    ${c.done && c.answer ? `<div class="sec-ev good">✅ Lahendatud! Püüdsid <b>${esc(c.answer.name)}</b> (${fmt1(+c.answer.weight)} kg) paigas ${esc(c.answer.spot)}.</div>` : ''}
+    ${c.done && c.answer ? `<div class="sec-ev good">✅ Lahendatud! Püüdsid <b>${esc(c.answer.name)}</b> (${fKg(+c.answer.weight)}) paigas ${esc(c.answer.spot)}.</div>` : ''}
     <div class="sec-depth"><span>Sel nädalal lahendanud: <b>${c.solvers}</b></span><span>Sinu lahendatud nädalaid: <b>${c.weeks}</b></span></div></div>`;
 }
 function secAnimals() {
@@ -7750,6 +7755,7 @@ function fishCard(id) {
           <button class="fc-x" type="button" data-act="closeModal" aria-label="Sulge">×</button></div>
         <div class="fc-body">
           <div class="fc-name"><h2>${b ? esc(s2.name) : '???'}</h2><span class="fc-diff" style="--dc:${df[2]}">${df[1]}</span></div>
+          ${s2.real === false ? `<p class="fc-descr" style="font-style:normal;color:#d8c4ff">✨ Muinasjutukala – seda kala päriselus ei ole, tema suurused on välja mõeldud.</p>` : ''}
           ${b && s2.descr ? `<p class="fc-descr">${esc(s2.descr)}</p>` : !b ? `<p class="fc-descr">Seda kala sa veel püüdnud ei ole. Püüa see, et saada teada tema lemmiksööt ja parim aeg.</p>` : ''}
           <div class="fc-info">
             <div class="fc-row"><span class="ic">📍</span><div class="v"><small>Elupaik</small><span>${esc(where)}${tags.length ? ` · ${tags.join(', ')}` : ''}</span></div></div>
@@ -7758,7 +7764,7 @@ function fishCard(id) {
             <div class="fc-row"><span class="ic">🕐</span><div class="v"><small>Parim aeg</small>
               ${b ? (times.length ? `<div class="fc-time">${fcDayRing(times, now)}<div class="tl">${times.map(t => `<span>${DP[t] ? DP[t][0] + ' ' + DP[t][1] + ' <small style="color:#8fb0ba">' + DP[t][2] + '</small>' : t}</span>`).join('')}${bestNow ? '<span class="now">✨ Praegu on parim aeg!</span>' : ''}</div></div>` : '<span>Igal ajal</span>') : '<span class="fc-hid">???</span>'}</div></div>
             <div class="fc-row"><span class="ic">💪</span><div class="v"><small>Raskus</small><div class="fc-pips" style="--dc:${df[2]}" aria-label="Raskus ${s2.difficulty} / 10">${pips}</div></div></div>
-            <div class="fc-row"><span class="ic">⚖️</span><div class="v"><small>Kaal</small><span>${fmt1(s2.min_w)}–${fmt1(s2.max_w)} kg${b ? ` · sinu rekord <b>${fmt1(+b.max)} kg</b> · püütud ${b.n}×` : ''}</span></div></div>
+            <div class="fc-row"><span class="ic">⚖️</span><div class="v"><small>${s2.real === false ? 'Kaal ja pikkus' : 'Kaal ja pikkus päriselus'}</small><span>${fRange(fKg(s2.min_w), fKg(s2.max_w))}${s2.max_len ? ` · ${fRange(fLen(s2, s2.min_w), fLen(s2, s2.max_w))}` : ''}${b ? ` · sinu rekord <b>${fSize(s2, +b.max)}</b> · püütud ${b.n}×` : ''}</span></div></div>
           </div>
           <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : ''}</div>
         </div>`;

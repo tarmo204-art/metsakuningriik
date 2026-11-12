@@ -87,6 +87,11 @@ püügi lehel (`favStrip`), „❤ Lemmiksööt“ märgid ja efekt. Püüdmata 
 **Realistlikud söödad** (12.11.2026) – `src/soodad.js` asendab `drawBait` (→ `drawBaitReal`): konksud,
 kolmikkonksud, pöörlid, varjud ja läiked. Uue sööda lisamisel lisa sinna oma `case`.
 
+**Päris suurused** (12.11.2026) – päris kaladel `min_w`/`max_w` päris elu järgi (tavaline püük kuni suur
+isend; hiiglane ×1,25–1,6 läheneb rekordile), `max_len` cm suurima kaalu juures, `real=false` muinasjutukaladel.
+Seeme on schema.sql-is pärast liikide sisestust (kehtib igal käivitusel). Püügi jaotus `power(random(), 2.2)`,
+kaal 3 komakohaga alla 1 kg. Mängus `fKg` (alla 1 kg grammides), `fLen`, `fSize`, `fRange` (kalapuuk.js).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

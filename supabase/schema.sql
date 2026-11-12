@@ -794,6 +794,104 @@ update public.fish_species s set baits = v.b::text[], times = v.t::text[] from (
  ('sugavusedraakon','{draakonilant,valgus}','{öö}')
 ) as v(id, b, t) where s.id = v.id and (s.baits = '{}' or s.times = '{}');
 
+
+-- Päris suurused (kaal kg ja pikkus cm suurima kaalu juures). Pikkus arvutatakse kaalust: L = max_len · (kaal / max_w)^(1/3).
+-- Nagu teised algandmed, kehtestatakse need igal käivitusel uuesti (kalade sisestused ülal kasutavad mängu vanu kaale).
+alter table public.fish_species add column if not exists max_len numeric;
+alter table public.fish_species add column if not exists real boolean not null default true;
+update public.fish_species s set min_w = v.mn, max_w = v.mx, max_len = v.ln, real = true from (values
+ ('ahven',.05,1.5,43),
+ ('sarg',.05,.8,36),
+ ('roosarg',.05,.7,34),
+ ('kiisk',.015,.12,20),
+ ('tobias',.003,.02,20),
+ ('laternkala',.002,.02,12),
+ ('teib',.05,.4,30),
+ ('latikas',.3,4,60),
+ ('raim',.02,.12,27),
+ ('lest',.1,1.2,42),
+ ('tint',.01,.08,25),
+ ('viidikas',.005,.04,17),
+ ('nurg',.05,.5,30),
+ ('lepamaim',.002,.015,11),
+ ('luukarits',.001,.005,8),
+ ('ogalik',.001,.004,7),
+ ('trulling',.01,.06,17),
+ ('hink',.003,.015,12),
+ ('voldas',.005,.04,13),
+ ('kilu',.005,.02,15),
+ ('mustmudil',.01,.08,16),
+ ('liivamudil',.001,.007,8),
+ ('linask',.3,3,52),
+ ('haug',.8,14,115),
+ ('sainas',.3,3,60),
+ ('koha',.8,9,90),
+ ('tursk',.5,10,95),
+ ('siig',.3,3,58),
+ ('raabis',.03,.25,28),
+ ('vimb',.2,1,42),
+ ('turb',.3,3,58),
+ ('koger',.1,1.2,38),
+ ('emakala',.05,.4,45),
+ ('merihark',.05,.4,32),
+ ('hobekoger',.1,1.5,40),
+ ('makrell',.2,1.5,48),
+ ('nokkhaug',.2,1,85),
+ ('merinoel',.002,.01,30),
+ ('madunoel',.001,.005,28),
+ ('peled',.3,2.5,55),
+ ('mudamaim',.003,.015,11),
+ ('vingerjas',.02,.1,28),
+ ('ojasilm',.003,.01,18),
+ ('angerjas',.2,3.5,110),
+ ('luts',.4,6,85),
+ ('harjus',.2,1.5,50),
+ ('vikerforell',.4,5,72),
+ ('karpkala',1,18,90),
+ ('meriforell',1,10,90),
+ ('lohe',2,18,110),
+ ('paalia',.3,3,60),
+ ('toogjas',.8,7,85),
+ ('joeforell',.2,3,58),
+ ('joesilm',.04,.15,45),
+ ('hobekarp',2,20,100),
+ ('kammeljas',1,10,75),
+ ('amuur',3,22,115),
+ ('kirveskala',.002,.01,9),
+ ('saga',5,70,210),
+ ('tuur',10,120,250),
+ ('tuun',30,350,260),
+ ('merikurat',3,35,135),
+ ('mookkala',30,300,350),
+ ('airukala',20,200,700)
+) as v(id, mn, mx, ln) where s.id = v.id;
+update public.fish_species s set max_len = v.ln, real = false from (values
+ ('kuusarg',42),
+ ('jaaahven',40),
+ ('kristallahven',45),
+ ('pilvekala',48),
+ ('paikesekarp',65),
+ ('vihmaforell',62),
+ ('uduhobe',55),
+ ('kuldahven',48),
+ ('kuningkarp',100),
+ ('virmaliskala',75),
+ ('udukala',60),
+ ('vikerkaarekala',62),
+ ('tormihaug',130),
+ ('kuuangerjas',140),
+ ('joekuningas',170),
+ ('merivaim',120),
+ ('jaahaug',150),
+ ('haldjakala',45),
+ ('valgukala',80),
+ ('kuldkala',28),
+ ('igijaavaim',200),
+ ('leviaatan',800),
+ ('jarvelohe',600),
+ ('sugavusedraakon',900)
+) as v(id, ln) where s.id = v.id;
+
 -- Igal kalal vähemalt üks lemmiksööt, mis on olemas juba siis, kui kala avaneb (lisab, ei kirjuta üle)
 update public.fish_species s set baits = array_append(s.baits, v.b) from (values
  ('haug','uss'),('joesilm','uss'),('kuuangerjas','uss'),('ogalik','uss'),('voldas','uss'),
@@ -1171,9 +1269,9 @@ begin
       rar := rar - 1;
     end loop;
     if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
-    wt := s.min_w + (s.max_w - s.min_w) * power(random(), 1.7);
+    wt := s.min_w + (s.max_w - s.min_w) * power(random(), 2.2);
     if random() < 0.03 * (g ->> 'giant')::numeric then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
-    wt := round(wt, 2);
+    wt := round(wt, case when wt < 1 then 3 else 2 end);
   end if;
   wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric);
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)

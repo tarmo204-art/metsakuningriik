@@ -21,3 +21,5 @@ Lisa rida tabelisse `fish_species` (Supabase → Table Editor). Mäng loeb kalad
 nii et koodi muuta pole vaja. Välja `look` abil saab määrata kala kuju ja värvid.
 Väljale `baits` kirjuta kala lemmiksöödad (nt `{uss,mais}`) ja väljale `times` parim aeg
 (`{hommik}`, `{päev}`, `{õhtu}` või `{öö}`, võib ka mitu). Tühjaks jättes pole kalal lemmikut.
+Väljale `max_len` kirjuta kala pikkus sentimeetrites tema suurima kaalu (`max_w`) juures. Mäng arvutab
+sellest iga püütud kala pikkuse. Kui kala on välja mõeldud, pane `real` väärtuseks `false`.
