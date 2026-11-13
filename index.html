@@ -8506,7 +8506,7 @@ FTABS.labor = '🧬 Labor';
 document.head.insertAdjacentHTML('beforeend', `<style>
 .lab{--lb0:#060a1a;--lb1:#0d1630;--lb2:#162246;--lgl:rgba(150,190,255,.16);--lgo:#ffc96a;--lvi:#b98bff;--lcy:#6fe3ff;--ltx:#e9eefc;--lmu:#9aa8cc;
   display:grid;gap:12px;color:var(--ltx)}
-.lab-sub{display:flex;gap:6px;overflow-x:auto;padding:2px;scrollbar-width:none}
+.lab-sub{display:flex;gap:6px;flex-wrap:wrap;padding:2px}
 .lab-sub button{flex:none;border:1px solid rgba(160,180,255,.18);background:rgba(13,22,48,.7);color:var(--lmu);border-radius:999px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
 .lab-sub button.on{color:#fff;background:linear-gradient(180deg,rgba(150,110,255,.45),rgba(70,50,160,.5));border-color:rgba(185,139,255,.7);box-shadow:0 0 16px rgba(150,110,255,.35)}
 .lab-sub button:focus-visible,.lab button:focus-visible{outline:2px solid var(--lgo);outline-offset:2px}
@@ -8601,7 +8601,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 @keyframes labPulse{0%,100%{box-shadow:0 0 0 4px rgba(255,201,106,.18),0 0 26px rgba(255,190,90,.45)}50%{box-shadow:0 0 0 8px rgba(255,201,106,.08),0 0 40px rgba(255,190,90,.7)}}
 @keyframes labMyth{from{opacity:0;transform:translateX(-50%) scale(.6)}to{opacity:1;transform:translateX(-50%) scale(1)}}
 @keyframes labRes{from{opacity:0;transform:translate(-50%,30px)}to{opacity:1;transform:translate(-50%,0)}}
-@media (max-width:620px){.lab-hero canvas{height:220px}.lab-hero .ttl h2{font-size:23px}.lab-slots{grid-template-columns:1fr 1fr}.lab-slots .lab-fuse{grid-column:1/-1;grid-row:2;justify-self:center;width:100%;height:auto;border-radius:16px;padding:12px}.lab-fuse .i{display:inline;font-size:18px;margin-right:6px}.lab-hero .meta{top:auto;bottom:10px;right:10px}}
+@media (max-width:620px){.lab-sub{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.lab-sub button{padding:8px 6px;font-size:13px;text-align:center}.lab-hero canvas{height:220px}.lab-hero .ttl h2{font-size:23px}.lab-slots{grid-template-columns:1fr 1fr}.lab-slots .lab-fuse{grid-column:1/-1;grid-row:2;justify-self:center;width:100%;height:auto;border-radius:16px;padding:12px}.lab-fuse .i{display:inline;font-size:18px;margin-right:6px}.lab-hero .meta{top:auto;bottom:10px;right:10px}}
 @media (prefers-reduced-motion:reduce){.lab-fuse,.lab-fx .myth,.lab-res{animation:none!important}}
 </style>`);
 
