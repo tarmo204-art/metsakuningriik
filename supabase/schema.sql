@@ -1023,6 +1023,61 @@ $$ select least(coalesce((select (value #>> '{}')::numeric from public.lab_confi
      coalesce((select sum((genes ->> 'power')::numeric) from public.lab_fish where user_id = u and status = 'tank' and genes ->> 'ability' = typ), 0) / 100.0) $$;
 
 -- ---------------------------------------------------------------------
+-- 2n. Kalade uurimiskeskus: DNA proovid, geenid, salajaste retseptide tükid, uurimispuu
+--     Kala antakse uurimiseks (kaob), analüüs võtab aega, tulemuse (DNA, uurimispunktid, retseptitükk) veeretab server.
+-- ---------------------------------------------------------------------
+create table if not exists public.lab_research (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  rp int not null default 0 check (rp >= 0), rp_total int not null default 0,
+  dna jsonb not null default '{}', skills jsonb not null default '{}', genes text[] not null default '{}',
+  frags jsonb not null default '{}', scans_done int not null default 0
+);
+create table if not exists public.lab_scan (
+  id bigserial primary key, user_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null, src_id bigint not null, species text not null, name text not null, rarity int not null, elements text[] not null,
+  started_at timestamptz not null default now(), ready_at timestamptz not null, claimed boolean not null default false, result jsonb
+);
+create index if not exists lab_scan_user on public.lab_scan(user_id, claimed);
+create table if not exists public.lab_genes (
+  id text primary key, name text not null, ic text not null, el text, descr text not null,
+  eff text not null, val numeric not null, dna int not null, rp int not null, sort int not null default 0
+);
+insert into public.lab_genes (id, name, ic, el, descr, eff, val, dna, rp, sort) values
+ ('leegisuda','Leegisüda','❤️‍🔥','tuli','Tulise hübriidi süda lööb kiiremini: kala kasvab 25% raskemaks.','size',0.25,25,60,1),
+ ('jaakristall','Jääkristall','💎','jää','Jääkristallid soomustes tugevdavad hübriidi võimet +3%.','power',3,25,60,2),
+ ('suvanagemine','Süvanägemine','👁️','vesi','Süvaveest pärit geen: haruldasemad hübriidid tulevad sagedamini.','rare',0.2,25,60,3),
+ ('tormisoomus','Tormisoomus','🌩️','välk','Välgust laetud soomused: hübriidi väärtus +20%.','value',0.2,25,60,4),
+ ('kuuhobe','Kuuhõbe','🌙','vari','Kuuvalguses hõbetuv nahk: hübriidi väärtus +30%.','value',0.3,25,60,5),
+ ('paikesekiir','Päikesekiir','☀️','valgus','Päikese geen: haruldasemad hübriidid tulevad palju sagedamini.','rare',0.3,25,60,6),
+ ('eluvorse','Eluvõrse','🌱','loodus','Looduse elujõud: hübriidi võime +2% ja kala kasvab 10% suuremaks.','power',2,25,60,7),
+ ('kuldgenoom','Kuldne genoom','👑',null,'Kõigi geenide ema: sobib igale hübriidile, väärtus +50% ja haruldused tulevad sagedamini.','gold',0.5,40,300,8)
+on conflict (id) do update set name = excluded.name, ic = excluded.ic, el = excluded.el, descr = excluded.descr, eff = excluded.eff, val = excluded.val,
+  dna = excluded.dna, rp = excluded.rp, sort = excluded.sort;
+alter table public.lab_species add column if not exists hints text[];
+update public.lab_species s set hints = v.h from (values
+ ('l_draakoniahven', array['Üks vanem on kuldne ja tuline ahven, kes armastab päikest.','Teine vanem on järvede tuld purskav valitseja.']),
+ ('l_kuldsuvahaug', array['Üks vanem on kuldse soomusega ahven.','Teine vanem on haug, kes ilmub ainult äikese ajal.']),
+ ('l_jaaleegimonarh', array['Üks vanem on karp, kelle soomused hõõguvad nagu päike.','Teine vanem on igijää iidne vaim.']),
+ ('l_tormilohe', array['Üks vanem on süvamere draakon.','Teine vanem on kala, kes kannab endas välgu sädet.']),
+ ('l_kuukuningas', array['Üks vanem kannab krooni ja on karpide kuningas.','Teine vanem on angerjas, kes ujub kuuvalgel.']),
+ ('l_soovihaldjas', array['Üks vanem täidab muinasjuttudes soove.','Teine vanem on metsajärve haldjate kala.']),
+ ('l_sugavusteisand', array['Üks vanem on mere kõige suurem koletis.','Teine vanem on süvamere draakon.']),
+ ('l_taevalaotus', array['Üks vanem hõõgub nagu virmalised talveööl.','Teine vanem kannab kõiki vikerkaare värve.'])) as v(id, h) where v.id = s.id;
+do $$ declare t text; begin
+  foreach t in array array['lab_research','lab_scan','lab_genes'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('dna1','Esimene DNA','Lõpeta uurimiskeskuses esimene DNA analüüs',null,300,0,106),
+ ('dna50','DNA uurija','Lõpeta 50 DNA analüüsi','Geeniuurija',5000,0,107),
+ ('retsept','Retseptimeister','Ava uurimiskeskuses üks salajane retsept täielikult','Retseptimeister',4000,0,108),
+ ('geenid','Geneetikateadlane','Avasta kõik 8 geeni','Geneetikateadlane',20000,0,109)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+
+-- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1188,6 +1243,10 @@ begin
       when 'labesma' then exists (select 1 from public.lab_species where first_by = u)
       when 'labmyyt' then exists (select 1 from public.lab_fish where bred_by = u and rarity = 5)
       when 'lablegend' then exists (select 1 from public.lab_fish h join public.lab_species ls on ls.id = h.species where h.bred_by = u and ls.legend)
+      when 'dna1' then exists (select 1 from public.lab_research where user_id = u and scans_done >= 1)
+      when 'dna50' then exists (select 1 from public.lab_research where user_id = u and scans_done >= 50)
+      when 'retsept' then exists (select 1 from public.lab_research r, jsonb_each_text(r.frags) x where r.user_id = u and x.value::int >= 3)
+      when 'geenid' then exists (select 1 from public.lab_research where user_id = u and cardinality(genes) >= 8)
       when 'vana1' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 1
       when 'vana25' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 25
       when 'legvana5' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and (c.giant or c.weight > fs.max_w)) >= 5
@@ -3180,6 +3239,7 @@ begin
     'dex', (select jsonb_agg(jsonb_build_object('id', ls.id, 'body', ls.body, 'legend', ls.legend, 'sort', ls.sort,
               'name', case when d.user_id is not null then ls.name end, 'e1', case when d.user_id is not null then ls.e1 end, 'e2', case when d.user_id is not null then ls.e2 end,
               'descr', case when d.user_id is not null then ls.descr end,
+              'hint', case when d.user_id is null and not ls.legend and fx_rs_skill(u, 'genoom') > 0 then jsonb_build_array(ls.e1, ls.e2) end,
               'mine', case when d.user_id is not null then jsonb_build_object('at', d.first_at, 'n', d.n, 'best', d.best, 'parents', to_jsonb(d.parents)) end,
               'first_name', case when p.hidden and ls.first_by <> u then 'Salapärane kalur' else p.name end, 'first_at', ls.first_at) order by ls.sort)
             from lab_species ls left join lab_dex d on d.species = ls.id and d.user_id = u left join profiles p on p.id = ls.first_by),
@@ -3193,7 +3253,7 @@ create or replace function public.lab_fuse(p_a_kind text, p_a bigint, p_b_kind t
 declare u uuid := fx_uid(); f fishers; st lab_state; lvl int; cap int; fee int; ca fish_catches; cb fish_catches; ha lab_fish; hb lab_fish; ga jsonb; gb jsonb;
   els text[] := array['tuli','jää','vesi','välk','vari','valgus','loodus']; ea text; eb text; tmp text; mut boolean := false; dom jsonb; oth jsonb;
   sp lab_species; w numeric[]; lb numeric; pb numeric; tot numeric := 0; roll numeric; acc numeric := 0; rar int := 1; i int;
-  hid jsonb; abil text; pw int; genes jsonb; weight numeric; len numeric; val int; nid bigint; isnew boolean; first boolean := false; levels int[]; h lab_fish; v_arch text; v_body text;
+  hid jsonb; abil text; pw int; genes jsonb; weight numeric; len numeric; val int; nid bigint; isnew boolean; first boolean := false; levels int[]; h lab_fish; v_arch text; v_body text; rs lab_research; tg lab_genes;
 begin
   f := fx_fisher(u);
   perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
@@ -3226,7 +3286,8 @@ begin
 
   -- elemendid ja mutatsioon
   ea := fx_lab_pick(ga); eb := fx_lab_pick(gb);
-  if random() < (fx_lab_cfg('mutation_chance') #>> '{}')::numeric + 0.01 * lvl then
+  rs := fx_rs(u);
+  if random() < (fx_lab_cfg('mutation_chance') #>> '{}')::numeric + 0.01 * lvl + 0.01 * coalesce((rs.skills ->> 'mutatsioon')::int, 0) then
     mut := true;
     if random() < 0.5 then ea := els[1 + floor(random() * 7)::int]; else eb := els[1 + floor(random() * 7)::int]; end if;
   end if;
@@ -3247,10 +3308,15 @@ begin
   end if;
   if sp.id is null then raise exception 'Mutatsioon ebaõnnestus'; end if;
 
+  -- uurimiskeskuse geen (avastatud geen, mis sobib hübriidi elemendiga, võib kanduda hübriidile)
+  if random() < 0.4 + 0.15 * coalesce((rs.skills ->> 'parilikkus')::int, 0) then
+    select * into tg from lab_genes g where g.id = any(rs.genes) and (g.el is null or g.el in (ea, eb)) order by random() limit 1;
+  end if;
   -- haruldus (serveris, lab_config.rarity_weights)
   select array_agg(x::numeric) into w from jsonb_array_elements_text(fx_lab_cfg('rarity_weights')) x;
   lb := (fx_lab_cfg('level_bonus') #>> '{}')::numeric * (lvl - 1);
   pb := greatest(0, ((ga ->> 'rarity')::numeric + (gb ->> 'rarity')::numeric) / 2 - 2) * 0.05;
+  if tg.eff = 'rare' then pb := pb + tg.val; elsif tg.eff = 'gold' then pb := pb + 0.2; end if;
   for i in 2..5 loop w[i] := w[i] * (1 + (lb + pb) * (i - 1)); end loop;
   for i in 1..5 loop tot := tot + w[i]; end loop;
   roll := random() * tot;
@@ -3271,11 +3337,15 @@ begin
     'strength', greatest(1, least(10, round(((ga ->> 'strength')::numeric + (gb ->> 'strength')::numeric) / 2 + random()::numeric * 2 - 0.5 + (rar - 1) * 0.5))),
     'ability', abil, 'power', pw, 'mutated', mut, 'seed', floor(random() * 1000000)::int);
   if hid is not null then genes := genes || jsonb_build_object('hidden', hid); end if;
+  if tg.id is not null then
+    genes := genes || jsonb_build_object('trait', tg.id);
+    if tg.eff = 'power' then genes := jsonb_set(genes, '{power}', to_jsonb(pw + tg.val::int)); end if;
+  end if;
   weight := greatest(0.01, round(((ga ->> 'weight')::numeric + (gb ->> 'weight')::numeric) / 2 * (0.85 + random()::numeric * 0.3) * (array[1, 1.12, 1.3, 1.55, 2])[rar]
-              * case when hid ->> 'id' = 'kiirkasv' then 1.2 else 1 end, 3));
+              * case when hid ->> 'id' = 'kiirkasv' then 1.2 else 1 end * case when tg.eff = 'size' then 1 + tg.val when tg.id = 'eluvorse' then 1.1 else 1 end, 3));
   len := round((case v_body when 'ahven' then 37 when 'karp' then 38 when 'haug' then 52 else 85 end) * cbrt(weight)::numeric * case when sp.legend then 1.1 else 1 end, 1);
   val := round(((ga ->> 'value')::numeric + (gb ->> 'value')::numeric) * (array[0.75, 1.05, 1.5, 2.4, 4.5])[rar]
-              * case when hid ->> 'id' = 'kuldsoomus' then 1.25 else 1 end + 20);
+              * case when hid ->> 'id' = 'kuldsoomus' then 1.25 else 1 end * case when tg.eff in ('value','gold') then 1 + tg.val else 1 end + 20);
 
   insert into lab_fish(user_id, species, rarity, weight, length_cm, genes, parents, value, bred_by)
     values (u, sp.id, rar, weight, len, genes,
@@ -3408,6 +3478,176 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6m. Kalade uurimiskeskus (jaotis 2n)
+-- ---------------------------------------------------------------------
+create or replace function public.fx_rs_skills() returns jsonb language sql immutable as $$ select '[
+ {"id":"kiirus","name":"Kiire analüüs","ic":"⏱️","descr":"Analüüs käib 15% kiiremini (iga tase).","cost":[40,90,160]},
+ {"id":"saak","name":"Puhtam proov","ic":"🧪","descr":"Igast proovist +1 DNA rohkem (iga tase).","cost":[50,110,200]},
+ {"id":"mikroskoop","name":"Teine mikroskoop","ic":"🔬","descr":"Üks analüüs korraga rohkem (iga tase).","cost":[150,400]},
+ {"id":"parilikkus","name":"Pärilikkus","ic":"🧬","descr":"Avastatud geenid kanduvad hübriidile 15% sagedamini (iga tase).","cost":[100,240]},
+ {"id":"mutatsioon","name":"Mutageen","ic":"⚗️","descr":"Elemendi mutatsiooni võimalus +1% (iga tase).","cost":[60,130,220]},
+ {"id":"genoom","name":"Täielik genoom","ic":"📜","descr":"Hübriidiraamatus näed avastamata liikide elemente.","cost":[250]}
+]'::jsonb $$;
+create or replace function public.fx_rs(u uuid) returns public.lab_research language plpgsql as $$
+declare r public.lab_research;
+begin
+  insert into public.lab_research(user_id) values (u) on conflict do nothing;
+  select * into r from public.lab_research where user_id = u;
+  return r;
+end $$;
+create or replace function public.fx_rs_skill(u uuid, k text) returns int language sql stable as $$
+  select coalesce((select (skills ->> k)::int from public.lab_research where user_id = u), 0) $$;
+-- analüüsi kestus minutites
+create or replace function public.fx_rs_minutes(u uuid, kind text, rar int) returns int language sql stable as $$
+  select greatest(5, round((case when kind = 'h' then (array[60,90,120,180,240])[least(rar,5)] else (array[20,40,60,90,120,180])[least(rar,6)] end)
+    * (1 - 0.15 * public.fx_rs_skill(u, 'kiirus'))))::int $$;
+
+create or replace function public.research_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r lab_research;
+begin
+  f := fx_fisher(u); r := fx_rs(u);
+  return jsonb_build_object('rp', r.rp, 'rp_total', r.rp_total, 'dna', r.dna, 'skills', r.skills, 'scans_done', r.scans_done, 'gold', f.gold,
+    'unlocked', f.level >= 5, 'slots', 1 + coalesce((r.skills ->> 'mikroskoop')::int, 0), 'now', now(),
+    'skill_list', fx_rs_skills(),
+    'genes', (select jsonb_agg(jsonb_build_object('id', g.id, 'name', g.name, 'ic', g.ic, 'el', g.el, 'descr', g.descr, 'dna', g.dna, 'rp', g.rp, 'own', g.id = any(r.genes)) order by g.sort) from lab_genes g),
+    'recipes', (select jsonb_agg(jsonb_build_object('id', ls.id, 'e1', ls.e1, 'e2', ls.e2, 'body', ls.body, 'sort', ls.sort,
+              'n', coalesce((r.frags ->> ls.id)::int, 0),
+              'hints', to_jsonb(ls.hints[1:least(2, coalesce((r.frags ->> ls.id)::int, 0))]),
+              'recipe', case when coalesce((r.frags ->> ls.id)::int, 0) >= 3 or d.user_id is not null then to_jsonb(ls.recipe) end,
+              'name', case when coalesce((r.frags ->> ls.id)::int, 0) >= 3 or d.user_id is not null then ls.name end,
+              'found', d.user_id is not null) order by ls.sort)
+            from lab_species ls left join lab_dex d on d.user_id = u and d.species = ls.id where ls.legend),
+    'scans', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'kind', s.kind, 'species', s.species, 'name', s.name, 'rarity', s.rarity, 'elements', to_jsonb(s.elements),
+              'started_at', s.started_at, 'ready_at', s.ready_at, 'ready', s.ready_at <= now(),
+              'rush', greatest(20, ceil(extract(epoch from (s.ready_at - now())) / 60.0 * 8))::int) order by s.ready_at), '[]') from lab_scan s where s.user_id = u and not s.claimed));
+end $$;
+
+create or replace function public.research_start(p_kind text, p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r lab_research; c fish_catches; h lab_fish; s fish_species; ls lab_species; n int; mins int;
+begin
+  f := fx_fisher(u);
+  if f.level < 5 then raise exception 'Uurimiskeskus avaneb kalapüügi 5. tasemel'; end if;
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  r := fx_rs(u);
+  select count(*) into n from lab_scan where user_id = u and not claimed;
+  if n >= 1 + coalesce((r.skills ->> 'mikroskoop')::int, 0) then raise exception 'Kõik mikroskoobid on hõivatud. Võta enne valmis analüüs välja.'; end if;
+  if p_kind = 'c' then
+    select * into c from fish_catches where id = p_id and user_id = u and status = 'kept' for update;
+    if c.id is null then raise exception 'Seda kala pole enam sinu saagis'; end if;
+    select * into s from fish_species where id = c.species;
+    mins := fx_rs_minutes(u, 'c', c.rarity);
+    insert into lab_scan(user_id, kind, src_id, species, name, rarity, elements, ready_at)
+      values (u, 'c', c.id, s.id, s.name, c.rarity, array[s.element], now() + make_interval(mins => mins));
+    update fish_catches set status = 'dna' where id = c.id;
+  elsif p_kind = 'h' then
+    select * into h from lab_fish where id = p_id and user_id = u and status = 'kept' for update;
+    if h.id is null then raise exception 'Seda hübriidi pole enam sinu laboris'; end if;
+    select * into ls from lab_species where id = h.species;
+    mins := fx_rs_minutes(u, 'h', h.rarity);
+    insert into lab_scan(user_id, kind, src_id, species, name, rarity, elements, ready_at)
+      values (u, 'h', h.id, ls.id, ls.name, h.rarity, array[ls.e1, ls.e2], now() + make_interval(mins => mins));
+    update lab_fish set status = 'dna' where id = h.id;
+  else raise exception 'Tundmatu proov'; end if;
+  return research_state();
+end $$;
+
+create or replace function public.research_rush(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; s lab_scan; cost int;
+begin
+  f := fx_fisher(u);
+  select * into s from lab_scan where id = p_id and user_id = u and not claimed for update;
+  if s.id is null then raise exception 'Analüüsi ei leitud'; end if;
+  if s.ready_at <= now() then return research_state(); end if;
+  cost := greatest(20, ceil(extract(epoch from (s.ready_at - now())) / 60.0 * 8))::int;
+  if f.gold < cost then raise exception 'Kiirendamiseks on vaja % kulda', cost; end if;
+  update fishers set gold = gold - cost where user_id = u;
+  update lab_scan set ready_at = now() where id = s.id;
+  return research_state();
+end $$;
+
+create or replace function public.research_claim(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r lab_research; s lab_scan; e text; amt int; v_rp int; v_dna jsonb; got jsonb := '{}'; leg text; n int; fr jsonb := null; ch numeric; levels int[];
+begin
+  f := fx_fisher(u);
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  r := fx_rs(u);
+  select * into s from lab_scan where id = p_id and user_id = u and not claimed for update;
+  if s.id is null then raise exception 'Analüüsi ei leitud või see on juba välja võetud'; end if;
+  if s.ready_at > now() then raise exception 'Analüüs pole veel valmis'; end if;
+  -- DNA ja uurimispunktid
+  amt := case when s.kind = 'h' then 2 * s.rarity + 1 else (array[1,2,3,5,8,12])[least(s.rarity,6)] end + coalesce((r.skills ->> 'saak')::int, 0);
+  v_rp := case when s.kind = 'h' then 8 else 5 end * s.rarity + floor(random() * 4)::int;
+  v_dna := r.dna;
+  foreach e in array (select array_agg(distinct x) from unnest(s.elements) x) loop
+    v_dna := jsonb_set(v_dna, array[e], to_jsonb(coalesce((v_dna ->> e)::int, 0) + amt));
+    got := got || jsonb_build_object(e, amt);
+  end loop;
+  -- retseptitükk: kala, mis on mõne legendi vanem, annab tüki sageli; teised harva
+  if s.kind = 'c' then
+    select ls.id into leg from lab_species ls where ls.legend and s.species = any(ls.recipe) and coalesce((r.frags ->> ls.id)::int, 0) < 3
+      and not exists (select 1 from lab_dex d where d.user_id = u and d.species = ls.id) order by random() limit 1;
+    ch := case when leg is not null then 0.5 else 0 end;
+  end if;
+  if leg is null then
+    select ls.id into leg from lab_species ls where ls.legend and coalesce((r.frags ->> ls.id)::int, 0) < 3
+      and not exists (select 1 from lab_dex d where d.user_id = u and d.species = ls.id) order by random() limit 1;
+    ch := case when s.kind = 'h' then 0.06 * s.rarity else 0.025 * s.rarity end;
+  end if;
+  if leg is not null and random() < ch then
+    n := coalesce((r.frags ->> leg)::int, 0) + 1;
+    update lab_research set frags = jsonb_set(frags, array[leg], to_jsonb(n)) where user_id = u;
+    select jsonb_build_object('id', l.id, 'n', n, 'hint', case when n <= 2 then l.hints[n] end, 'recipe', case when n >= 3 then to_jsonb(l.recipe) end,
+      'name', case when n >= 3 then l.name end) into fr from lab_species l where l.id = leg;
+  end if;
+  update lab_research set dna = v_dna, rp = rp + v_rp, rp_total = rp_total + v_rp, scans_done = scans_done + 1 where user_id = u;
+  update lab_scan set claimed = true, result = jsonb_build_object('dna', got, 'rp', v_rp, 'frag', fr) where id = s.id;
+  levels := fx_add_xp(u, 10 + 10 * s.rarity);
+  return research_state() || jsonb_build_object('claimed', jsonb_build_object('name', s.name, 'species', s.species, 'kind', s.kind, 'rarity', s.rarity, 'dna', got, 'rp', v_rp, 'frag', fr),
+    'lvlup', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.research_gene(p_id text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); r lab_research; g lab_genes; e text; v_dna jsonb;
+begin
+  perform fx_fisher(u);
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  r := fx_rs(u);
+  select * into g from lab_genes where id = p_id;
+  if g.id is null then raise exception 'Tundmatu geen'; end if;
+  if g.id = any(r.genes) then raise exception 'See geen on juba avastatud'; end if;
+  if r.rp < g.rp then raise exception 'Vaja on % uurimispunkti', g.rp; end if;
+  v_dna := r.dna;
+  if g.el is null then
+    if cardinality(r.genes) < 7 then raise exception 'Kuldse genoomi jaoks avasta enne kõik 7 elemendi geeni'; end if;
+    foreach e in array array['tuli','jää','vesi','välk','vari','valgus','loodus'] loop
+      if coalesce((v_dna ->> e)::int, 0) < g.dna then raise exception 'Vaja on % DNA-d igast elemendist', g.dna; end if;
+      v_dna := jsonb_set(v_dna, array[e], to_jsonb((v_dna ->> e)::int - g.dna));
+    end loop;
+  else
+    if coalesce((v_dna ->> g.el)::int, 0) < g.dna then raise exception 'Vaja on % DNA-d (%)', g.dna, g.el; end if;
+    v_dna := jsonb_set(v_dna, array[g.el], to_jsonb((v_dna ->> g.el)::int - g.dna));
+  end if;
+  update lab_research set dna = v_dna, rp = rp - g.rp, genes = array_append(genes, g.id) where user_id = u;
+  return research_state() || jsonb_build_object('gene', g.id, 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.research_skill(p_id text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); r lab_research; sk jsonb; lv int; cost int;
+begin
+  perform fx_fisher(u);
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  r := fx_rs(u);
+  select x into sk from jsonb_array_elements(fx_rs_skills()) x where x ->> 'id' = p_id;
+  if sk is null then raise exception 'Tundmatu uurimissuund'; end if;
+  lv := coalesce((r.skills ->> p_id)::int, 0);
+  if lv >= jsonb_array_length(sk -> 'cost') then raise exception 'See on juba kõrgeimal tasemel'; end if;
+  cost := (sk -> 'cost' ->> lv)::int;
+  if r.rp < cost then raise exception 'Vaja on % uurimispunkti', cost; end if;
+  update lab_research set rp = rp - cost, skills = jsonb_set(skills, array[p_id], to_jsonb(lv + 1)) where user_id = u;
+  return research_state() || jsonb_build_object('skill', p_id);
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -3423,7 +3663,8 @@ do $$ declare r record; begin
               'secret_state','secret_cave_start','secret_cave_go','secret_cave_leave',
               'secret_castle_hall','secret_boss_attack','secret_boss_claim',
               'secret_animal_tame','secret_animal_gifts','secret_ring','daily_state','daily_claim',
-              'lab_state','lab_fuse','lab_upgrade','lab_tank','lab_sell','lab_list','lab_unlist','lab_buy','lab_deliver')) loop
+              'lab_state','lab_fuse','lab_upgrade','lab_tank','lab_sell','lab_list','lab_unlist','lab_buy','lab_deliver',
+              'research_state','research_start','research_rush','research_claim','research_gene','research_skill')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

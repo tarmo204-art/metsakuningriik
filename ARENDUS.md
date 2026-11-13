@@ -124,6 +124,18 @@ Kalakaardil read „Vanus“ (`fcAges`) ja „Sinu kalaraamatust“; vanuse mär
 - Testitud: haruldused 1500 ühendamisel ≈ 61/25/10/3/1 %, 6 samaaegset ühendamist samal kalal → 1 õnnestub,
   2 ostjat samale pakkumisele → 1 õnnestub, kalapüük töötab edasi.
 
+**Kalade uurimiskeskus** (13.11.2026) – labori vaheleht „🔬 Uurimine“. Server: schema.sql 2n (tabelid lab_research,
+lab_scan, lab_genes, lab_species.hints) ja 6m (research_*). Mäng: `src/uurimine.js` (vaated registreeritakse `LAB_VIEWS` kaudu labor.js-is).
+- `research_start(kind, id)`: kala (status → `dna`) või hübriid läheb mikroskoobi alla; aeg `fx_rs_minutes` (kiirus −15%/tase).
+  Mikroskoope 1 + oskus `mikroskoop` (max 3). `research_rush` maksab 8 kulda minuti kohta (min 20).
+- `research_claim`: DNA (elemendi kaupa), uurimispunktid (rp), XP ja vahel retseptitükk: legendi vanema DNA 50%,
+  muu kala 2,5%×haruldus, hübriid 6%×haruldus. 3 tükki = retsept (`frags`), 2 vihjet tulevad `lab_species.hints`-ist.
+- `research_gene`: 7 elemendigeeni (25 DNA + 60 rp) + Kuldne genoom (kõik 7 enne, 40 igast + 300 rp). lab_fuse annab hübriidile
+  ühe sobiva avastatud geeni 40% (+15%/`parilikkus`) → `genes.trait`; mõjud: size/power/value/rare/gold.
+- `research_skill`: oskuste nimekiri `fx_rs_skills()`. `mutatsioon` lisab lab_fuse mutatsioonile, `genoom` näitab raamatus avastamata
+  liikide elemente (lab_state dex `hint`).
+- Saavutused dna1, dna50 (Geeniuurija), retsept (Retseptimeister), geenid (Geneetikateadlane).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

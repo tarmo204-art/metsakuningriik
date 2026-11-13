@@ -3,8 +3,9 @@
    Kõik otsused teeb server (lab_* funktsioonid schema.sql jaotises 6l). Joonistamine: hubriid.js.
    ===================================================================== */
 const LAB = { d: null, loading: false, sub: 'labor', a: null, b: null, filter: 'all', busy: false, conf: null, listFor: null, more: false, objs: [], raf: 0, frame: 0, anim: null, dexF: 'all' };
-const LAB_SUBS = [['labor', '⚗️ Labor'], ['hybriidid', '🐠 Hübriidid'], ['raamat', '📖 Raamat'], ['turg', '⚖️ Turg'], ['areng', '🏛️ Areng']];
+const LAB_SUBS = [['labor', '⚗️ Labor'], ['uurimine', '🔬 Uurimine'], ['hybriidid', '🐠 Hübriidid'], ['raamat', '📖 Raamat'], ['turg', '⚖️ Turg'], ['areng', '🏛️ Areng']];
 FTABS.labor = '🧬 Labor';
+const LAB_VIEWS = {}; // alamvaated (täidetakse allpool ja uurimine.js-is)
 
 document.head.insertAdjacentHTML('beforeend', `<style>
 .lab{--lb0:#060a1a;--lb1:#0d1630;--lb2:#162246;--lgl:rgba(150,190,255,.16);--lgo:#ffc96a;--lvi:#b98bff;--lcy:#6fe3ff;--ltx:#e9eefc;--lmu:#9aa8cc;
@@ -133,7 +134,8 @@ function labGenes(g) {
   return `<div class="lab-genes"><span>Suurus</span>${bar(g.size || 1)}<span>Kiirus</span>${bar(g.speed || 1)}<span>Jõud</span>${bar(g.strength || 1)}</div>`;
 }
 function labAbTxt(g) { const a = HY_AB[g.ability] || HY_AB.tarkus; return `${a[0]} <b>${a[1]}</b> +${g.power || 1}% ${a[2]} <small style="color:var(--lmu)">(kui kala on labori akvaariumis)</small>` }
-function labHidTxt(g) { if (!g.hidden) return ''; const h = HY_HID[g.hidden.id] || HY_HID['?']; return `<div class="lab-ab">${h[0]} <b>${h[1]}</b> – ${h[2]}${g.hidden.el ? ' (' + labEl(g.hidden.el).ic + ' ' + labEl(g.hidden.el).n + ')' : ''}</div>` }
+function labHidTxt(g) { const tr = g.trait && typeof RS_GENE !== 'undefined' && RS_GENE[g.trait] ? `<div class="lab-ab">${RS_GENE[g.trait][0]} <b>${RS_GENE[g.trait][1]}</b> – ${RS_GENE[g.trait][2]} <small style="color:var(--lmu)">(uurimiskeskuse geen)</small></div>` : ''; return tr + labHidTxt0(g) }
+function labHidTxt0(g) { if (!g.hidden) return ''; const h = HY_HID[g.hidden.id] || HY_HID['?']; return `<div class="lab-ab">${h[0]} <b>${h[1]}</b> – ${h[2]}${g.hidden.el ? ' (' + labEl(g.hidden.el).ic + ' ' + labEl(g.hidden.el).n + ')' : ''}</div>` }
 
 /* ---------- vaade ---------- */
 function tabLabor() {
@@ -147,7 +149,7 @@ function tabLabor() {
   let h = `<div class="lab"><div class="lab-sub" role="tablist">${LAB_SUBS.map(([k, n]) => `<button type="button" role="tab" aria-selected="${LAB.sub === k}" class="${LAB.sub === k ? 'on' : ''}" data-lab="sub" data-arg="${k}">${n}</button>`).join('')}</div>`;
   if (LAB.sub === 'labor' || LAB.sub === 'hybriidid') h += `<div class="lab-hero">${labCv({ hero: 1 })}<div class="ttl"><h2>Geneetikalabor</h2><small>Tase ${d.level} · ${esc(lv.name)}</small></div>
     <div class="meta"><span class="lab-chip">⚗️ ${d.fusions}/${d.cap} täna</span><span class="lab-chip">🪙 ${fmt(d.gold)}</span></div></div>`;
-  h += ({ labor: labViewMain, hybriidid: labViewMine, raamat: labViewDex, turg: labViewMarket, areng: labViewLevels })[LAB.sub]();
+  h += (LAB_VIEWS[LAB.sub] || labViewMain)();
   return h + '</div>';
 }
 function labSlot(k, which) {
@@ -213,7 +215,7 @@ function labViewDex() {
     <p class="lab-lead" style="margin:8px 0 10px">Iga liik tekib kindlast elementide ja kehakuju kombinatsioonist. Retsepte keegi ei ütle – need tuleb ise avastada. 8 legendi vajavad kindlaid muinasjutukalu ja labori 4. taset.</p>
     <div class="lab-filters">${[['all', 'Kõik'], ['mine', 'Avastatud'], ['leg', '👑 Legendid']].map(([k, n]) => `<button type="button" class="${F === k ? 'on' : ''}" data-lab="dexf" data-arg="${k}">${n}</button>`).join('')}</div>
     <div class="lab-dex">${list.map(x => { const sp = { species: x.id, body: x.body, e1: x.e1 || 'vesi', e2: x.e2 || x.e1 || 'vesi', rarity: x.mine ? x.mine.best : 1, legend: x.legend, genes: { seed: x.sort * 131 + 7 } };
-      return `<div class="lab-tile ${x.mine ? '' : 'unk'} ${x.legend ? 'leg' : ''}" role="button" tabindex="0" data-lab="dex" data-arg="${x.id}">${labCv(x.mine ? { h: sp, small: 1 } : { sil: sp })}<b>${x.mine ? esc(x.name) : x.legend ? '👑 ???' : '???'}</b><small>${x.mine ? labElIc([x.e1, x.e2]) + ' · ' + labRar(x.mine.best)[0] : x.first_name ? 'Avastatud kuningriigis' : 'Avastamata'}</small></div>` }).join('')}</div></div>`;
+      return `<div class="lab-tile ${x.mine ? '' : 'unk'} ${x.legend ? 'leg' : ''}" role="button" tabindex="0" data-lab="dex" data-arg="${x.id}">${labCv(x.mine ? { h: sp, small: 1 } : { sil: sp })}<b>${x.mine ? esc(x.name) : x.legend ? '👑 ???' : '???'}</b><small>${x.mine ? labElIc([x.e1, x.e2]) + ' · ' + labRar(x.mine.best)[0] : x.hint ? labElIc(x.hint) + ' · avastamata' : x.first_name ? 'Avastatud kuningriigis' : 'Avastamata'}</small></div>` }).join('')}</div></div>`;
 }
 function labViewMarket() {
   const d = LAB.d, m = d.market || [], mine = m.filter(x => x.mine), other = m.filter(x => !x.mine);
@@ -235,6 +237,8 @@ function labViewLevels() {
     return `<div class="lab-lvn ${st}"><span class="n">${st === 'done' ? '✓' : l.lvl}</span><div><b>${esc(l.name)}</b>${st === 'cur' ? ' <span class="lab-chip">Praegu</span>' : ''}<small>${esc(l.unlock)} · ühendamisi päevas: ${['6', '8', '10', '12', '15'][l.lvl - 1]}</small>${req}
       ${st === 'next' ? `<div style="margin-top:8px"><button class="lab-btn gold" type="button" data-lab="upgrade" ${ok && !LAB.busy ? '' : 'disabled'}>Arenda laborit</button></div>` : ''}</div></div>` }).join('')}</div></div>`;
 }
+
+Object.assign(LAB_VIEWS, { labor: labViewMain, hybriidid: labViewMine, raamat: labViewDex, turg: labViewMarket, areng: labViewLevels });
 
 /* ---------- lõuendid ---------- */
 function labHeroDraw(c, w, h, t) {
@@ -305,6 +309,7 @@ function labPaintAll(ts) {
     const dpr = Math.min(2, devicePixelRatio || 1); if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr) }
     const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
     if (o.hero) return labHeroDraw(c, w, h, t);
+    if (o.draw) return o.draw(c, w, h, t);
     if (o.tank) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#10405e'); g.addColorStop(1, '#05141f'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
     const L = labFitAny(o, w, h); labDrawAny(c, w / 2 + (o.tank ? Math.sin(t * .6) * w * .06 : 0), h / 2, L, o, t + (+cv.dataset.labcv) * .37, o.tank ? (Math.cos(t * .3) > 0 ? 1 : -1) : 1);
   });
@@ -457,7 +462,7 @@ document.addEventListener('click', e => {
   }
   if (a === 'detail') { const f = (LAB.d.fish || []).find(x => x.id === +arg); if (f) labDetail(f); return }
   if (a === 'mdetail') { const f = (LAB.d.market || []).find(x => x.listing_id === +arg); if (f) labDetail(f); return }
-  if (a === 'dex') { const x = (LAB.d.dex || []).find(y => y.id === arg); if (!x) return; if (!x.mine) return toast(x.legend ? 'Salajane legend: ühenda õiged kaks muinasjutukala labori 4. tasemel.' : 'Seda liiki sa veel avastanud pole. Proovi eri elementidega kalu ühendada!', 'info');
+  if (a === 'dex') { const x = (LAB.d.dex || []).find(y => y.id === arg); if (!x) return; if (!x.mine) { const rc = x.legend && typeof RS !== 'undefined' && RS.d ? (RS.d.recipes || []).find(y => y.id === x.id) : null; if (rc && rc.recipe) return toast(`Retsept: ${rc.recipe.map(k => FD.sp[k] ? FD.sp[k].name : k).join(' + ')} (labori 4. tase)`, 'info') } if (!x.mine) return toast(x.legend ? 'Salajane legend: ühenda õiged kaks muinasjutukala labori 4. tasemel.' : 'Seda liiki sa veel avastanud pole. Proovi eri elementidega kalu ühendada!', 'info');
     return labDetail({ species: x.id, name: x.name, e1: x.e1, e2: x.e2, body: x.body, legend: x.legend, rarity: x.mine.best, descr: x.descr, genes: { seed: x.sort * 131 + 7 } }, x) }
   labAct(a, arg, el);
 });
