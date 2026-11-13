@@ -912,6 +912,116 @@ update public.fish_species s set baits = array_append(s.baits, v.b) from (values
  ('valgukala','krevett'),('merivaim','krevett'),('leviaatan','valgus'),('igijaavaim','valgus')
 ) as v(id, b) where s.id = v.id and not (v.b = any(s.baits));
 
+
+-- ---------------------------------------------------------------------
+-- 2m. Geneetikalabor: hübriidkalad, mutatsioonid, laboritasemed, hübriidiraamat, turg
+--     Kõik arvutused ja auhinnad on serveris. Administraator saab muuta tabelit lab_config
+--     (näiteks rarity_weights = [60,25,10,4,1]); seemne väärtused ei kirjuta muudetud väärtusi üle.
+-- ---------------------------------------------------------------------
+alter table public.fish_species add column if not exists element text;
+alter table public.fish_species add column if not exists arch text;
+alter table public.fish_species add column if not exists body text;
+update public.fish_species s set arch = v.a, body = v.b from (values ('ahven','perch','ahven'),('airukala','serpent','angerjas'),('amuur','cypr','karp'),('angerjas','eel','angerjas'),('emakala','eel','angerjas'),('haldjakala','angel','karp'),('harjus','grayling','haug'),('haug','pike','haug'),('hink','burbot','angerjas'),('hobekarp','carp','karp'),('hobekoger','bream','karp'),('igijaavaim','salmon','haug'),('jaaahven','perch','ahven'),('jaahaug','pike','haug'),('jarvelohe','serpent','angerjas'),('joeforell','salmon','haug'),('joekuningas','pike','haug'),('joesilm','eel','angerjas'),('kammeljas','flat','karp'),('karpkala','carp','karp'),('kiisk','perch','ahven'),('kilu','herring','karp'),('kirveskala','bream','karp'),('koger','bream','karp'),('koha','zander','ahven'),('kristallahven','perch','ahven'),('kuldahven','perch','ahven'),('kuldkala','gold','karp'),('kuningkarp','carp','karp'),('kuuangerjas','eel','angerjas'),('kuusarg','cypr','karp'),('laternkala','herring','karp'),('latikas','bream','karp'),('lepamaim','cypr','karp'),('lest','flat','karp'),('leviaatan','monster','ahven'),('liivamudil','cod','haug'),('linask','tench','karp'),('lohe','salmon','haug'),('luts','burbot','angerjas'),('luukarits','perch','ahven'),('madunoel','eel','angerjas'),('makrell','tuna','ahven'),('meriforell','salmon','haug'),('merihark','perch','ahven'),('merikurat','angler','ahven'),('merinoel','eel','angerjas'),('merivaim','salmon','haug'),('mookkala','sword','ahven'),('mudamaim','cypr','karp'),('mustmudil','cod','haug'),('nokkhaug','sword','ahven'),('nurg','bream','karp'),('ogalik','perch','ahven'),('ojasilm','eel','angerjas'),('paalia','salmon','haug'),('paikesekarp','bream','karp'),('peled','salmon','haug'),('pilvekala','cypr','karp'),('raabis','salmon','haug'),('raim','herring','karp'),('roosarg','cypr','karp'),('saga','catfish','karp'),('sainas','cypr','karp'),('sarg','cypr','karp'),('siig','salmon','haug'),('sugavusedraakon','serpent','angerjas'),('teib','cypr','karp'),('tint','herring','karp'),('tobias','herring','karp'),('toogjas','cypr','karp'),('tormihaug','pike','haug'),('trulling','burbot','angerjas'),('turb','cypr','karp'),('tursk','cod','haug'),('tuun','tuna','ahven'),('tuur','sturgeon','haug'),('uduhobe','cypr','karp'),('udukala','cypr','karp'),('valgukala','eel','angerjas'),('vihmaforell','salmon','haug'),('viidikas','herring','karp'),('vikerforell','salmon','haug'),('vikerkaarekala','salmon','haug'),('vimb','cypr','karp'),('vingerjas','burbot','angerjas'),('virmaliskala','salmon','haug'),('voldas','cod','haug')) as v(id, a, b) where s.id = v.id;
+update public.fish_species s set element = coalesce((select v.e from (values ('kuusarg','valgus'),('jaaahven','jää'),('kristallahven','jää'),('pilvekala','välk'),('paikesekarp','tuli'),('uduhobe','vari'),('vihmaforell','vesi'),('vikerkaarekala','valgus'),('kuldahven','tuli'),('kuningkarp','loodus'),('virmaliskala','valgus'),('udukala','vari'),('tormihaug','välk'),('jaahaug','jää'),('valgukala','välk'),('merivaim','vesi'),('kuuangerjas','vari'),('joekuningas','loodus'),('haldjakala','loodus'),('kuldkala','valgus'),('igijaavaim','jää'),('leviaatan','vesi'),('jarvelohe','tuli'),('sugavusedraakon','vari')) as v(id, e) where v.id = s.id),
+  case when s.spots = '{jaa}' then 'jää' when s.night_only then 'vari' when s.baits && '{mais,leib}' then 'loodus' else 'vesi' end)
+  where s.element is null;
+update public.fish_species set body = 'karp', arch = 'cypr' where body is null;
+
+create table if not exists public.lab_config (key text primary key, value jsonb not null, descr text);
+insert into public.lab_config (key, value, descr) values
+ ('rarity_weights', '[60,25,10,4,1]', 'Mutatsiooni harulduse tõenäosused protsentides: tavaline, ebatavaline, haruldane, eepiline, müütiline'),
+ ('level_bonus', '0.08', 'Iga laboritase tõstab kõrgemate haruldusastmete kaalu selle võrra (astme kohta)'),
+ ('mutation_chance', '0.05', 'Tõenäosus, et üks element muteerub juhuslikuks elemendiks (+0,01 iga laboritaseme kohta)'),
+ ('daily_fusions', '[6,8,10,12,15]', 'Ühendamisi päevas laboritasemete 1–5 kaupa'),
+ ('fee', '[150,200,250,300,400]', 'Ühendamise hind kullas laboritasemete 1–5 kaupa'),
+ ('aura_cap', '0.15', 'Labori akvaariumi võimete ülempiir ühe võime kohta (0,15 = 15%)')
+on conflict (key) do nothing;
+
+create table if not exists public.lab_species (
+  id text primary key, name text not null, e1 text not null, e2 text not null, body text not null,
+  legend boolean not null default false, recipe text[], descr text not null, sort int not null default 0,
+  first_by uuid references auth.users(id) on delete set null, first_at timestamptz
+);
+insert into public.lab_species (id, name, e1, e2, body, legend, recipe, descr, sort) values
+ ('h_00_ahven','Leegiahven','tuli','tuli','ahven',false,null,'Puhtalt tuline hübriid. Kiire ja julge kiskja terava seljauimega.',1), ('h_00_karp','Leegikarp','tuli','tuli','karp',false,null,'Puhtalt tuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',2), ('h_00_haug','Leegihaug','tuli','tuli','haug',false,null,'Puhtalt tuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',3), ('h_00_angerjas','Leegiangerjas','tuli','tuli','angerjas',false,null,'Puhtalt tuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',4),
+('h_11_ahven','Pakaseahven','jää','jää','ahven',false,null,'Puhtalt jäine hübriid. Kiire ja julge kiskja terava seljauimega.',5), ('h_11_karp','Pakasekarp','jää','jää','karp',false,null,'Puhtalt jäine hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',6), ('h_11_haug','Pakasehaug','jää','jää','haug',false,null,'Puhtalt jäine hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',7), ('h_11_angerjas','Pakaseangerjas','jää','jää','angerjas',false,null,'Puhtalt jäine hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',8),
+('h_22_ahven','Laineahven','vesi','vesi','ahven',false,null,'Puhtalt voogav hübriid. Kiire ja julge kiskja terava seljauimega.',9), ('h_22_karp','Lainekarp','vesi','vesi','karp',false,null,'Puhtalt voogav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',10), ('h_22_haug','Lainehaug','vesi','vesi','haug',false,null,'Puhtalt voogav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',11), ('h_22_angerjas','Laineangerjas','vesi','vesi','angerjas',false,null,'Puhtalt voogav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',12),
+('h_33_ahven','Sädemeahven','välk','välk','ahven',false,null,'Puhtalt elektriline hübriid. Kiire ja julge kiskja terava seljauimega.',13), ('h_33_karp','Sädemekarp','välk','välk','karp',false,null,'Puhtalt elektriline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',14), ('h_33_haug','Sädemehaug','välk','välk','haug',false,null,'Puhtalt elektriline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',15), ('h_33_angerjas','Sädemeangerjas','välk','välk','angerjas',false,null,'Puhtalt elektriline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',16),
+('h_44_ahven','Varjuahven','vari','vari','ahven',false,null,'Puhtalt varjuline hübriid. Kiire ja julge kiskja terava seljauimega.',17), ('h_44_karp','Varjukarp','vari','vari','karp',false,null,'Puhtalt varjuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',18), ('h_44_haug','Varjuhaug','vari','vari','haug',false,null,'Puhtalt varjuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',19), ('h_44_angerjas','Varjuangerjas','vari','vari','angerjas',false,null,'Puhtalt varjuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',20),
+('h_55_ahven','Helgiahven','valgus','valgus','ahven',false,null,'Puhtalt helendav hübriid. Kiire ja julge kiskja terava seljauimega.',21), ('h_55_karp','Helgikarp','valgus','valgus','karp',false,null,'Puhtalt helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',22), ('h_55_haug','Helgihaug','valgus','valgus','haug',false,null,'Puhtalt helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',23), ('h_55_angerjas','Helgiangerjas','valgus','valgus','angerjas',false,null,'Puhtalt helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',24),
+('h_66_ahven','Samblaahven','loodus','loodus','ahven',false,null,'Puhtalt roheline hübriid. Kiire ja julge kiskja terava seljauimega.',25), ('h_66_karp','Samblakarp','loodus','loodus','karp',false,null,'Puhtalt roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',26), ('h_66_haug','Samblahaug','loodus','loodus','haug',false,null,'Puhtalt roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',27), ('h_66_angerjas','Samblaangerjas','loodus','loodus','angerjas',false,null,'Puhtalt roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',28),
+('h_01_ahven','Jääleegiahven','tuli','jää','ahven',false,null,'Tuline ja jäine hübriid. Kiire ja julge kiskja terava seljauimega.',29), ('h_01_karp','Jääleegikarp','tuli','jää','karp',false,null,'Tuline ja jäine hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',30), ('h_01_haug','Jääleegihaug','tuli','jää','haug',false,null,'Tuline ja jäine hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',31), ('h_01_angerjas','Jääleegiangerjas','tuli','jää','angerjas',false,null,'Tuline ja jäine hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',32),
+('h_02_ahven','Auruahven','tuli','vesi','ahven',false,null,'Tuline ja voogav hübriid. Kiire ja julge kiskja terava seljauimega.',33), ('h_02_karp','Aurukarp','tuli','vesi','karp',false,null,'Tuline ja voogav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',34), ('h_02_haug','Auruhaug','tuli','vesi','haug',false,null,'Tuline ja voogav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',35), ('h_02_angerjas','Auruangerjas','tuli','vesi','angerjas',false,null,'Tuline ja voogav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',36),
+('h_03_ahven','Plasmaahven','tuli','välk','ahven',false,null,'Tuline ja elektriline hübriid. Kiire ja julge kiskja terava seljauimega.',37), ('h_03_karp','Plasmakarp','tuli','välk','karp',false,null,'Tuline ja elektriline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',38), ('h_03_haug','Plasmahaug','tuli','välk','haug',false,null,'Tuline ja elektriline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',39), ('h_03_angerjas','Plasmaangerjas','tuli','välk','angerjas',false,null,'Tuline ja elektriline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',40),
+('h_04_ahven','Hõõgsöeahven','tuli','vari','ahven',false,null,'Tuline ja varjuline hübriid. Kiire ja julge kiskja terava seljauimega.',41), ('h_04_karp','Hõõgsöekarp','tuli','vari','karp',false,null,'Tuline ja varjuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',42), ('h_04_haug','Hõõgsöehaug','tuli','vari','haug',false,null,'Tuline ja varjuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',43), ('h_04_angerjas','Hõõgsöeangerjas','tuli','vari','angerjas',false,null,'Tuline ja varjuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',44),
+('h_05_ahven','Fööniksiahven','tuli','valgus','ahven',false,null,'Tuline ja helendav hübriid. Kiire ja julge kiskja terava seljauimega.',45), ('h_05_karp','Fööniksikarp','tuli','valgus','karp',false,null,'Tuline ja helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',46), ('h_05_haug','Fööniksihaug','tuli','valgus','haug',false,null,'Tuline ja helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',47), ('h_05_angerjas','Fööniksiangerjas','tuli','valgus','angerjas',false,null,'Tuline ja helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',48),
+('h_06_ahven','Vulkaaniahven','tuli','loodus','ahven',false,null,'Tuline ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',49), ('h_06_karp','Vulkaanikarp','tuli','loodus','karp',false,null,'Tuline ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',50), ('h_06_haug','Vulkaanihaug','tuli','loodus','haug',false,null,'Tuline ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',51), ('h_06_angerjas','Vulkaaniangerjas','tuli','loodus','angerjas',false,null,'Tuline ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',52),
+('h_12_ahven','Liustikuahven','jää','vesi','ahven',false,null,'Jäine ja voogav hübriid. Kiire ja julge kiskja terava seljauimega.',53), ('h_12_karp','Liustikukarp','jää','vesi','karp',false,null,'Jäine ja voogav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',54), ('h_12_haug','Liustikuhaug','jää','vesi','haug',false,null,'Jäine ja voogav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',55), ('h_12_angerjas','Liustikuangerjas','jää','vesi','angerjas',false,null,'Jäine ja voogav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',56),
+('h_13_ahven','Polaartormiahven','jää','välk','ahven',false,null,'Jäine ja elektriline hübriid. Kiire ja julge kiskja terava seljauimega.',57), ('h_13_karp','Polaartormikarp','jää','välk','karp',false,null,'Jäine ja elektriline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',58), ('h_13_haug','Polaartormihaug','jää','välk','haug',false,null,'Jäine ja elektriline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',59), ('h_13_angerjas','Polaartormiangerjas','jää','välk','angerjas',false,null,'Jäine ja elektriline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',60),
+('h_14_ahven','Talveööahven','jää','vari','ahven',false,null,'Jäine ja varjuline hübriid. Kiire ja julge kiskja terava seljauimega.',61), ('h_14_karp','Talveöökarp','jää','vari','karp',false,null,'Jäine ja varjuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',62), ('h_14_haug','Talveööhaug','jää','vari','haug',false,null,'Jäine ja varjuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',63), ('h_14_angerjas','Talveööangerjas','jää','vari','angerjas',false,null,'Jäine ja varjuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',64),
+('h_15_ahven','Teemandiahven','jää','valgus','ahven',false,null,'Jäine ja helendav hübriid. Kiire ja julge kiskja terava seljauimega.',65), ('h_15_karp','Teemandikarp','jää','valgus','karp',false,null,'Jäine ja helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',66), ('h_15_haug','Teemandihaug','jää','valgus','haug',false,null,'Jäine ja helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',67), ('h_15_angerjas','Teemandiangerjas','jää','valgus','angerjas',false,null,'Jäine ja helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',68),
+('h_16_ahven','Härmaahven','jää','loodus','ahven',false,null,'Jäine ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',69), ('h_16_karp','Härmakarp','jää','loodus','karp',false,null,'Jäine ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',70), ('h_16_haug','Härmahaug','jää','loodus','haug',false,null,'Jäine ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',71), ('h_16_angerjas','Härmaangerjas','jää','loodus','angerjas',false,null,'Jäine ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',72),
+('h_23_ahven','Elektriahven','vesi','välk','ahven',false,null,'Voogav ja elektriline hübriid. Kiire ja julge kiskja terava seljauimega.',73), ('h_23_karp','Elektrikarp','vesi','välk','karp',false,null,'Voogav ja elektriline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',74), ('h_23_haug','Elektrihaug','vesi','välk','haug',false,null,'Voogav ja elektriline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',75), ('h_23_angerjas','Elektriangerjas','vesi','välk','angerjas',false,null,'Voogav ja elektriline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',76),
+('h_24_ahven','Süvaahven','vesi','vari','ahven',false,null,'Voogav ja varjuline hübriid. Kiire ja julge kiskja terava seljauimega.',77), ('h_24_karp','Süvakarp','vesi','vari','karp',false,null,'Voogav ja varjuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',78), ('h_24_haug','Süvahaug','vesi','vari','haug',false,null,'Voogav ja varjuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',79), ('h_24_angerjas','Süvaangerjas','vesi','vari','angerjas',false,null,'Voogav ja varjuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',80),
+('h_25_ahven','Pärliahven','vesi','valgus','ahven',false,null,'Voogav ja helendav hübriid. Kiire ja julge kiskja terava seljauimega.',81), ('h_25_karp','Pärlikarp','vesi','valgus','karp',false,null,'Voogav ja helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',82), ('h_25_haug','Pärlihaug','vesi','valgus','haug',false,null,'Voogav ja helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',83), ('h_25_angerjas','Pärliangerjas','vesi','valgus','angerjas',false,null,'Voogav ja helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',84),
+('h_26_ahven','Vesiroosiahven','vesi','loodus','ahven',false,null,'Voogav ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',85), ('h_26_karp','Vesiroosikarp','vesi','loodus','karp',false,null,'Voogav ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',86), ('h_26_haug','Vesiroosihaug','vesi','loodus','haug',false,null,'Voogav ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',87), ('h_26_angerjas','Vesiroosiangerjas','vesi','loodus','angerjas',false,null,'Voogav ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',88),
+('h_34_ahven','Äikeseahven','välk','vari','ahven',false,null,'Elektriline ja varjuline hübriid. Kiire ja julge kiskja terava seljauimega.',89), ('h_34_karp','Äikesekarp','välk','vari','karp',false,null,'Elektriline ja varjuline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',90), ('h_34_haug','Äikesehaug','välk','vari','haug',false,null,'Elektriline ja varjuline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',91), ('h_34_angerjas','Äikeseangerjas','välk','vari','angerjas',false,null,'Elektriline ja varjuline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',92),
+('h_35_ahven','Taevatuleahven','välk','valgus','ahven',false,null,'Elektriline ja helendav hübriid. Kiire ja julge kiskja terava seljauimega.',93), ('h_35_karp','Taevatulekarp','välk','valgus','karp',false,null,'Elektriline ja helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',94), ('h_35_haug','Taevatulehaug','välk','valgus','haug',false,null,'Elektriline ja helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',95), ('h_35_angerjas','Taevatuleangerjas','välk','valgus','angerjas',false,null,'Elektriline ja helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',96),
+('h_36_ahven','Pikseahven','välk','loodus','ahven',false,null,'Elektriline ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',97), ('h_36_karp','Piksekarp','välk','loodus','karp',false,null,'Elektriline ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',98), ('h_36_haug','Piksehaug','välk','loodus','haug',false,null,'Elektriline ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',99), ('h_36_angerjas','Pikseangerjas','välk','loodus','angerjas',false,null,'Elektriline ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',100),
+('h_45_ahven','Videvikuahven','vari','valgus','ahven',false,null,'Varjuline ja helendav hübriid. Kiire ja julge kiskja terava seljauimega.',101), ('h_45_karp','Videvikukarp','vari','valgus','karp',false,null,'Varjuline ja helendav hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',102), ('h_45_haug','Videvikuhaug','vari','valgus','haug',false,null,'Varjuline ja helendav hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',103), ('h_45_angerjas','Videvikuangerjas','vari','valgus','angerjas',false,null,'Varjuline ja helendav hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',104),
+('h_46_ahven','Nõiaahven','vari','loodus','ahven',false,null,'Varjuline ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',105), ('h_46_karp','Nõiakarp','vari','loodus','karp',false,null,'Varjuline ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',106), ('h_46_haug','Nõiahaug','vari','loodus','haug',false,null,'Varjuline ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',107), ('h_46_angerjas','Nõiaangerjas','vari','loodus','angerjas',false,null,'Varjuline ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',108),
+('h_56_ahven','Haldjaahven','valgus','loodus','ahven',false,null,'Helendav ja roheline hübriid. Kiire ja julge kiskja terava seljauimega.',109), ('h_56_karp','Haldjakarp','valgus','loodus','karp',false,null,'Helendav ja roheline hübriid. Massiivne ja rahulik, kuid tohutu jõuga.',110), ('h_56_haug','Haldjahaug','valgus','loodus','haug',false,null,'Helendav ja roheline hübriid. Pikk ja võimas kiskja, kes ründab välgukiirusel.',111), ('h_56_angerjas','Haldjaangerjas','valgus','loodus','angerjas',false,null,'Helendav ja roheline hübriid. Pikk ja painduv, libiseb läbi vee nagu niit.',112),
+('l_draakoniahven','Draakoniahven','tuli','tuli','ahven',true,'{kuldahven,jarvelohe}','Ahvena keha ja draakoni veri: väikesed draakonisoomused, kuldne hari seljal ja leegitsevad uimed.',200), ('l_kuldsuvahaug','Kuldne süvahaug','valgus','vari','haug',true,'{kuldahven,tormihaug}','Pikk ja võimas haugi keha kuldse helgiga soomustega. Hõõguvad oranžid silmad, läbipaistvad kuldsed uimed.',201), ('l_jaaleegimonarh','Jääleegi monarh','tuli','jää','karp',true,'{paikesekarp,igijaavaim}','Massiivne karbi keha: üks külg jääkristallides, teine tulise helgiga. Uimedest pudenevad jää- ja tuleosakesed.',202), ('l_tormilohe','Tormilohe','välk','vari','angerjas',true,'{sugavusedraakon,valgukala}','Musta ja elektrisinise mustriga sügavuste lohe, keha ümber tantsivad elektrikaared.',203),
+('l_kuukuningas','Kuukuningas','vari','loodus','karp',true,'{kuningkarp,kuuangerjas}','Kuninglik karp, kelle soomustel peegeldub kuuvalgus. Ta ujub ainult täiskuu ajal.',204), ('l_soovihaldjas','Soovide haldjas','valgus','loodus','karp',true,'{kuldkala,haldjakala}','Kuldkala ja haldja laps. Öeldakse, et ta täidab soove – aga ainult neile, kes teda vabaks ei lase.',205), ('l_sugavusteisand','Sügavuste isand','vesi','vari','angerjas',true,'{leviaatan,sugavusedraakon}','Ookeanipõhja vanim valitseja. Tema silmad helendavad nagu kaks uppunud päikest.',206), ('l_taevalaotus','Taevalaotus','valgus','välk','haug',true,'{virmaliskala,vikerkaarekala}','Virmaliste ja vikerkaare laps, kelle keha voogab kõigis taevavärvides.',207)
+on conflict (id) do update set name = excluded.name, e1 = excluded.e1, e2 = excluded.e2, body = excluded.body,
+  legend = excluded.legend, recipe = excluded.recipe, descr = excluded.descr, sort = excluded.sort;
+
+create table if not exists public.lab_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  level int not null default 1, day date, fusions int not null default 0, req_day date
+);
+create table if not exists public.lab_fish (
+  id bigserial primary key, user_id uuid not null references auth.users(id) on delete cascade,
+  species text not null references public.lab_species(id), rarity int not null check (rarity between 1 and 5),
+  weight numeric not null, length_cm numeric not null, genes jsonb not null, parents jsonb not null,
+  value int not null, status text not null default 'kept', first_find boolean not null default false,
+  bred_by uuid references auth.users(id) on delete set null, created_at timestamptz not null default now()
+);
+create index if not exists lab_fish_user on public.lab_fish(user_id, status);
+create table if not exists public.lab_dex (
+  user_id uuid not null references auth.users(id) on delete cascade, species text not null references public.lab_species(id),
+  first_at timestamptz not null default now(), n int not null default 1, best int not null default 1,
+  parents text[], primary key (user_id, species)
+);
+create table if not exists public.lab_market (
+  id bigserial primary key, fish_id bigint not null references public.lab_fish(id) on delete cascade,
+  seller uuid not null references auth.users(id) on delete cascade, price int not null check (price between 1 and 10000000),
+  status text not null default 'open', buyer uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(), closed_at timestamptz
+);
+create unique index if not exists lab_market_open on public.lab_market(fish_id) where status = 'open';
+do $$ declare t text; begin
+  foreach t in array array['lab_config','lab_species','lab_state','lab_fish','lab_dex','lab_market'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('lab1','Esimene mutatsioon','Loo geneetikalaboris esimene hübriidkala',null,300,0,100),
+ ('lab10','Aretaja','Avasta 10 hübriidiliiki','Aretaja',3000,0,101),
+ ('lab50','Suur geneetik','Avasta 50 hübriidiliiki','Geneetik',15000,0,102),
+ ('labesma','Esmaavastaja','Avasta hübriidiliik esimesena kogu kuningriigis','Esmaavastaja',2000,0,103),
+ ('labmyyt','Müütide looja','Loo müütiline hübriid','Müütide looja',8000,0,104),
+ ('lablegend','Legendi sünd','Ava salajane legendaarne retsept','Legendide aretaja',10000,0,105)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+create or replace function public.fx_lab_cfg(k text) returns jsonb language sql stable as
+$$ select value from public.lab_config where key = k $$;
+-- labori akvaariumi võime (tarkus / kuld / onn / kaitse) kokku, ülempiiriga
+create or replace function public.fx_lab_aura(u uuid, typ text) returns numeric language sql stable as
+$$ select least(coalesce((select (value #>> '{}')::numeric from public.lab_config where key = 'aura_cap'), 0.15),
+     coalesce((select sum((genes ->> 'power')::numeric) from public.lab_fish where user_id = u and status = 'tank' and genes ->> 'ability' = typ), 0) / 100.0) $$;
+
 -- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
@@ -1028,7 +1138,7 @@ begin
   select * into b from public.fish_baits where id = p_bait;
   bonus := coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
            + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0)
-           + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end;
+           + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end + public.fx_lab_aura(u, 'onn') * 0.2;
   for i in 1..6 loop
     avail[i] := exists (select 1 from public.fish_species s where s.rarity = i and p_spot = any(s.spots)
                  and s.min_level <= coalesce(f.level,1) and (not s.night_only or night)
@@ -1072,6 +1182,12 @@ begin
       when 'suur10' then maxw >= 10 when 'suur50' then maxw >= 50 when 'suur100' then maxw >= 100 when 'hiiglane' then coalesce(hasgiant,false)
       when 'tavalised' then ncommon >= ncommon_all when 'kohad' then nspots >= 6 when 'koik' then nall >= nall_total
       when 'tase10' then f.level >= 10 when 'tase25' then f.level >= 25 when 'tase50' then f.level >= 50
+      when 'lab1' then exists (select 1 from public.lab_fish where bred_by = u)
+      when 'lab10' then (select count(distinct species) from public.lab_fish where bred_by = u) >= 10
+      when 'lab50' then (select count(distinct species) from public.lab_fish where bred_by = u) >= 50
+      when 'labesma' then exists (select 1 from public.lab_species where first_by = u)
+      when 'labmyyt' then exists (select 1 from public.lab_fish where bred_by = u and rarity = 5)
+      when 'lablegend' then exists (select 1 from public.lab_fish h join public.lab_species ls on ls.id = h.species where h.bred_by = u and ls.legend)
       when 'vana1' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 1
       when 'vana25' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 25
       when 'legvana5' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and (c.giant or c.weight > fs.max_w)) >= 5
@@ -1408,6 +1524,7 @@ begin
   if c.weight > r.strength then
     chance := least(1, (c.weight / r.strength - 1) * 1.3) + case when wthr = 'torm' then 0.1 else 0 end;
     if fx_myth(u, 'hobesoomus') then chance := chance * 0.5; end if;
+    chance := chance * (1 - fx_lab_aura(u, 'kaitse') * 2);
     if random() < chance then
       update fish_casts set state = 'broken' where id = c.id;
       update fishers set rod_broken = true, broken = broken + 1, rods_broken = case when f.rod = any(rods_broken) then rods_broken else rods_broken || f.rod end where user_id = u;
@@ -1440,7 +1557,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end)) * fx_xp_mult();
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus'))) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -1473,7 +1590,7 @@ begin
   avgw := (s.min_w + s.max_w) / 2;
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
        * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
-            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end)
+            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + fx_lab_aura(u, 'kuld'))
        * (case when c.bought then 0.6 else 1 end);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
@@ -2988,6 +3105,308 @@ begin
     'bait', bb, 'bait_qty', bq, 'kingdom', kd), 'sec', sec);
 end $$;
 
+
+-- ---------------------------------------------------------------------
+-- 6l. Geneetikalabor
+-- ---------------------------------------------------------------------
+create or replace function public.fx_lab_levels() returns jsonb language sql immutable as $$ select '[
+ {"lvl":1,"name":"Algaja labor","tanks":1,"req":5,"gold":0,"items":{},"unlock":"Kahe eri liiki kala ühendamine · 1 labori akvaarium"},
+ {"lvl":2,"name":"Täiustatud akvaarium","tanks":2,"req":10,"gold":3000,"items":{},"unlock":"Hübriidide ühendamine omavahel · 2 labori akvaariumi"},
+ {"lvl":3,"name":"Geneetiline analüsaator","tanks":3,"req":18,"gold":8000,"items":{"parl":5},"unlock":"Peidetud geenid muutuvad nähtavaks · 3 akvaariumi"},
+ {"lvl":4,"name":"Haruldaste mutatsioonide uurimine","tanks":4,"req":26,"gold":20000,"items":{"merevaik":5,"parl":10},"unlock":"Salajased legendaarsed retseptid · sagedasemad mutatsioonid · 4 akvaariumi"},
+ {"lvl":5,"name":"Müütiliste kalade labor","tanks":6,"req":34,"gold":50000,"items":{"mustparl":2,"merevaik":10},"unlock":"Parimad haruldused · müütilised valgusefektid · 6 akvaariumi"}
+]'::jsonb $$;
+
+-- vanema geenid saagist
+create or replace function public.fx_lab_genes_c(c public.fish_catches) returns jsonb language plpgsql as $$
+declare s fish_species; p numeric; spd int;
+begin
+  select * into s from fish_species where id = c.species;
+  p := greatest(0, least(1, (c.weight - s.min_w) / greatest(0.0001, s.max_w - s.min_w)));
+  spd := case when s.arch in ('tuna','sword','pike','salmon','grayling','zander') then 7 when s.arch in ('eel','serpent','perch','herring','monster') then 6
+              when s.arch in ('carp','catfish','bream','tench','sturgeon','angler','flat','gold') then 3 else 5 end + floor(random() * 3)::int - 1;
+  return jsonb_build_object('elements', jsonb_build_array(s.element), 'arch', s.arch, 'body', s.body, 'col', coalesce(s.look -> 'c', '["#9fb4bc","#4a6a7a","#eef4f6","#7a9aaa"]'),
+    'size', greatest(1, least(10, round(2 + p * 6 + s.rarity * 0.4))), 'speed', greatest(1, least(10, spd)), 'strength', greatest(1, least(10, coalesce(s.difficulty, 3))),
+    'name', s.name, 'species', s.id, 'rarity', s.rarity, 'weight', c.weight,
+    'value', round(s.price * least(2, 0.6 + 0.4 * c.weight / ((s.min_w + s.max_w) / 2))));
+end $$;
+create or replace function public.fx_lab_genes_h(h public.lab_fish) returns jsonb language sql stable as $$
+  select h.genes || jsonb_build_object('name', ls.name, 'species', ls.id, 'rarity', h.rarity, 'weight', h.weight, 'value', h.value, 'elements', jsonb_build_array(ls.e1, ls.e2))
+  from public.lab_species ls where ls.id = h.species $$;
+-- vali vanemalt pärandatav element (peidetud retsessiivne element võib välja tulla)
+create or replace function public.fx_lab_pick(g jsonb) returns text language plpgsql as $$
+declare n int := jsonb_array_length(g -> 'elements');
+begin
+  if g #>> '{hidden,id}' = 'retsessiivne' and random() < 0.25 then return g #>> '{hidden,el}'; end if;
+  if n > 1 and random() < 0.35 then return g -> 'elements' ->> 1; end if;
+  return g -> 'elements' ->> 0;
+end $$;
+
+-- hübriidi andmed mängijale (peidetud geen on näha alates 3. laboritasemest)
+create or replace function public.fx_lab_fish_json(h public.lab_fish, lvl int) returns jsonb language sql stable as $$
+  select jsonb_build_object('id', h.id, 'species', h.species, 'name', ls.name, 'e1', ls.e1, 'e2', ls.e2, 'body', ls.body, 'legend', ls.legend,
+    'rarity', h.rarity, 'weight', h.weight, 'length', h.length_cm, 'value', h.value, 'status', h.status, 'first', h.first_find, 'at', h.created_at,
+    'parents', h.parents, 'descr', ls.descr,
+    'genes', case when lvl >= 3 or h.genes -> 'hidden' is null then h.genes else jsonb_set(h.genes, '{hidden}', '{"id":"?"}') end,
+    'listing', (select jsonb_build_object('id', m.id, 'price', m.price) from public.lab_market m where m.fish_id = h.id and m.status = 'open'))
+  from public.lab_species ls where ls.id = h.species $$;
+
+-- tänane labori tellimus (igal mängijal oma, muutub iga päev)
+create or replace function public.fx_lab_req(u uuid) returns jsonb language sql stable as $$
+  select jsonb_build_object('element', (array['tuli','jää','vesi','välk','vari','valgus','loodus'])[1 + abs(hashtext(u::text || public.fx_today()::text)) % 7],
+    'minr', 1 + abs(hashtext(public.fx_today()::text || u::text)) % 3,
+    'gold', 300 + 250 * (1 + abs(hashtext(public.fx_today()::text || u::text)) % 3),
+    'xp', 120 * (1 + abs(hashtext(public.fx_today()::text || u::text)) % 3)) $$;
+
+create or replace function public.lab_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; st lab_state; lvl int; w numeric[]; lb numeric; tot numeric := 0; odds jsonb := '[]'; i int; lv jsonb := fx_lab_levels();
+begin
+  f := fx_fisher(u);
+  insert into lab_state(user_id) values (u) on conflict do nothing;
+  select * into st from lab_state where user_id = u;
+  lvl := st.level;
+  select array_agg(x::numeric) into w from jsonb_array_elements_text(fx_lab_cfg('rarity_weights')) x;
+  lb := (fx_lab_cfg('level_bonus') #>> '{}')::numeric * (lvl - 1);
+  for i in 2..5 loop w[i] := w[i] * (1 + lb * (i - 1)); end loop;
+  for i in 1..5 loop tot := tot + w[i]; end loop;
+  for i in 1..5 loop odds := odds || to_jsonb(round(w[i] / tot * 100, 1)); end loop;
+  return jsonb_build_object(
+    'level', lvl, 'levels', lv, 'unlocked', f.level >= 5, 'fish_level', f.level, 'gold', f.gold,
+    'fusions', case when st.day = fx_today() then st.fusions else 0 end,
+    'cap', (fx_lab_cfg('daily_fusions') ->> (lvl - 1))::int, 'fee', (fx_lab_cfg('fee') ->> (lvl - 1))::int, 'odds', odds,
+    'tanks', (lv -> (lvl - 1) ->> 'tanks')::int,
+    'aura', jsonb_build_object('tarkus', fx_lab_aura(u, 'tarkus'), 'kuld', fx_lab_aura(u, 'kuld'), 'onn', fx_lab_aura(u, 'onn'), 'kaitse', fx_lab_aura(u, 'kaitse')),
+    'fish', (select coalesce(jsonb_agg(fx_lab_fish_json(h, lvl) order by h.rarity desc, h.created_at desc), '[]') from (select * from lab_fish where user_id = u and status in ('kept','tank','listed') order by created_at desc limit 300) h),
+    'dex', (select jsonb_agg(jsonb_build_object('id', ls.id, 'body', ls.body, 'legend', ls.legend, 'sort', ls.sort,
+              'name', case when d.user_id is not null then ls.name end, 'e1', case when d.user_id is not null then ls.e1 end, 'e2', case when d.user_id is not null then ls.e2 end,
+              'descr', case when d.user_id is not null then ls.descr end,
+              'mine', case when d.user_id is not null then jsonb_build_object('at', d.first_at, 'n', d.n, 'best', d.best, 'parents', to_jsonb(d.parents)) end,
+              'first_name', case when p.hidden and ls.first_by <> u then 'Salapärane kalur' else p.name end, 'first_at', ls.first_at) order by ls.sort)
+            from lab_species ls left join lab_dex d on d.species = ls.id and d.user_id = u left join profiles p on p.id = ls.first_by),
+    'market', (select coalesce(jsonb_agg(x order by (x ->> 'mine')::boolean desc, (x ->> 'at') desc), '[]') from (
+              select fx_lab_fish_json(h, 0) || jsonb_build_object('listing_id', m.id, 'price', m.price, 'seller', case when p.hidden then 'Salapärane kalur' else p.name end, 'mine', m.seller = u, 'listed_at', m.created_at) x
+              from lab_market m join lab_fish h on h.id = m.fish_id left join profiles p on p.id = m.seller where m.status = 'open' order by m.created_at desc limit 60) z),
+    'req', fx_lab_req(u) || jsonb_build_object('done', st.req_day = fx_today()));
+end $$;
+
+create or replace function public.lab_fuse(p_a_kind text, p_a bigint, p_b_kind text, p_b bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; st lab_state; lvl int; cap int; fee int; ca fish_catches; cb fish_catches; ha lab_fish; hb lab_fish; ga jsonb; gb jsonb;
+  els text[] := array['tuli','jää','vesi','välk','vari','valgus','loodus']; ea text; eb text; tmp text; mut boolean := false; dom jsonb; oth jsonb;
+  sp lab_species; w numeric[]; lb numeric; pb numeric; tot numeric := 0; roll numeric; acc numeric := 0; rar int := 1; i int;
+  hid jsonb; abil text; pw int; genes jsonb; weight numeric; len numeric; val int; nid bigint; isnew boolean; first boolean := false; levels int[]; h lab_fish; v_arch text; v_body text;
+begin
+  f := fx_fisher(u);
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  if f.level < 5 then raise exception 'Geneetikalabor avaneb kalapüügi 5. tasemel'; end if;
+  insert into lab_state(user_id) values (u) on conflict do nothing;
+  select * into st from lab_state where user_id = u for update;
+  if st.day is distinct from fx_today() then st.fusions := 0; end if;
+  lvl := st.level; cap := (fx_lab_cfg('daily_fusions') ->> (lvl - 1))::int; fee := (fx_lab_cfg('fee') ->> (lvl - 1))::int;
+  if st.fusions >= cap then raise exception 'Tänased % ühendamist on tehtud. Uued tulevad kesköösel.', cap; end if;
+  if f.gold < fee then raise exception 'Ühendamiseks on kalurikassas vaja % kulda', fee; end if;
+  if p_a_kind = p_b_kind and p_a = p_b then raise exception 'Vali kaks erinevat kala'; end if;
+  if p_a_kind not in ('c','h') or p_b_kind not in ('c','h') then raise exception 'Tundmatu kala'; end if;
+  if (p_a_kind = 'h' or p_b_kind = 'h') and lvl < 2 then raise exception 'Hübriide saab omavahel ühendada alates labori 2. tasemest'; end if;
+  -- vanemad lukustatakse: sama kala ei saa korraga kaks korda kasutada
+  if p_a_kind = 'c' then
+    select * into ca from fish_catches where id = p_a and user_id = u and status = 'kept' for update;
+    if ca.id is null then raise exception 'Esimest kala pole enam sinu saagis'; end if; ga := fx_lab_genes_c(ca);
+  else
+    select * into ha from lab_fish where id = p_a and user_id = u and status = 'kept' for update;
+    if ha.id is null then raise exception 'Esimest hübriidi pole enam sinu laboris'; end if; ga := fx_lab_genes_h(ha);
+  end if;
+  if p_b_kind = 'c' then
+    select * into cb from fish_catches where id = p_b and user_id = u and status = 'kept' for update;
+    if cb.id is null then raise exception 'Teist kala pole enam sinu saagis'; end if; gb := fx_lab_genes_c(cb);
+  else
+    select * into hb from lab_fish where id = p_b and user_id = u and status = 'kept' for update;
+    if hb.id is null then raise exception 'Teist hübriidi pole enam sinu laboris'; end if; gb := fx_lab_genes_h(hb);
+  end if;
+  if p_a_kind = 'c' and p_b_kind = 'c' and ca.species = cb.species then raise exception 'Vali kaks eri liiki kala'; end if;
+
+  -- elemendid ja mutatsioon
+  ea := fx_lab_pick(ga); eb := fx_lab_pick(gb);
+  if random() < (fx_lab_cfg('mutation_chance') #>> '{}')::numeric + 0.01 * lvl then
+    mut := true;
+    if random() < 0.5 then ea := els[1 + floor(random() * 7)::int]; else eb := els[1 + floor(random() * 7)::int]; end if;
+  end if;
+  if array_position(els, ea) > array_position(els, eb) then tmp := ea; ea := eb; eb := tmp; end if;
+  -- keha pärineb ühelt vanemalt (tugevam vanem pärandab sagedamini)
+  if random() < (ga ->> 'strength')::numeric / greatest(1, (ga ->> 'strength')::numeric + (gb ->> 'strength')::numeric) then dom := ga; oth := gb; else dom := gb; oth := ga; end if;
+  v_body := dom ->> 'body'; v_arch := dom ->> 'arch';
+  -- salajane legend (labori 4. tase, kindlad vanemad)
+  if lvl >= 4 and p_a_kind = 'c' and p_b_kind = 'c' then
+    select * into sp from lab_species where legend and recipe @> array[ca.species, cb.species] limit 1;
+  end if;
+  if sp.id is not null then
+    ea := sp.e1; eb := sp.e2; v_body := sp.body;
+    v_arch := case sp.id when 'l_draakoniahven' then 'perch' when 'l_kuldsuvahaug' then 'pike' when 'l_jaaleegimonarh' then 'carp' when 'l_tormilohe' then 'serpent'
+      when 'l_kuukuningas' then 'carp' when 'l_soovihaldjas' then 'angel' when 'l_sugavusteisand' then 'serpent' else 'grayling' end;
+  else
+    select * into sp from lab_species where not legend and e1 = ea and e2 = eb and body = v_body;
+  end if;
+  if sp.id is null then raise exception 'Mutatsioon ebaõnnestus'; end if;
+
+  -- haruldus (serveris, lab_config.rarity_weights)
+  select array_agg(x::numeric) into w from jsonb_array_elements_text(fx_lab_cfg('rarity_weights')) x;
+  lb := (fx_lab_cfg('level_bonus') #>> '{}')::numeric * (lvl - 1);
+  pb := greatest(0, ((ga ->> 'rarity')::numeric + (gb ->> 'rarity')::numeric) / 2 - 2) * 0.05;
+  for i in 2..5 loop w[i] := w[i] * (1 + (lb + pb) * (i - 1)); end loop;
+  for i in 1..5 loop tot := tot + w[i]; end loop;
+  roll := random() * tot;
+  for i in 1..5 loop acc := acc + w[i]; rar := i; exit when roll < acc; end loop;
+  if sp.legend then rar := greatest(rar, 4); end if;
+
+  -- geenid
+  if random() < 0.4 then
+    hid := (array['{"id":"retsessiivne"}','{"id":"kiirkasv"}','{"id":"kuldsoomus"}','{"id":"helendus"}','{"id":"vastupidav"}'])[1 + floor(random() * 5)::int]::jsonb;
+    if hid ->> 'id' = 'retsessiivne' then hid := hid || jsonb_build_object('el', els[1 + floor(random() * 7)::int]); end if;
+  end if;
+  abil := case (case when random() < 0.5 then ea else eb end) when 'tuli' then 'tarkus' when 'välk' then 'tarkus' when 'valgus' then 'kuld' when 'vari' then 'kuld'
+            when 'loodus' then 'onn' when 'vesi' then 'onn' else 'kaitse' end;
+  pw := (array[1,2,3,5,8])[rar] + case when hid ->> 'id' = 'vastupidav' then 1 else 0 end;
+  genes := jsonb_build_object('arch', v_arch, 'body', v_body, 'col', dom -> 'col', 'col2', oth -> 'col',
+    'size', greatest(1, least(10, round(((ga ->> 'size')::numeric + (gb ->> 'size')::numeric) / 2 + random()::numeric * 2 - 0.5 + (rar - 1) * 0.5))),
+    'speed', greatest(1, least(10, round(((ga ->> 'speed')::numeric + (gb ->> 'speed')::numeric) / 2 + random()::numeric * 2 - 0.5 + (rar - 1) * 0.4))),
+    'strength', greatest(1, least(10, round(((ga ->> 'strength')::numeric + (gb ->> 'strength')::numeric) / 2 + random()::numeric * 2 - 0.5 + (rar - 1) * 0.5))),
+    'ability', abil, 'power', pw, 'mutated', mut, 'seed', floor(random() * 1000000)::int);
+  if hid is not null then genes := genes || jsonb_build_object('hidden', hid); end if;
+  weight := greatest(0.01, round(((ga ->> 'weight')::numeric + (gb ->> 'weight')::numeric) / 2 * (0.85 + random()::numeric * 0.3) * (array[1, 1.12, 1.3, 1.55, 2])[rar]
+              * case when hid ->> 'id' = 'kiirkasv' then 1.2 else 1 end, 3));
+  len := round((case v_body when 'ahven' then 37 when 'karp' then 38 when 'haug' then 52 else 85 end) * cbrt(weight)::numeric * case when sp.legend then 1.1 else 1 end, 1);
+  val := round(((ga ->> 'value')::numeric + (gb ->> 'value')::numeric) * (array[0.75, 1.05, 1.5, 2.4, 4.5])[rar]
+              * case when hid ->> 'id' = 'kuldsoomus' then 1.25 else 1 end + 20);
+
+  insert into lab_fish(user_id, species, rarity, weight, length_cm, genes, parents, value, bred_by)
+    values (u, sp.id, rar, weight, len, genes,
+      jsonb_build_array(jsonb_build_object('kind', p_a_kind, 'name', ga ->> 'name', 'rarity', ga -> 'rarity'), jsonb_build_object('kind', p_b_kind, 'name', gb ->> 'name', 'rarity', gb -> 'rarity')),
+      val, u) returning * into h;
+  if p_a_kind = 'c' then update fish_catches set status = 'lab' where id = ca.id; else update lab_fish set status = 'parent' where id = ha.id; end if;
+  if p_b_kind = 'c' then update fish_catches set status = 'lab' where id = cb.id; else update lab_fish set status = 'parent' where id = hb.id; end if;
+
+  -- hübriidiraamat ja esmaavastaja
+  insert into lab_dex(user_id, species, best, parents) values (u, sp.id, rar, array[ga ->> 'name', gb ->> 'name']) on conflict do nothing;
+  isnew := found;
+  if not isnew then update lab_dex set n = n + 1, best = greatest(best, rar) where user_id = u and species = sp.id; end if;
+  update lab_species set first_by = u, first_at = now() where id = sp.id and first_by is null;
+  first := found;
+  if first then
+    update lab_fish set first_find = true where id = h.id; h.first_find := true;
+    perform fx_news(u, 'lab_first', jsonb_build_object('name', sp.name));
+  end if;
+  if rar = 5 then perform fx_news(u, 'lab_myyt', jsonb_build_object('name', sp.name)); end if;
+  if sp.legend and isnew then perform fx_news(u, 'lab_legend', jsonb_build_object('name', sp.name)); end if;
+
+  update fishers set gold = gold - fee where user_id = u;
+  update lab_state set day = fx_today(), fusions = st.fusions + 1 where user_id = u;
+  levels := fx_add_xp(u, 15 + 15 * rar);
+  return lab_state() || jsonb_build_object('result', fx_lab_fish_json(h, lvl), 'new', isnew, 'first_find', first, 'lvlup', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.lab_upgrade() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; st lab_state; nx jsonb;
+begin
+  f := fx_fisher(u);
+  insert into lab_state(user_id) values (u) on conflict do nothing;
+  select * into st from lab_state where user_id = u for update;
+  if st.level >= 5 then raise exception 'Labor on juba kõrgeimal tasemel'; end if;
+  nx := fx_lab_levels() -> st.level;
+  if f.level < (nx ->> 'req')::int then raise exception 'Selleks on vaja kalapüügi % taset', nx ->> 'req'; end if;
+  if f.gold < (nx ->> 'gold')::int then raise exception 'Selleks on kalurikassas vaja % kulda', nx ->> 'gold'; end if;
+  if nx -> 'items' <> '{}' then perform fx_pay_items(u, nx -> 'items'); end if;
+  update fishers set gold = gold - (nx ->> 'gold')::int where user_id = u;
+  update lab_state set level = level + 1 where user_id = u;
+  perform fx_news(u, 'lab_level', jsonb_build_object('level', st.level + 1, 'name', nx ->> 'name'));
+  return lab_state() || jsonb_build_object('upgraded', st.level + 1);
+end $$;
+
+create or replace function public.lab_tank(p_id bigint, p_on boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); st lab_state; n int;
+begin
+  perform pg_advisory_xact_lock(hashtext('lab:' || u::text));
+  select * into st from lab_state where user_id = u;
+  if p_on then
+    select count(*) into n from lab_fish where user_id = u and status = 'tank';
+    if n >= (fx_lab_levels() -> (coalesce(st.level, 1) - 1) ->> 'tanks')::int then raise exception 'Kõik labori akvaariumid on täis. Võta mõni kala enne välja või arenda laborit.'; end if;
+    update lab_fish set status = 'tank' where id = p_id and user_id = u and status = 'kept';
+  else
+    update lab_fish set status = 'kept' where id = p_id and user_id = u and status = 'tank';
+  end if;
+  if not found then raise exception 'Seda kala ei saa praegu liigutada'; end if;
+  return lab_state();
+end $$;
+
+create or replace function public.lab_sell(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); h lab_fish;
+begin
+  select * into h from lab_fish where id = p_id and user_id = u and status in ('kept','tank') for update;
+  if h.id is null then raise exception 'Seda hübriidi ei saa müüa'; end if;
+  update lab_fish set status = 'sold' where id = h.id;
+  update fishers set gold = gold + h.value where user_id = u;
+  return lab_state() || jsonb_build_object('sold', h.value);
+end $$;
+
+create or replace function public.lab_list(p_id bigint, p_price int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); h lab_fish;
+begin
+  if p_price is null or p_price < 1 or p_price > 10000000 then raise exception 'Hind peab olema 1 kuni 10 000 000 kulda'; end if;
+  if (select count(*) from lab_market where seller = u and status = 'open') >= 10 then raise exception 'Turul võib korraga olla 10 sinu hübriidi'; end if;
+  select * into h from lab_fish where id = p_id and user_id = u and status = 'kept' for update;
+  if h.id is null then raise exception 'Seda hübriidi ei saa turule panna'; end if;
+  update lab_fish set status = 'listed' where id = h.id;
+  insert into lab_market(fish_id, seller, price) values (h.id, u, p_price);
+  return lab_state();
+end $$;
+
+create or replace function public.lab_unlist(p_listing bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); m lab_market;
+begin
+  select * into m from lab_market where id = p_listing and seller = u and status = 'open' for update;
+  if m.id is null then raise exception 'Seda pakkumist pole enam turul'; end if;
+  update lab_market set status = 'cancelled', closed_at = now() where id = m.id;
+  update lab_fish set status = 'kept' where id = m.fish_id and status = 'listed';
+  return lab_state();
+end $$;
+
+create or replace function public.lab_buy(p_listing bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; m lab_market; h lab_fish;
+begin
+  f := fx_fisher(u);
+  select * into m from lab_market where id = p_listing for update;
+  if m.id is null or m.status <> 'open' then raise exception 'Keegi jõudis selle hübriidi juba ära osta'; end if;
+  if m.seller = u then raise exception 'Oma hübriidi ei saa ise osta'; end if;
+  select * into f from fishers where user_id = u for update;
+  if f.gold < m.price then raise exception 'Ostmiseks on kalurikassas vaja % kulda', m.price; end if;
+  select * into h from lab_fish where id = m.fish_id for update;
+  update fishers set gold = gold - m.price where user_id = u;
+  update fishers set gold = gold + round(m.price * 0.95) where user_id = m.seller;
+  update lab_fish set user_id = u, status = 'kept' where id = h.id;
+  update lab_market set status = 'sold', buyer = u, closed_at = now() where id = m.id;
+  insert into lab_dex(user_id, species, best) values (u, h.species, h.rarity)
+    on conflict (user_id, species) do update set n = lab_dex.n + 1, best = greatest(lab_dex.best, excluded.best);
+  return lab_state() || jsonb_build_object('bought', fx_lab_fish_json(h, 0), 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.lab_deliver(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); st lab_state; r jsonb := fx_lab_req(fx_uid()); h lab_fish; ls lab_species; levels int[]; v_items jsonb;
+begin
+  perform fx_fisher(u);
+  insert into lab_state(user_id) values (u) on conflict do nothing;
+  select * into st from lab_state where user_id = u for update;
+  if st.req_day = fx_today() then raise exception 'Tänane labori tellimus on juba täidetud. Uus tuleb kesköösel.'; end if;
+  select * into h from lab_fish where id = p_id and user_id = u and status in ('kept','tank') for update;
+  if h.id is null then raise exception 'Seda hübriidi ei saa ära anda'; end if;
+  select * into ls from lab_species where id = h.species;
+  if r ->> 'element' not in (ls.e1, ls.e2) then raise exception 'Tellija soovib kala, millel on element %', r ->> 'element'; end if;
+  if h.rarity < (r ->> 'minr')::int then raise exception 'Tellija soovib haruldasemat kala'; end if;
+  update lab_fish set status = 'delivered' where id = h.id;
+  update lab_state set req_day = fx_today() where user_id = u;
+  update fishers set gold = gold + (r ->> 'gold')::int where user_id = u;
+  v_items := fx_give_random(u, 2 + (r ->> 'minr')::int, 1);
+  levels := fx_add_xp(u, (r ->> 'xp')::int);
+  return lab_state() || jsonb_build_object('delivered', jsonb_build_object('gold', r -> 'gold', 'xp', r -> 'xp', 'items', v_items), 'lvlup', to_jsonb(levels));
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
@@ -3003,7 +3422,8 @@ do $$ declare r record; begin
               'kingdom_visit','kingdom_gift_send','monument_state','monument_contribute','fish_kalatund','fish_kt_claim',
               'secret_state','secret_cave_start','secret_cave_go','secret_cave_leave',
               'secret_castle_hall','secret_boss_attack','secret_boss_claim',
-              'secret_animal_tame','secret_animal_gifts','secret_ring','daily_state','daily_claim')) loop
+              'secret_animal_tame','secret_animal_gifts','secret_ring','daily_state','daily_claim',
+              'lab_state','lab_fuse','lab_upgrade','lab_tank','lab_sell','lab_list','lab_unlist','lab_buy','lab_deliver')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

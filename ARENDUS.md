@@ -107,6 +107,23 @@ täiskasvanud < 75%, vana ≤ max_w, legendaarne > max_w (sama loogika serveri s
 Aastad kasvuvalemiga (`fAgeYears`, kalapuuk.js). fish_state book: `fa/fs` (avastus) ja `ra/rs` (rekord) aeg ja koht.
 Kalakaardil read „Vanus“ (`fcAges`) ja „Sinu kalaraamatust“; vanuse märk tulemuses, saagis ja kiitusbänneris.
 
+**Geneetikalabor** (13.11.2026) – kalapüügi vahekaart `labor`. Server: schema.sql jaotised 2m (tabelid) ja 6l
+(funktsioonid). Mäng: `src/hubriid.js` (hübriidkalade joonistamine `drawHybrid`) ja `src/labor.js` (vaade, animatsioon).
+- Avaneb kalapüügi 5. tasemel. Kaks kala (saak `fish_catches` või hübriid `lab_fish`) → `lab_fuse`: lukk (advisory + row lock),
+  vanemad saavad staatuse `lab`/`parent`, tasu ja päevalimiit, haruldus kaaludest `lab_config.rarity_weights`.
+  Kõik juhuslikkus on serveris; brauser saadab ainult kahe kala id-d.
+- Geenid: elemendid (7), keha (ahven/karp/haug/angerjas), värvid, suurus/kiirus/jõud 1–10, võime (tarkus/kuld/onn/kaitse),
+  peidetud geen (nähtav alates labori 3. tasemest, `fx_lab_fish_json`). Liik `lab_species`: 112 tavalist
+  (element1 × element2 × keha) + 8 salajast legendi kindla retseptiga (vajavad 4. taset). Esmaavastaja `first_by`.
+- Labori tasemed `fx_lab_levels()` (5 taset, akvaariumid 1/2/3/4/6). Akvaariumis (`status='tank'`) hübriidide võimed:
+  `fx_lab_aura(u, tüüp)` – tarkus fish_land kogemusse, kuld fx_sell_value'sse, õnn haruldusse, kaitse õnge murdumisse.
+- Muu: müük `lab_sell`, turg `lab_list/lab_unlist/lab_buy` (müüja 95%), päevane tellimus `fx_lab_req` + `lab_deliver`,
+  raamat `lab_dex`, saavutused lab1/lab10/lab50/labesma/labmyyt/lablegend, uudised lab_first/lab_myyt/lab_legend/lab_level.
+- NB: lab_* tulemustes on kalapüügi tasemetõusud võtmega `lvlup` (mitte `levels` – see on labori tasemete nimekiri).
+- Seaded tabelis `lab_config` (admin muudab Table Editoris; schema.sql ei kirjuta neid üle).
+- Testitud: haruldused 1500 ühendamisel ≈ 61/25/10/3/1 %, 6 samaaegset ühendamist samal kalal → 1 õnnestub,
+  2 ostjat samale pakkumisele → 1 õnnestub, kalapüük töötab edasi.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
