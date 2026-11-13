@@ -136,6 +136,12 @@ lab_scan, lab_genes, lab_species.hints) ja 6m (research_*). Mäng: `src/uurimine
   liikide elemente (lab_state dex `hint`).
 - Saavutused dna1, dna50 (Geeniuurija), retsept (Retseptimeister), geenid (Geneetikateadlane).
 
+**Rohkem ülesandeid + teejuht** (13.11.2026) – igapäevaseid ülesandeid on 6 (enne 3; `fx_gen_quests`, fish_quests lisab puuduvad
+ka juba alanud päeval). Ülesanded 4–6 on eri tüüpi: diverse (eri liigid), favbait (lemmiksöödaga, fish_casts.bait), junk, big1 (üks kala
+≥ X kg), lab (hübriidid), dna (analüüsid) – viimased kaks alates 5. tasemest. `src/juhend.js`: uute tüüpide tekstid, `questRow` üle
+kirjutatud, nupp „📍 Kuhu minna?“ → `qgBuild(q)` (koht, sööt, aeg, öö/ilm, nõuanne) ja „Vii mind sinna“ (`qgGo`: koht, sööt
+`equip_bait`, vahekaart, vilkuv „Viska õng“). Uue ülesandetüübi lisamisel lisa see ka `questText` ja `qgBuild` sisse.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

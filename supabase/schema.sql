@@ -1980,14 +1980,21 @@ create or replace function public.fx_quest_progress(u uuid, k text, prm text, si
     when 'night' then (select count(*) from public.fish_catches where user_id = u and not bought and caught_at >= since and night)
     when 'weather' then (select count(*) from public.fish_catches c join public.fish_species s on s.id = c.species where c.user_id = u and not c.bought and c.caught_at >= since and s.weather is not null)
     when 'chest' then (select count(*) from public.fish_casts where user_id = u and created_at >= since and kind = 'chest' and state = 'landed')
+    when 'junk' then (select count(*) from public.fish_casts where user_id = u and created_at >= since and kind = 'junk' and state = 'landed')
+    when 'diverse' then (select count(distinct species) from public.fish_catches where user_id = u and not bought and caught_at >= since)
+    when 'big1' then (select coalesce(max(weight), 0) from public.fish_catches where user_id = u and not bought and caught_at >= since)
+    when 'favbait' then (select count(*) from public.fish_casts c join public.fish_species s on s.id = c.species
+                         where c.user_id = u and c.created_at >= since and c.kind = 'fish' and c.state = 'landed' and c.bait = any(s.baits))
+    when 'lab' then (select count(*) from public.lab_fish where bred_by = u and created_at >= since)
+    when 'dna' then (select count(*) from public.lab_scan where user_id = u and started_at >= since)
     else 0 end)::numeric
 $$;
 
 create or replace function public.fx_gen_quests(u uuid, per text, ps date) returns void language plpgsql as $$
-declare f public.fishers; lvl int; i int; k text; prm text; tgt numeric; pick int; sp text; spc text; ri text;
+declare f public.fishers; lvl int; i int; k text; prm text; tgt numeric; pick int; sp text; spc text; ri text; used text[] := '{}'; pool text[];
 begin
   select * into f from public.fishers where user_id = u; lvl := coalesce(f.level, 1);
-  for i in 1..3 loop
+  for i in 1..(case when per = 'd' then 6 else 3 end) loop
     prm := null; ri := null;
     if per = 'd' then
       if i = 1 then k := 'count'; tgt := 10 + least(20, lvl);
@@ -2002,8 +2009,15 @@ begin
           select id into sp from public.fish_spots where min_level <= lvl order by random() limit 1;
           k := 'spot'; prm := sp; tgt := 8;
         else k := 'weight'; tgt := round(5 + lvl * 1.5); end if;
-      else
+      elsif i = 3 then
         if lvl >= 8 then k := 'rarity'; prm := '3'; tgt := 1 + lvl / 20; else k := 'rarity'; prm := '2'; tgt := 3; end if;
+      else
+        -- lisaülesanded 4–6: igaüks eri tüüpi
+        pool := array['diverse','favbait','junk','big1'] || case when lvl >= 5 then array['lab','dna'] else '{}'::text[] end;
+        select x into k from unnest(pool) x where x <> all(used) order by random() limit 1;
+        used := used || k;
+        tgt := case k when 'diverse' then 4 + least(4, lvl / 8) when 'favbait' then 5 when 'junk' then 2
+          when 'big1' then round(greatest(0.5, lvl * 0.25)::numeric, 1) when 'lab' then 2 else 1 end;
       end if;
       if random() < 0.35 then ri := (array['karp','parl','merevaik'])[1 + floor(random() * 3)::int]; end if;
       insert into public.fish_quests(user_id, period, pstart, idx, kind, param, target, reward_gold, reward_xp, reward_item, reward_qty)
@@ -2038,7 +2052,7 @@ create or replace function public.fish_quests() returns jsonb language plpgsql s
 declare u uuid := fx_uid(); d date := fx_today(); wk date := date_trunc('week', fx_today())::date;
 begin
   perform fx_fisher(u);
-  if not exists (select 1 from fish_quests q where q.user_id = u and q.period = 'd' and q.pstart = d) then perform fx_gen_quests(u, 'd', d); end if;
+  if (select count(*) from fish_quests q where q.user_id = u and q.period = 'd' and q.pstart = d) < 6 then perform fx_gen_quests(u, 'd', d); end if;
   if not exists (select 1 from fish_quests q where q.user_id = u and q.period = 'w' and q.pstart = wk) then perform fx_gen_quests(u, 'w', wk); end if;
   return jsonb_build_object('daily', fx_quest_list(u, 'd', d), 'weekly', fx_quest_list(u, 'w', wk),
     'day_ends', ((d + 1)::timestamp at time zone 'Europe/Tallinn'), 'week_ends', ((wk + 7)::timestamp at time zone 'Europe/Tallinn'));
