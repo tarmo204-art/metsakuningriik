@@ -158,6 +158,18 @@ Eriomadused: polar (prillid, päike/pilves → fish_cast `peek`, mäng näitab k
 grip (kindad, põgenemine ×0,85), wade (kahlajad Suurel jõel, jõekalad ×1,6). Mäng `src/riided.js`: vahekaart `riided`
 (`drawAngler` kalamehe kuju, `drawCloth` esemed), soovitusbänner püügilehel (`rdBanner`), käsi õnge peal stseenis (`rdDrawHand`).
 
+**Erisündmused, kalastusretk, kahevõitlus** (14.11.2026) – schema.sql 2q ja 6p, mäng `src/sundmused.js` (vahekaart `sundmused`).
+- Sündmus iga nädalavahetus R 00:00 – P 24:00 (Tallinn): paarisnädal `hai`, paaritu `saga` (`fx_event_at`, `fx_event_next`).
+  Admin saab sündmuse käivitada tabelis `fish_event_override` (kind, starts, ends). Liigid `ogahai`, `heeringahai` (`fish_species.event='hai'`)
+  tulevad ainult sündmuse ajal (fish_cast: 12% merekohtades); muud valikud filtreerivad `event is null`. Sägaööd: säga 18% öösel / 6% päeval,
+  kaal suurem (power 1,3). Edetabel `fx_event_rank` (suurim kala), preemiad `event_prize_claim` (top 3 tiitel Haikütt/Sägakuningas),
+  eriülesanded `fx_event_quests` + `event_quest_claim`.
+- Kalastusretk `fx_journey` (nädal, 4–6 peatust kättesaadavates kohtades, igas N kala ühest liigist), `journey_advance`.
+- Kahevõitlus reaalajas: `duel_ping` (iga 9 s, võitluse ajal 2,5 s; uuendab `fishers.last_seen`, korrastab aegunud kutsed ja lõppenud
+  võitlused `fx_duel_tidy`), `duel_invite` (panus kinni), `duel_answer`. 10 s pärast vastuvõttu algab, kestab 5 min, loetakse saak
+  samas kohas (trap ja ostetud välja). Võitja saab 2 × panus, viik → tagasi. Mängus: kutse aken, HUD püügilehel, tulemuse graafik.
+- Hai pilt `drawShark` (drawFishReal 'ogahai'/'heeringahai').
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
