@@ -4505,6 +4505,20 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fcell .tro{position:absolute;top:6px;right:6px;font-size:11px;background:#f2b552;color:#2a1a05;border-radius:6px;padding:1px 6px;font-weight:800}
 .shop{display:grid;gap:8px}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22)}
+.sk-tools{display:grid;gap:8px;padding:10px;border-radius:14px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.07)}
+.sk-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sk-l{font-size:13px;opacity:.8;font-weight:700}
+.sk-chip{border:1px solid color-mix(in srgb,var(--rc) 55%,transparent);background:color-mix(in srgb,var(--rc) 10%,transparent);color:inherit;border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer}
+.sk-chip b{color:var(--rc)}.sk-chip.on{background:color-mix(in srgb,var(--rc) 30%,transparent);border-color:var(--rc);color:#fff}
+.sk-sel{padding:6px 8px;border-radius:9px;background:rgba(0,0,0,.35);color:inherit;border:1px solid rgba(255,255,255,.18);max-width:100%}
+.sk-bar{position:sticky;bottom:8px;z-index:4;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;border-radius:14px;
+  background:rgba(10,28,34,.96);border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 30px rgba(0,0,0,.45);transition:border-color .2s,box-shadow .2s}
+.sk-bar.on{border-color:rgba(242,181,82,.7);box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 22px rgba(242,181,82,.18)}
+.sk-sum{display:grid;gap:2px}.sk-sum small{opacity:.85}
+.sk-acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn.warn{background:linear-gradient(180deg,#ff9a6a,#e0603a)!important;color:#2a0e05!important}
+.fcell{position:relative}.fcell .selck{position:absolute;top:5px;left:5px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#f2b552;color:#2a1a05;font-weight:900;font-size:13px;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+.fcell .recb{position:absolute;top:4px;right:6px;font-size:14px}
 .srow.locked{opacity:.55}
 .srow.gearrow{grid-template-columns:auto minmax(0,1fr) auto}.gearcv{width:72px;height:54px;border-radius:10px;display:block}
 .gi{width:20px;height:20px;vertical-align:-5px;display:inline-block}.itm .gi{width:18px;height:18px}
@@ -5315,7 +5329,7 @@ function itemsTxt(list, bare) { if (!list || !list.length) return ''; const t = 
 function itemsRow(list) { return list && list.length ? `<div class="itemrow">${list.map(x => { const it = FD.item[x.id]; return `<span class="itm" style="border-color:${RAR2[it ? it.rarity : 1][1]}88">${itemIcon(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>` }).join('')}</div>` : '' }
 function estPrice(id) {
   const c = (FS.inventory || []).find(x => x.id === id); if (!c) return 0;
-  const s = FD.sp[c.species], m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
+  const s = FD.sp[c.species]; if (!s) return 0; const m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
   const avg = (s.min_w + s.max_w) / 2;
   return Math.max(1, Math.round(s.price * m.mult * Math.min(2, .6 + .4 * c.weight / avg) / (1 + m.sold / 15)));
 }
@@ -5397,23 +5411,35 @@ function sceneLoop(ts) {
 
 /* ---------- Saak ---------- */
 function tabSaak() {
-  const inv = FS.inventory || [], kept = inv.filter(x => !x.trophy), tro = inv.filter(x => x.trophy);
-  FV.sel = new Set([...FV.sel].filter(id => kept.some(x => x.id === id)));
-  const selN = FV.sel.size;
-  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${FD.sp[x.species] ? ' · ' + fAge(FD.sp[x.species], +x.weight).ic : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}</div>` };
-  let h = `<div class="fv-card"><h2>Saak</h2><p class="lead">Klõpsa kaladel, et neid valida. Müümisel saad kulda kalurikassasse. Toit ja kuulsus lähevad sinu kuningriiki. Turuhinnad muutuvad iga päev ja kui müüd ühel päeval palju sama kala, langeb selle hind.</p>
-    <div class="chips"><span class="chip">${kept.length} kala saagis</span><span class="chip">Valitud: ${selN}</span></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn sm" type="button" data-fa="bulk" data-arg="sell" ${selN ? '' : 'disabled'}>Müü valitud</button>
-      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="cook" ${selN ? '' : 'disabled'}>Valitud toiduks</button>
-      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="release" ${selN ? '' : 'disabled'}>Lase valitud vabaks</button>
-      <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="trophy" ${selN === 1 ? '' : 'disabled'}>Trofeeriiulile</button>
-      ${FS.house ? `<button class="btn sm ghost" type="button" data-fa="aqputSel" ${selN === 1 ? '' : 'disabled'}>Akvaariumi</button>` : ''}
-      <button class="btn sm ghost" type="button" data-fa="mkSell" ${selN === 1 ? '' : 'disabled'}>Pane turule</button>
-      <button class="btn sm ghost" type="button" data-fa="exchSel" ${selN === 1 && kept.find(x => FV.sel.has(x.id) && x.rarity >= 4) ? '' : 'disabled'}>Vaheta preemia vastu</button>
-      <button class="btn sm ghost" type="button" data-fa="selnone" ${selN ? '' : 'disabled'}>Tühista valik</button></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="1" ${kept.some(x => x.rarity === 1) ? '' : 'disabled'}>Müü kõik tavalised</button><button class="btn sm ghost" type="button" data-fa="sellall" data-arg="2" ${kept.some(x => x.rarity <= 2) ? '' : 'disabled'}>Müü kõik tavalised ja ebatavalised</button></div>
-    ${kept.length ? `<div class="inv">${kept.slice(0, 150).map(cell).join('')}</div>${kept.length > 150 ? `<p class="lead">Näidatakse 150 väärtuslikumat kala, kokku on ${kept.length}.</p>` : ''}` : '<p class="lead">Saak on tühi. Mine püüki!</p>'}</div>`;
+  const inv = FS.inventory || [], kept0 = inv.filter(x => !x.trophy), tro = inv.filter(x => x.trophy);
+  FV.sel = new Set([...FV.sel].filter(id => kept0.some(x => x.id === id)));
+  const SO = FV.saakSort || 'value', sorters = { value: (a, b) => estPrice(b.id) - estPrice(a.id), rarity: (a, b) => b.rarity - a.rarity || b.weight - a.weight, weight: (a, b) => b.weight - a.weight, name: (a, b) => ((FD.sp[a.species] || {}).name || '').localeCompare((FD.sp[b.species] || {}).name || '', 'et') || b.weight - a.weight, new: (a, b) => b.id - a.id };
+  const kept = kept0.slice().sort(sorters[SO] || sorters.value);
+  const selN = FV.sel.size, selList = kept.filter(x => FV.sel.has(x.id)), selGold = selList.reduce((t, x) => t + estPrice(x.id), 0), selRare = selList.filter(x => x.rarity >= 4).length;
+  const recs = new Set(Object.entries(FS.book || {}).map(([sp, b]) => { const r = kept.filter(x => x.species === sp).sort((a, b2) => b2.weight - a.weight)[0]; return r && +r.weight >= +b.max ? r.id : null }).filter(Boolean));
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" aria-pressed="${FV.sel.has(x.id)}" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : FV.sel.has(x.id) ? '<span class="selck">✓</span>' : ''}${recs.has(x.id) && !x.trophy ? '<span class="recb">🏆</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${FD.sp[x.species] ? ' · ' + fAge(FD.sp[x.species], +x.weight).ic : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}${x.trap ? '<small class="tag-b">Püünisest</small>' : ''}</div>` };
+  const byR = [1, 2, 3, 4, 5, 6].map(r => [r, kept.filter(x => x.rarity === r)]).filter(([, l]) => l.length);
+  const species = [...new Set(kept.map(x => x.species))].sort((a, b) => ((FD.sp[a] || {}).name || a).localeCompare((FD.sp[b] || {}).name || b, 'et'));
+  const allSel = kept.length && selN === kept.length, showAll = FV.saakAll, shown = showAll ? kept : kept.slice(0, 150);
+  let h = `<div class="fv-card"><h2>Saak</h2><p class="lead">Vali kalad ühe kaupa või korraga ning müü, tee toiduks või lase vabaks. Turuhinnad muutuvad iga päev ja kui müüd ühel päeval palju sama kala, langeb selle hind.</p>
+    <div class="sk-tools">
+      <div class="sk-row"><button class="btn sm ${allSel ? '' : 'ghost'}" type="button" data-fa="selall" ${kept.length ? '' : 'disabled'}>${allSel ? '☑' : '☐'} Vali kõik (${kept.length})</button>
+        <button class="btn sm ghost" type="button" data-fa="selinv" ${kept.length ? '' : 'disabled'}>⇄ Pööra valik</button>
+        <button class="btn sm ghost" type="button" data-fa="selnone" ${selN ? '' : 'disabled'}>✕ Tühista valik</button>
+        <button class="btn sm ghost" type="button" data-fa="selnorec" ${selN && [...FV.sel].some(id => recs.has(id) || kept.find(x => x.id === id && x.rarity >= 4)) ? '' : 'disabled'} title="Eemaldab valikust rekordkalad ja eepilised ning haruldasemad">🛡 Jäta väärtuslikud alles</button></div>
+      <div class="sk-row"><span class="sk-l">Vali haruldus:</span>${byR.map(([r, l]) => { const on = l.every(x => FV.sel.has(x.id)); return `<button type="button" class="sk-chip ${on ? 'on' : ''}" style="--rc:${RAR2[r][1]}" data-fa="selrar" data-arg="${r}">${on ? '✓ ' : ''}${RAR2[r][0]} <b>${l.length}</b></button>` }).join('')}</div>
+      <div class="sk-row"><label class="sk-l" for="skSp">Vali liik:</label><select id="skSp" class="sk-sel" data-fa="selsp"><option value="">— kõik ühe liigi kalad —</option>${species.map(sp => `<option value="${sp}">${esc((FD.sp[sp] || {}).name || sp)} (${kept.filter(x => x.species === sp).length})</option>`).join('')}</select>
+        <label class="sk-l" for="skSo">Järjesta:</label><select id="skSo" class="sk-sel" data-fa="saaksort">${[['value', 'Hind'], ['rarity', 'Haruldus'], ['weight', 'Kaal'], ['name', 'Nimi'], ['new', 'Uuemad ees']].map(([k, n]) => `<option value="${k}" ${SO === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    </div>
+    ${kept.length ? `<div class="inv">${shown.map(cell).join('')}</div>${kept.length > shown.length ? `<p class="lead">Näidatakse ${shown.length} kala ${kept.length}-st. Valikunupud valivad kõik ${kept.length}. <button class="btn sm ghost" type="button" data-fa="saakall">Näita kõiki</button></p>` : ''}` : '<p class="lead">Saak on tühi. Mine püüki!</p>'}
+    <div class="sk-bar ${selN ? 'on' : ''}"><div class="sk-sum"><b>${selN ? `Valitud ${selN} kala` : 'Vali kalu'}</b><small>${selN ? `Müües umbes <b>${fmt(selGold)} kulda</b>${selRare ? ` · ⚠ ${selRare} eepilist või haruldasemat` : ''}` : 'Klõpsa kaladel või kasuta valikunuppe'}</small></div>
+      <div class="sk-acts"><button class="btn sm ${FV.sellConf ? 'warn' : ''}" type="button" data-fa="sellsel" ${selN && !FV.busy ? '' : 'disabled'}>${FV.sellConf ? `Kinnita: müü ${selN} kala` : `💰 Müü valitud`}</button>
+        <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="cook" ${selN ? '' : 'disabled'}>🍲 Toiduks</button>
+        <button class="btn sm ghost" type="button" data-fa="bulk" data-arg="release" ${selN ? '' : 'disabled'}>🌊 Lase vabaks</button>
+        ${selN === 1 ? `<button class="btn sm ghost" type="button" data-fa="bulk" data-arg="trophy">🏆 Trofeeks</button>
+        ${FS.house ? `<button class="btn sm ghost" type="button" data-fa="aqputSel">Akvaariumi</button>` : ''}
+        <button class="btn sm ghost" type="button" data-fa="mkSell">Pane turule</button>
+        ${kept.find(x => FV.sel.has(x.id) && x.rarity >= 4) ? '<button class="btn sm ghost" type="button" data-fa="exchSel">Vaheta preemia vastu</button>' : ''}` : ''}</div></div></div>`;
   h += `<div class="fv-card"><h2>Trofeeriiul <small class="lead">${tro.length} / 12</small></h2><p class="lead">Trofeed jäävad sinu kollektsiooni igaveseks ja neid ei müüda kogemata maha. Klõpsa trofeel, et see riiulilt tagasi võtta.</p>${tro.length ? `<div class="inv">${tro.map(cell).join('')}</div>` : '<p class="lead">Riiul on veel tühi. Pane siia oma uhkeim saak.</p>'}</div>`;
   const its = FD.items.filter(it => (FS.items || {})[it.id] > 0);
   h += `<div class="fv-card"><h2>Kott <small class="lead">${its.reduce((a, it) => a + FS.items[it.id], 0)} eset</small></h2><p class="lead">Aardekirstudest, karpidest, kalade kõhust ja ülesannetest leitud väärtuslikud asjad. Neid saab müüa kalurikassasse. Hiljem läheb osa neist vaja ka õngede võlumiseks, seega ära kõike kohe maha müü.</p>
@@ -5780,9 +5806,15 @@ document.addEventListener('click', async e => {
     case 'exch': showExchange(+arg); break;
     case 'exSel': case 'exchSel': { const id = [...FV.sel][0]; if (id) showExchange(id); break }
     case 'exDo': { const [id, ch] = arg.split(':'); fUse('exchange', [+id], ch); break }
-    case 'pick': { const id = +arg; FV.sel.has(id) ? FV.sel.delete(id) : FV.sel.add(id); renderFV(true); break }
+    case 'pick': { const id = +arg; FV.sel.has(id) ? FV.sel.delete(id) : FV.sel.add(id); FV.sellConf = false; renderFV(true); break }
     case 'untro': fUse('untrophy', [+arg]); break;
-    case 'selnone': FV.sel.clear(); renderFV(true); break;
+    case 'selnone': FV.sel.clear(); FV.sellConf = false; renderFV(true); break;
+    case 'selall': { const k = (FS.inventory || []).filter(x => !x.trophy); FV.sellConf = false; if (k.length && k.every(x => FV.sel.has(x.id))) FV.sel.clear(); else k.forEach(x => FV.sel.add(x.id)); renderFV(true); break }
+    case 'selinv': { const k = (FS.inventory || []).filter(x => !x.trophy); FV.sellConf = false; k.forEach(x => FV.sel.has(x.id) ? FV.sel.delete(x.id) : FV.sel.add(x.id)); renderFV(true); break }
+    case 'selrar': { const k = (FS.inventory || []).filter(x => !x.trophy && x.rarity === +arg); FV.sellConf = false; if (k.every(x => FV.sel.has(x.id))) k.forEach(x => FV.sel.delete(x.id)); else k.forEach(x => FV.sel.add(x.id)); renderFV(true); break }
+    case 'selnorec': { const k = (FS.inventory || []).filter(x => !x.trophy), book = FS.book || {}; k.forEach(x => { const b = book[x.species], top = k.filter(y => y.species === x.species).sort((p, q) => q.weight - p.weight)[0]; if (x.rarity >= 4 || (b && top && top.id === x.id && +x.weight >= +b.max)) FV.sel.delete(x.id) }); FV.sellConf = false; renderFV(true); break }
+    case 'saakall': FV.saakAll = true; renderFV(true); break;
+    case 'sellsel': if (!FV.sel.size) return; if (!FV.sellConf) { FV.sellConf = true; renderFV(true); setTimeout(() => { if (FV.sellConf) { FV.sellConf = false; renderFV(true) } }, 6000); return } FV.sellConf = false; fUse('sell', [...FV.sel]); break;
     case 'bulk': if (FV.sel.size) fUse(arg, [...FV.sel]); break;
     case 'sellall': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_sell_all', { p_max_rarity: +arg }); toast(`Müüsid ${r.n} kala ja said ${r.gold} kulda.`, 'good', 'gold'); FV.sel.clear(); await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'ktClaim': {
@@ -5839,6 +5871,8 @@ document.addEventListener('change', e => {
   if (el.id === 'fvTitle') fShop('title', el.value || null);
   if (el.id === 'mkSort') { FMK.sort = el.value; loadMarket() }
   if (el.id === 'mkSp') { FMK.sp = el.value || null; loadMarket() }
+  if (el.id === 'skSp' && el.value) { const k = (FS.inventory || []).filter(x => !x.trophy && x.species === el.value); FV.sellConf = false; if (k.every(x => FV.sel.has(x.id))) k.forEach(x => FV.sel.delete(x.id)); else k.forEach(x => FV.sel.add(x.id)); renderFV(true) }
+  if (el.id === 'skSo') { FV.saakSort = el.value; renderFV(true) }
 });
 document.addEventListener('keydown', e => {
   if (!FV.open || UI.modalView) return;

@@ -1498,7 +1498,7 @@ begin
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
-           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
     into inv from fish_catches where user_id = u and status in ('kept','trophy');
   select count(*) into inbox from kingdom_inbox where user_id = u;
   select coalesce(jsonb_object_agg(item, qty), '{}') into v_items from fisher_items where user_id = u and qty > 0;
