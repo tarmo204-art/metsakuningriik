@@ -38,7 +38,7 @@ SFX.bells = () => { [76, 76, 76, 0, 76, 76, 76, 0, 76, 79, 72, 74, 76].forEach((
 .xmbtn span{font-size:18px}.xmbtn i{font-style:normal;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#ffd25e;color:#5a0e12;font-size:12px;display:grid;place-items:center}
 .xmbtn.pulse{animation:xmPulse 1.8s ease-in-out infinite}@keyframes xmPulse{0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 7px rgba(255,210,94,.28),0 4px 14px rgba(0,0,0,.35)}}
 @media (max-width:640px){.xmbtn b{display:none}.xmbtn{padding:6px 8px}}
-.modal-card.xmmodal{max-width:760px;background:radial-gradient(120% 70% at 50% 0%,#5b1418 0%,#2c0c10 55%,#160a0c 100%);border-color:rgba(255,214,120,.45);position:relative;overflow:hidden}
+.modal-card.xmmodal{max-width:760px;background:radial-gradient(120% 70% at 50% 0%,#5b1418 0%,#2c0c10 55%,#160a0c 100%);border-color:rgba(255,214,120,.45);position:relative;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
 .xmmodal h2{font-family:var(--f-head);color:#ffe2a0;margin:0;font-size:28px;text-shadow:0 2px 10px rgba(0,0,0,.5)}
 .xmmodal .lead{color:#f1d9c4}
 .xmsnow{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(2px 2px at 20px 30px,#fff8,transparent),radial-gradient(2px 2px at 140px 80px,#fff6,transparent),radial-gradient(1.5px 1.5px at 260px 40px,#fff9,transparent),radial-gradient(2px 2px at 380px 120px,#fff5,transparent),radial-gradient(1.5px 1.5px at 90px 160px,#fff7,transparent);background-size:420px 200px;animation:xmFall 9s linear infinite;opacity:.8}

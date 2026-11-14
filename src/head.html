@@ -239,7 +239,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 @media (prefers-reduced-motion:reduce){.toast,.toast.gold::after{animation:none}}
 
 /* ---------- level up ---------- */
-.modal-card.lvlup{position:relative;overflow:hidden;max-width:440px;padding:26px 22px 22px;text-align:center;justify-items:center;gap:12px;border:1px solid rgba(242,181,82,.7);background:radial-gradient(120% 70% at 50% 0%,#36654c 0%,#1d3a2f 55%,var(--moss) 100%);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 90px rgba(0,0,0,.6),0 0 80px rgba(242,181,82,.18)}
+.modal-card.lvlup{position:relative;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;max-width:440px;padding:26px 22px 22px;text-align:center;justify-items:center;gap:12px;border:1px solid rgba(242,181,82,.7);background:radial-gradient(120% 70% at 50% 0%,#36654c 0%,#1d3a2f 55%,var(--moss) 100%);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 90px rgba(0,0,0,.6),0 0 80px rgba(242,181,82,.18)}
 .lvlup > *{position:relative;z-index:1}
 .lvlup .rays{position:absolute;z-index:0;left:50%;top:-170px;width:480px;height:480px;margin-left:-240px;border-radius:50%;background:repeating-conic-gradient(rgba(255,214,140,.16) 0 9deg,transparent 9deg 18deg);-webkit-mask-image:radial-gradient(circle,#000 18%,transparent 66%);mask-image:radial-gradient(circle,#000 18%,transparent 66%);animation:spin 40s linear infinite;pointer-events:none}
 .lvlup .mote{position:absolute;z-index:0;width:6px;height:6px;border-radius:50%;background:#ffe39a;box-shadow:0 0 10px 3px rgba(255,214,120,.6);animation:mote 3.2s ease-in-out infinite;pointer-events:none}

@@ -239,7 +239,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 @media (prefers-reduced-motion:reduce){.toast,.toast.gold::after{animation:none}}
 
 /* ---------- level up ---------- */
-.modal-card.lvlup{position:relative;overflow:hidden;max-width:440px;padding:26px 22px 22px;text-align:center;justify-items:center;gap:12px;border:1px solid rgba(242,181,82,.7);background:radial-gradient(120% 70% at 50% 0%,#36654c 0%,#1d3a2f 55%,var(--moss) 100%);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 90px rgba(0,0,0,.6),0 0 80px rgba(242,181,82,.18)}
+.modal-card.lvlup{position:relative;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;max-width:440px;padding:26px 22px 22px;text-align:center;justify-items:center;gap:12px;border:1px solid rgba(242,181,82,.7);background:radial-gradient(120% 70% at 50% 0%,#36654c 0%,#1d3a2f 55%,var(--moss) 100%);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 90px rgba(0,0,0,.6),0 0 80px rgba(242,181,82,.18)}
 .lvlup > *{position:relative;z-index:1}
 .lvlup .rays{position:absolute;z-index:0;left:50%;top:-170px;width:480px;height:480px;margin-left:-240px;border-radius:50%;background:repeating-conic-gradient(rgba(255,214,140,.16) 0 9deg,transparent 9deg 18deg);-webkit-mask-image:radial-gradient(circle,#000 18%,transparent 66%);mask-image:radial-gradient(circle,#000 18%,transparent 66%);animation:spin 40s linear infinite;pointer-events:none}
 .lvlup .mote{position:absolute;z-index:0;width:6px;height:6px;border-radius:50%;background:#ffe39a;box-shadow:0 0 10px 3px rgba(255,214,120,.6);animation:mote 3.2s ease-in-out infinite;pointer-events:none}
@@ -4033,7 +4033,7 @@ SFX.bells = () => { [76, 76, 76, 0, 76, 76, 76, 0, 76, 79, 72, 74, 76].forEach((
 .xmbtn span{font-size:18px}.xmbtn i{font-style:normal;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#ffd25e;color:#5a0e12;font-size:12px;display:grid;place-items:center}
 .xmbtn.pulse{animation:xmPulse 1.8s ease-in-out infinite}@keyframes xmPulse{0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 7px rgba(255,210,94,.28),0 4px 14px rgba(0,0,0,.35)}}
 @media (max-width:640px){.xmbtn b{display:none}.xmbtn{padding:6px 8px}}
-.modal-card.xmmodal{max-width:760px;background:radial-gradient(120% 70% at 50% 0%,#5b1418 0%,#2c0c10 55%,#160a0c 100%);border-color:rgba(255,214,120,.45);position:relative;overflow:hidden}
+.modal-card.xmmodal{max-width:760px;background:radial-gradient(120% 70% at 50% 0%,#5b1418 0%,#2c0c10 55%,#160a0c 100%);border-color:rgba(255,214,120,.45);position:relative;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
 .xmmodal h2{font-family:var(--f-head);color:#ffe2a0;margin:0;font-size:28px;text-shadow:0 2px 10px rgba(0,0,0,.5)}
 .xmmodal .lead{color:#f1d9c4}
 .xmsnow{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(2px 2px at 20px 30px,#fff8,transparent),radial-gradient(2px 2px at 140px 80px,#fff6,transparent),radial-gradient(1.5px 1.5px at 260px 40px,#fff9,transparent),radial-gradient(2px 2px at 380px 120px,#fff5,transparent),radial-gradient(1.5px 1.5px at 90px 160px,#fff7,transparent);background-size:420px 200px;animation:xmFall 9s linear infinite;opacity:.8}
@@ -7690,7 +7690,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .bcell.fcbtn{cursor:pointer;transition:transform .15s ease,border-color .15s ease}
 .bcell.fcbtn:hover{transform:translateY(-2px);border-color:rgba(255,226,160,.4)!important}
 .bcell.fcbtn:focus-visible{outline:2px solid var(--amber-2);outline-offset:2px}
-.modal-card.fishcard{max-width:470px;padding:0;gap:0;overflow:hidden;border:1px solid var(--fcc,rgba(134,205,224,.3));background:linear-gradient(180deg,#0f2a35,#0b1f28)}
+.modal-card.fishcard{max-width:470px;padding:0;gap:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--fcc,rgba(134,205,224,.3));background:linear-gradient(180deg,#0f2a35,#0b1f28)}
 .fc-hero{position:relative}
 .fc-cv{display:block;width:100%;height:210px}
 .fc-rar{position:absolute;left:14px;top:12px;padding:4px 11px;border-radius:999px;font-weight:800;font-size:12px;color:#10202a;background:var(--fcc)}

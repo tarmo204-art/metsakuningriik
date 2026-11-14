@@ -15,7 +15,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .bcell.fcbtn{cursor:pointer;transition:transform .15s ease,border-color .15s ease}
 .bcell.fcbtn:hover{transform:translateY(-2px);border-color:rgba(255,226,160,.4)!important}
 .bcell.fcbtn:focus-visible{outline:2px solid var(--amber-2);outline-offset:2px}
-.modal-card.fishcard{max-width:470px;padding:0;gap:0;overflow:hidden;border:1px solid var(--fcc,rgba(134,205,224,.3));background:linear-gradient(180deg,#0f2a35,#0b1f28)}
+.modal-card.fishcard{max-width:470px;padding:0;gap:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--fcc,rgba(134,205,224,.3));background:linear-gradient(180deg,#0f2a35,#0b1f28)}
 .fc-hero{position:relative}
 .fc-cv{display:block;width:100%;height:210px}
 .fc-rar{position:absolute;left:14px;top:12px;padding:4px 11px;border-radius:999px;font-weight:800;font-size:12px;color:#10202a;background:var(--fcc)}
