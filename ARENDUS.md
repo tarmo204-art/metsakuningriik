@@ -150,6 +150,14 @@ rahulikud kalad baits && {mais,leib} × val2), ridvahoidja (fish_land `second` =
 ülesannetes (fx_quest_progress). Mäng `src/varustus.js`: `drawKit` (kõik pildid), `drawCrayfish` (drawFishReal 'vahk'),
 poe riiul (tabPood lõpus), vahekaart `puunised`, stseenis poid/ämber/kahv/sump/teine õng, efektid KAHV PÄÄSTIS / TEINE ÕNG.
 
+**Kaluri riietus ilma järgi** (14.11.2026) – schema.sql 2p (fish_clothes, fisher_clothes, fishers.outfit/auto_dress,
+fish_catches.dressed) ja 6o (fx_conds, fx_outfit_req, fx_fit, fx_dress_auto, wear_state, clothes_buy/wear/auto/autoset/color).
+Tingimused: ilm + `kylm` (öö, talv või jää). `fx_outfit_req` annab iga koha (pea, silmad, keha, vest, pyksid, jalad, kaed) jaoks
+sobivad sildid; ese sobib, kui tal on vähemalt üks. Sundi pole – ainult boonus: tier 'hea' → +10% XP, ootus ×0,9, põgenemine ×0,8.
+Eriomadused: polar (prillid, päike/pilves → fish_cast `peek`, mäng näitab kala varju), pockets (vest, fish_hook ala +0,03),
+grip (kindad, põgenemine ×0,85), wade (kahlajad Suurel jõel, jõekalad ×1,6). Mäng `src/riided.js`: vahekaart `riided`
+(`drawAngler` kalamehe kuju, `drawCloth` esemed), soovitusbänner püügilehel (`rdBanner`), käsi õnge peal stseenis (`rdDrawHand`).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

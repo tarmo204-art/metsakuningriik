@@ -1139,6 +1139,50 @@ on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=e
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
 -- ---------------------------------------------------------------------
+-- 2p. Kaluri riietus: iga ilm nõuab oma riideid. Õigesti riides kalur püüab paremini, märg ja külm kalur halvemini.
+--     Sildid: sun (päike), rain (vihm), wind (torm), cold (öö/talv/jää), grip (haare), wade (kahlamine), polar (prillid), pockets (taskud)
+-- ---------------------------------------------------------------------
+create table if not exists public.fish_clothes (
+  id text primary key, slot text not null, name text not null, tags text[] not null, descr text not null,
+  price int not null, min_level int not null, colors text[] not null, sort int not null default 0
+);
+insert into public.fish_clothes (id, slot, name, tags, descr, price, min_level, colors, sort) values
+ ('nokamuts','pea','Nokamüts','{sun}','Nokk varjab silmi päikese eest – kala ujukit on hea jälgida.',60,1,'{#2f5a8a,#c83a2a,#3a6a3a,#e8e2d0}',1),
+ ('vihmakubar','pea','Vihmakübar','{rain}','Lai serv juhib vihmavee kraest mööda.',150,3,'{#e8c02a,#2f6a4a,#2a3a5a,#c86a2a}',2),
+ ('kootud','pea','Villane kootud müts','{cold}','Soe müts öösse ja talve – pea ei külmeta.',180,4,'{#b83a3a,#3a4a6a,#e8e2d0,#5a7a3a}',3),
+ ('prillid','silmad','Polariseeritud päikeseprillid','{sun,polar}','Lõikavad veepinna peegelduse: päikese ja pilvega näed vees kalade varje enne, kui nad näkkavad.',400,5,'{#1a1a1a,#6a4a2a,#2a4a6a,#8a2a2a}',4),
+ ('vest','vest','Kalurivest','{pockets}','Kümme taskut – konksud, lipsud ja tangid käe-jala juures. Väljatoomisel on roheline ala laiem.',250,2,'{#5a6a3a,#3a4a5a,#8a6a3a,#2a2a2a}',5),
+ ('vihmajope','keha','Vihmajope','{rain}','Kummeeritud kapuutsiga jope – vihm ei tule läbi.',300,3,'{#f2c02a,#e85a2a,#2a6a4a,#2a4a8a}',6),
+ ('tormijope','keha','Membraanjope','{rain,wind,cold}','Vee- ja tuulekindel soe jope: sobib vihma, tormi ja külmaga.',1500,12,'{#2a4a7a,#3a5a3a,#a83a2a,#3a3a3a}',7),
+ ('vpyksid','pyksid','Veekindlad kalurpüksid','{rain,wind}','Traksidega püksid, mis peavad vett ja tuult.',350,6,'{#3a5a3a,#2a3a5a,#e8c02a,#3a3a3a}',8),
+ ('talvepyksid','pyksid','Soojad talvepüksid','{cold,wind}','Vooderdatud püksid jääpüügiks ja külmadeks öödeks.',600,9,'{#2a2a3a,#5a3a2a,#3a4a5a,#6a6a6a}',9),
+ ('kummikud','jalad','Kummikud','{rain}','Kaldal ja porises jalad kuivad.',120,1,'{#2f6a3a,#1a1a1a,#c83a2a,#e8c02a}',10),
+ ('kahlajad','jalad','Kahlajad','{rain,wade}','Rinnuni kahlajad – saad jõkke sisse minna. Suurel jõel tuleb rohkem forelli, harjust ja lõhet.',900,7,'{#4a5a3a,#5a4a3a,#3a4a5a,#2a2a2a}',11),
+ ('talvesaapad','jalad','Talvesaapad','{cold,rain}','Karvavoodriga saapad – varbad ei külmu ka jääl.',700,9,'{#5a3a2a,#2a2a2a,#6a6a5a,#3a2a1a}',12),
+ ('sormikud','kaed','Kaluri sõrmikud','{grip}','Kindel haare ka märja ja limase kalaga: kala libiseb harvem käest.',200,4,'{#3a3a3a,#5a6a3a,#c86a2a,#2a4a6a}',13),
+ ('talvekindad','kaed','Soojad talvekindad','{cold,grip}','Soojad ja libisemiskindlad – sõrmed ei kangestu.',450,8,'{#8a2a2a,#2a3a5a,#3a3a3a,#e8e2d0}',14)
+on conflict (id) do update set slot = excluded.slot, name = excluded.name, tags = excluded.tags, descr = excluded.descr, price = excluded.price,
+  min_level = excluded.min_level, colors = excluded.colors, sort = excluded.sort;
+create table if not exists public.fisher_clothes (
+  user_id uuid not null references auth.users(id) on delete cascade, item text not null references public.fish_clothes(id),
+  color text, bought_at timestamptz not null default now(), primary key (user_id, item)
+);
+alter table public.fishers add column if not exists outfit jsonb not null default '{}';
+alter table public.fishers add column if not exists auto_dress boolean not null default false;
+do $$ declare t text; begin
+  foreach t in array array['fish_clothes','fisher_clothes'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('riided','Tõeline kalamees','Oma riideid kõigisse 7 kohta: müts, prillid, vest, jope, püksid, jalanõud ja kindad','Tõeline kalamees',3000,0,113),
+ ('ilmakindel','Ilmakindel','Püüa 50 kala nii, et oled täpselt ilma järgi riides','Ilmakindel',2500,0,114)
+on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
+  reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
+alter table public.fish_catches add column if not exists dressed boolean not null default false;
+
+-- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1310,6 +1354,8 @@ begin
       when 'geenid' then exists (select 1 from public.lab_research where user_id = u and cardinality(genes) >= 8)
       when 'puunis1' then exists (select 1 from public.fish_traps where user_id = u and status = 'done')
       when 'vahk25' then (select count(*) from public.fish_catches where user_id = u and species = 'vahk') >= 25
+      when 'riided' then (select count(distinct c.slot) from public.fisher_clothes fc join public.fish_clothes c on c.id = fc.item where fc.user_id = u) >= 7
+      when 'ilmakindel' then (select count(*) from public.fish_catches where user_id = u and dressed) >= 50
       when 'varustus' then (select count(distinct g.kind) from public.fisher_gear fg join public.fish_gear g on g.id = fg.gear where fg.user_id = u and g.kind in ('kahv','korv','hoidja','sump','ammber')) >= 5
       when 'vana1' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 1
       when 'vana25' then (select count(*) from public.fish_catches c join public.fish_species fs on fs.id = c.species where c.user_id = u and not c.bought and c.weight >= fs.min_w + .75 * (fs.max_w - fs.min_w)) >= 25
@@ -1485,10 +1531,12 @@ declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
   night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart(); lure boolean; rr int;
-  bsaved boolean := false; korv numeric; korv2 numeric;
+  bsaved boolean := false; korv numeric; korv2 numeric; fit jsonb; wade boolean; peek numeric;
 begin
   f := fx_fisher(u);
   korv := fx_kit_v(u, 'korv'); korv2 := greatest(1, fx_kit_v(u, 'korv', true));
+  if f.auto_dress then perform fx_dress_auto(u, p_spot); end if;
+  fit := fx_fit(u, p_spot); wade := p_spot = 'jogi' and (fit -> 'worn') ? 'wade';
   select * into sp from fish_spots where id = p_spot;
   if sp.id is null then raise exception 'Tundmatu püügikoht'; end if;
   if f.level < sp.min_level then raise exception 'See püügikoht avaneb kalapüügi % tasemel', sp.min_level; end if;
@@ -1539,7 +1587,8 @@ begin
         and (fs.weather is null or wthr = any(fs.weather))
         order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
           -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)
-            * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)) limit 1;
+            * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)
+            * (case when wade and fs.id = any(array['harjus','joeforell','vikerforell','lohe','toogjas','teib','sainas','turb','vimb','koha']) then 1.6 else 1 end)) limit 1;
       exit when s.id is not null;
       rar := rar - 1;
     end loop;
@@ -1548,11 +1597,12 @@ begin
     if random() < 0.03 * (g ->> 'giant')::numeric then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
     wt := round(wt, case when wt < 1 then 3 else 2 end);
   end if;
-  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv));
+  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
+  if kind = 'fish' and (fit -> 'worn') ? 'polar' and wthr in ('paike','pilves') then peek := round(least(1, sqrt(wt / 15.0)), 2); end if;
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
   returning id into cid;
-  return jsonb_build_object('cast_id', cid, 'wait_ms', wait_ms, 'weather', wthr, 'night', night, 'bait_saved', bsaved);
+  return jsonb_build_object('cast_id', cid, 'wait_ms', wait_ms, 'weather', wthr, 'night', night, 'bait_saved', bsaved, 'fit', fit ->> 'tier', 'peek', peek, 'wade', wade);
 end $$;
 
 -- 2) Haagi (kala näkkas)
@@ -1573,7 +1623,7 @@ begin
   select * into f from fishers where user_id = u;
   select * into r from fish_rods where id = f.rod;
   select * into sp from fish_spots where id = c.spot;
-  r.reel_bonus := (fx_gear(u) ->> 'reel')::numeric; r.strength := (fx_gear(u) ->> 'strength')::numeric;
+  r.reel_bonus := (fx_gear(u) ->> 'reel')::numeric + case when (fx_fit(u, c.spot) -> 'worn') ? 'pockets' then 0.03 else 0 end; r.strength := (fx_gear(u) ->> 'strength')::numeric;
   if c.kind = 'fish' then
     select * into s from fish_species where id = c.species;
     diff := s.difficulty;
@@ -1602,7 +1652,7 @@ create or replace function public.fish_land(p_cast bigint) returns jsonb languag
 declare u uuid := fx_uid(); c fish_casts; f fishers; s fish_species; r fish_rods; sp fish_spots;
   chance numeric; wthr text := fx_weather(); v_night boolean := fx_is_night(); levels int[]; xp int; ach jsonb;
   newsp boolean; prevmax numeric; cid bigint; res jsonb; g int; items jsonb := '[]'; tier text; kt jsonb;
-  roll numeric; netsave boolean := false; s2 fish_species; w2 numeric; second jsonb; cid2 bigint;
+  roll numeric; netsave boolean := false; s2 fish_species; w2 numeric; second jsonb; cid2 bigint; fit jsonb; dressed boolean;
 begin
   select * into c from fish_casts where id = p_cast and user_id = u for update;
   if c.id is null or c.state <> 'hooked' then return jsonb_build_object('ok', false, 'reason', 'gone'); end if;
@@ -1662,7 +1712,9 @@ begin
       return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach);
     end if;
   end if;
-  chance := (case when wthr = 'torm' then 0.06 else 0.03 end) * (case when fx_myth(u, 'varjuvork') then 0.5 else 1 end);
+  fit := fx_fit(u, c.spot); dressed := fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0;
+  chance := (case when wthr = 'torm' then 0.06 else 0.03 end) * (case when fx_myth(u, 'varjuvork') then 0.5 else 1 end)
+    * (case when dressed then 0.8 else 1 end) * (case when (fit -> 'worn') ? 'grip' then 0.85 else 1 end);
   roll := random();
   if roll < chance and roll >= chance * (1 - fx_kit_v(u, 'kahv')) then netsave := true; end if;
   if roll < chance * (1 - fx_kit_v(u, 'kahv')) then
@@ -1673,8 +1725,8 @@ begin
   select max(weight) into prevmax from fish_catches where user_id = u and species = s.id and not bought;
   newsp := prevmax is null;
   update fish_casts set state = 'landed' where id = c.id;
-  insert into fish_catches(user_id, species, rarity, weight, spot, giant, night, weather)
-  values (u, s.id, s.rarity, c.weight, c.spot, c.giant, v_night, wthr) returning id into cid;
+  insert into fish_catches(user_id, species, rarity, weight, spot, giant, night, weather, dressed)
+  values (u, s.id, s.rarity, c.weight, c.spot, c.giant, v_night, wthr, dressed) returning id into cid;
   -- uudised erakordsetest püükidest
   if s.rarity >= 3 and not exists (select 1 from fish_catches where species = s.id and id <> cid and not bought) then
     perform fx_news(u, 'first', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
@@ -1701,7 +1753,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus'))) * fx_xp_mult();
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus') + case when dressed then 0.10 else 0 end)) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -1709,7 +1761,7 @@ begin
   return jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
     'xp', xp, 'x2', fx_kuma(), 'fav', c.bait = any(s.baits), 'best', fx_daypart() = any(s.times), 'levels', to_jsonb(levels), 'ach', ach)
-    || jsonb_build_object('net', netsave, 'second', second)
+    || jsonb_build_object('net', netsave, 'second', second, 'dressed', dressed)
     || jsonb_build_object('sec', fx_secret_ev(u, 'catch', jsonb_build_object('species', s.id, 'weather', wthr,
          'killed', coalesce((kt ->> 'killed')::boolean, false), 'boat', sp.boat is not null, 'kt', kt is not null,
          'spot', c.spot, 'night', v_night, 'weight', c.weight)));
@@ -3867,6 +3919,125 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6o. Kaluri riietus (jaotis 2p)
+-- ---------------------------------------------------------------------
+-- praegused tingimused: ilm + külm (öö, talv või jäätunud järv)
+create or replace function public.fx_conds(p_spot text) returns text[] language sql stable as $$
+  select array[fx_weather()] || case when fx_is_night() or fx_is_winter() or p_spot = 'jaa' then array['kylm'] else '{}'::text[] end $$;
+-- mida iga tingimus nõuab: koht → sobivad sildid (sobib, kui riideesemel on vähemalt üks neist)
+create or replace function public.fx_outfit_req(conds text[]) returns jsonb language plpgsql immutable as $$
+declare r jsonb := '{}'; c text; add jsonb;
+begin
+  foreach c in array conds loop
+    add := case c
+      when 'paike' then '{"pea":["sun"],"silmad":["sun"]}'
+      when 'vihm' then '{"pea":["rain"],"keha":["rain"],"jalad":["rain"]}'
+      when 'udu' then '{"keha":["rain"],"jalad":["rain"]}'
+      when 'torm' then '{"keha":["wind"],"pyksid":["wind"],"jalad":["rain"],"kaed":["grip"]}'
+      when 'kylm' then '{"pea":["cold"],"kaed":["cold"],"pyksid":["cold"]}'
+      else '{}' end;
+    select coalesce(jsonb_object_agg(k, (select jsonb_agg(distinct x) from jsonb_array_elements_text(coalesce(r -> k, '[]') || coalesce(add -> k, '[]')) x)), '{}')
+      into r from (select jsonb_object_keys(r) k union select jsonb_object_keys(add)) ks;
+  end loop;
+  return r;
+end $$;
+-- kui hästi kalur on ilma järgi riides
+create or replace function public.fx_fit(u uuid, p_spot text) returns jsonb language plpgsql stable as $$
+declare f fishers; conds text[] := fx_conds(p_spot); req jsonb; k text; tags text[]; ok jsonb := '{}'; n int := 0; m int := 0; worn text[] := '{}'; it text;
+begin
+  select * into f from fishers where user_id = u;
+  req := fx_outfit_req(conds);
+  for k in select jsonb_object_keys(req) loop
+    it := f.outfit ->> k;
+    select c.tags into tags from fish_clothes c where c.id = it and exists (select 1 from fisher_clothes fc where fc.user_id = u and fc.item = c.id);
+    n := n + 1;
+    if tags && array(select jsonb_array_elements_text(req -> k)) then m := m + 1; ok := ok || jsonb_build_object(k, true); else ok := ok || jsonb_build_object(k, false); end if;
+  end loop;
+  select coalesce(array_agg(t), '{}') into worn from fish_clothes c, unnest(c.tags) t
+    where c.id in (select value from jsonb_each_text(f.outfit)) and exists (select 1 from fisher_clothes fc where fc.user_id = u and fc.item = c.id);
+  return jsonb_build_object('conds', to_jsonb(conds), 'req', req, 'ok', ok, 'need', n, 'met', m,
+    'pct', case when n = 0 then 1 else round(m::numeric / n, 2) end,
+    'tier', case when n = 0 then 'ok' when m = n then 'hea' when m::numeric / n < 0.5 then 'halb' else 'ok' end,
+    'worn', to_jsonb(worn));
+end $$;
+
+create or replace function public.wear_state(p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers;
+begin
+  f := fx_fisher(u);
+  if f.auto_dress then perform fx_dress_auto(u, coalesce(p_spot, 'metsajarv')); select * into f from fishers where user_id = u; end if;
+  return jsonb_build_object('gold', f.gold, 'level', f.level, 'outfit', f.outfit, 'auto_dress', f.auto_dress, 'weather', fx_weather(), 'fit', fx_fit(u, coalesce(p_spot, 'metsajarv')),
+    'items', (select jsonb_agg(jsonb_build_object('id', c.id, 'slot', c.slot, 'name', c.name, 'tags', to_jsonb(c.tags), 'descr', c.descr, 'price', c.price,
+               'min_level', c.min_level, 'colors', to_jsonb(c.colors), 'own', fc.user_id is not null, 'color', coalesce(fc.color, c.colors[1])) order by c.sort)
+             from fish_clothes c left join fisher_clothes fc on fc.item = c.id and fc.user_id = u),
+    'dressed', (select count(*) from fish_catches where user_id = u and dressed));
+end $$;
+
+create or replace function public.clothes_buy(p_id text, p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; c fish_clothes;
+begin
+  f := fx_fisher(u);
+  select * into c from fish_clothes where id = p_id;
+  if c.id is null then raise exception 'Tundmatu riideese'; end if;
+  if exists (select 1 from fisher_clothes where user_id = u and item = c.id) then raise exception 'See on sul juba olemas'; end if;
+  if f.level < c.min_level then raise exception 'See avaneb kalapüügi % tasemel', c.min_level; end if;
+  if f.gold < c.price then raise exception 'Kulda jääb puudu'; end if;
+  update fishers set gold = gold - c.price, outfit = outfit || jsonb_build_object(c.slot, c.id) where user_id = u;
+  insert into fisher_clothes(user_id, item, color) values (u, c.id, c.colors[1]);
+  return wear_state(p_spot) || jsonb_build_object('bought', c.id, 'ach', fx_check_ach(u));
+end $$;
+
+create or replace function public.clothes_wear(p_slot text, p_id text, p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u);
+  if p_id is null then update fishers set outfit = outfit - p_slot where user_id = u;
+  else
+    if not exists (select 1 from fisher_clothes fc join fish_clothes c on c.id = fc.item where fc.user_id = u and c.id = p_id and c.slot = p_slot) then raise exception 'Sul pole seda riideeset'; end if;
+    update fishers set outfit = outfit || jsonb_build_object(p_slot, p_id) where user_id = u;
+  end if;
+  return wear_state(p_spot);
+end $$;
+
+-- riietu ilma järgi: iga nõutud koha jaoks parim omatud ese (kõige rohkem sobivaid silte); muud kohad jäävad, tühjad täidetakse
+create or replace function public.fx_dress_auto(u uuid, p_spot text) returns void language plpgsql as $$
+declare req jsonb; k text; best text; o jsonb;
+begin
+  req := fx_outfit_req(fx_conds(p_spot));
+  select outfit into o from fishers where user_id = u;
+  for k in select distinct c.slot from fisher_clothes fc join fish_clothes c on c.id = fc.item where fc.user_id = u loop
+    select c.id into best from fisher_clothes fc join fish_clothes c on c.id = fc.item where fc.user_id = u and c.slot = k
+      order by (select count(*) from unnest(c.tags) t where t = any(array(select jsonb_array_elements_text(coalesce(req -> k, '[]'))))) desc,
+        (c.tags && array['wade','grip','polar','pockets']) desc, c.price desc limit 1;
+    if req ? k or not (o ? k) then o := o || jsonb_build_object(k, best); end if;
+  end loop;
+  update fishers set outfit = o where user_id = u and outfit is distinct from o;
+end $$;
+create or replace function public.clothes_auto(p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u); perform fx_dress_auto(u, p_spot);
+  return wear_state(p_spot) || jsonb_build_object('auto', true);
+end $$;
+create or replace function public.clothes_autoset(p_on boolean, p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u);
+  update fishers set auto_dress = p_on where user_id = u;
+  if p_on then perform fx_dress_auto(u, p_spot); end if;
+  return wear_state(p_spot);
+end $$;
+
+create or replace function public.clothes_color(p_id text, p_color text, p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u);
+  update fisher_clothes fc set color = p_color from fish_clothes c where c.id = fc.item and fc.user_id = u and fc.item = p_id and p_color = any(c.colors);
+  if not found then raise exception 'Seda värvi pole'; end if;
+  return wear_state(p_spot);
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -3884,7 +4055,8 @@ do $$ declare r record; begin
               'secret_animal_tame','secret_animal_gifts','secret_ring','daily_state','daily_claim',
               'lab_state','lab_fuse','lab_upgrade','lab_tank','lab_sell','lab_list','lab_unlist','lab_buy','lab_deliver',
               'research_state','research_start','research_rush','research_claim','research_gene','research_skill',
-              'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect')) loop
+              'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
+              'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
