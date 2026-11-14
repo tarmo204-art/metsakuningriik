@@ -142,6 +142,14 @@ ka juba alanud päeval). Ülesanded 4–6 on eri tüüpi: diverse (eri liigid), 
 kirjutatud, nupp „📍 Kuhu minna?“ → `qgBuild(q)` (koht, sööt, aeg, öö/ilm, nõuanne) ja „Vii mind sinna“ (`qgGo`: koht, sööt
 `equip_bait`, vahekaart, vilkuv „Viska õng“). Uue ülesandetüübi lisamisel lisa see ka `questText` ja `qgBuild` sisse.
 
+**Kalamehe varustus ja püünised** (14.11.2026) – schema.sql 2o (fish_gear, fisher_gear, fish_traps, fishers.license_until,
+fish_catches.trap, liik `vahk` spots='{}') ja 6n (`fx_kit`, `fx_kit_v(u, liik, val2?)`, gear_state, gear_buy, license_buy, trap_set,
+trap_lift, trap_collect). Mõjud: kahv (val = −põgenemine, val2 = −katkiminek, fish_land `net`), söödakorv (fish_cast ootus × (1−val),
+rahulikud kalad baits && {mais,leib} × val2), ridvahoidja (fish_land `second` = teine kala), sump (fx_sell_value +val), söödaämber
+(fish_cast `bait_saved`). Püünised: aeg `val` tundi, kuni `val2` kala, kohad `fx_trap_spots`; püünisekalad (trap ≠ null) ei loe
+ülesannetes (fx_quest_progress). Mäng `src/varustus.js`: `drawKit` (kõik pildid), `drawCrayfish` (drawFishReal 'vahk'),
+poe riiul (tabPood lõpus), vahekaart `puunised`, stseenis poid/ämber/kahv/sump/teine õng, efektid KAHV PÄÄSTIS / TEINE ÕNG.
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,

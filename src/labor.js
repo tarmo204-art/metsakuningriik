@@ -121,7 +121,7 @@ function labCatchEl(sp) { return (FD.sp[sp] && FD.sp[sp].element) || 'vesi' }
 // valitavad vanemad: saak (kept) ja hübriidid (alates 2. tasemest)
 function labPool() {
   const out = [];
-  (FS.inventory || []).filter(x => !x.trophy).forEach(x => { const s = FD.sp[x.species]; if (s) out.push({ kind: 'c', id: x.id, species: x.species, name: s.name, rarity: x.rarity, weight: +x.weight, el: [labCatchEl(x.species)] }) });
+  (FS.inventory || []).filter(x => !x.trophy && x.species !== 'vahk').forEach(x => { const s = FD.sp[x.species]; if (s) out.push({ kind: 'c', id: x.id, species: x.species, name: s.name, rarity: x.rarity, weight: +x.weight, el: [labCatchEl(x.species)] }) });
   if (LAB.d && LAB.d.level >= 2) (LAB.d.fish || []).filter(h => h.status === 'kept').forEach(h => out.push({ kind: 'h', id: h.id, species: h.species, name: h.name, rarity: h.rarity, weight: +h.weight, el: [h.e1, h.e2], h }));
   return out.sort((a, b) => b.rarity - a.rarity || b.weight - a.weight);
 }

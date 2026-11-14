@@ -133,7 +133,7 @@ function fishCard(id) {
   const show = () => {
     showModal(() => {
       const s2 = FD.sp[FC.id], b = (FS.book || {})[s2.id], [rn, rc] = RAR2[s2.rarity] || RAR2[1], df = fdiff(s2.difficulty || 3), now = fdpNow();
-      const where = (s2.spots || []).map(x => FD.spot[x] ? FD.spot[x].name : x).join(', ');
+      const where = (s2.spots || []).length ? s2.spots.map(x => FD.spot[x] ? FD.spot[x].name : x).join(', ') : s2.id === 'vahk' ? 'Metsajärv, Suur jõgi, Kuninglik järv – püütakse ainult vähimõrraga' : '';
       const tags = [s2.night_only ? 'ainult öösel' : '', s2.winter_only ? 'ainult talvel' : '', s2.weather ? 'ainult ' + s2.weather.map(w => WNAME[w] || w).join(' või ') : ''].filter(Boolean);
       const baits = s2.baits || [], times = s2.times || [], bestNow = times.includes(now);
       const pips = Array.from({ length: 10 }, (_, i) => `<i class="${i < (s2.difficulty || 3) ? 'on' : ''}"></i>`).join('');
@@ -155,7 +155,7 @@ function fishCard(id) {
             ${b && b.fa ? `<div class="fc-row"><span class="ic">📖</span><div class="v"><small>Sinu kalaraamatust</small><div class="fc-disc"><span>Avastasid <b>${fcDate(b.fa)}</b> · ${esc(fcSpot(b.fs))}</span>${b.ra && b.n > 1 ? `<span>🏆 Rekord püütud <b>${fcDate(b.ra)}</b> · ${esc(fcSpot(b.rs))}</span>` : ''}</div></div></div>` : ''}
             <div class="fc-row"><span class="ic">📏</span><div class="v"><small>Mängus püütav suurus${s2.real === false ? '' : ' · päris kala mõõdud'}</small>${fcTape(s2, b)}</div></div>
           </div>
-          <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : ''}</div>
+          <div class="fc-go">${firstSpot ? `<button class="btn" type="button" data-fcgo="${firstSpot}">Püüa: ${esc(FD.spot[firstSpot].name)}</button>` : s2.id === 'vahk' ? '<button class="btn" type="button" data-fcgo="@puunised">Pane vähimõrd vette</button>' : ''}</div>
         </div>`;
     }, 'fishcard');
     const card = document.querySelector('#modalCard'); card.style.setProperty('--fcc', (RAR2[s.rarity] || RAR2[1])[1] + '88');
@@ -230,6 +230,7 @@ function favStrip() {
 }
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-fcgo]');
+  if (go && go.dataset.fcgo === '@puunised') { FC.id = null; closeModal(); FV.tab = 'puunised'; renderFV(true); return }
   if (go) { const sp = go.dataset.fcgo; FC.id = null; closeModal(); FV.spot = sp; FV.result = null; FV.phase = 'idle'; FV.msg = ''; FV.tab = 'puuk'; renderFV(true); if (typeof loadOdds === 'function') loadOdds().then(() => renderFV(true)); return }
   const el = e.target.closest('[data-fcard]'); if (!el) return;
   e.preventDefault(); fishCard(el.dataset.fcard);
