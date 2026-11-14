@@ -167,7 +167,8 @@ grip (kindad, põgenemine ×0,85), wade (kahlajad Suurel jõel, jõekalad ×1,6)
 - Kalastusretk `fx_journey` (nädal, 4–6 peatust kättesaadavates kohtades, igas N kala ühest liigist), `journey_advance`.
 - Kahevõitlus reaalajas: `duel_ping` (iga 9 s, võitluse ajal 2,5 s; uuendab `fishers.last_seen`, korrastab aegunud kutsed ja lõppenud
   võitlused `fx_duel_tidy`), `duel_invite` (panus kinni), `duel_answer`. 10 s pärast vastuvõttu algab, kestab 5 min, loetakse saak
-  samas kohas (trap ja ostetud välja). Võitja saab 2 × panus, viik → tagasi. Mängus: kutse aken, HUD püügilehel, tulemuse graafik.
+  samas kohas (trap ja ostetud välja). Punktid `fx_duel_pts` = 100 × kaal / liigi max_w (max 160) – aus eri tasemetele.
+  Võitluse ajal fish_cast kasutab liikide valikul madalama mängija taset. Võitja saab 2 × panus, viik → tagasi. Mängus: kutse aken, HUD püügilehel, tulemuse graafik.
 - Hai pilt `drawShark` (drawFishReal 'ogahai'/'heeringahai').
 
 ## Järgmised plaanid

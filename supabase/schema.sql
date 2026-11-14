@@ -1583,9 +1583,13 @@ declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
   night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart(); lure boolean; rr int;
-  bsaved boolean := false; korv numeric; korv2 numeric; fit jsonb; wade boolean; peek numeric; ev text := fx_event(); evb boolean := false;
+  bsaved boolean := false; korv numeric; korv2 numeric; fit jsonb; wade boolean; peek numeric; ev text := fx_event(); evb boolean := false; lv int;
 begin
   f := fx_fisher(u);
+  -- kahevõitluses on mõlemal samad kalad: arvestatakse madalama mängija taset
+  select least(fa.level, fb.level) into lv from fish_duels d join fishers fa on fa.user_id = d.a join fishers fb on fb.user_id = d.b
+    where (d.a = u or d.b = u) and d.status = 'live' and d.spot = p_spot and now() between d.start_at - interval '15 seconds' and d.end_at limit 1;
+  lv := coalesce(lv, f.level);
   korv := fx_kit_v(u, 'korv'); korv2 := greatest(1, fx_kit_v(u, 'korv', true));
   if f.auto_dress then perform fx_dress_auto(u, p_spot); end if;
   fit := fx_fit(u, p_spot); wade := p_spot = 'jogi' and (fit -> 'worn') ? 'wade';
@@ -1632,7 +1636,7 @@ begin
     if s.id is null and lure and random() < 0.85 then
       rr := rar;
       while rr >= 1 loop
-        select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= f.level and fs.event is null
+        select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
           and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
           and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
           order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)) limit 1;
@@ -1641,7 +1645,7 @@ begin
       end loop;
     end if;
     while s.id is null and rar >= 1 loop
-      select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= f.level and fs.event is null
+      select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
         and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
         and (fs.weather is null or wthr = any(fs.weather))
         order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
@@ -4265,14 +4269,17 @@ begin
 end $$;
 
 -- ---------- kahevõitlus (mõlemad mängus korraga, 5 minutit samas kohas, suurem kogukaal võidab) ----------
+-- kahevõitluse punktid: kui suur kala on oma liigi kohta (suurim tavaline isend = 100 punkti, hiiglane kuni 160)
+create or replace function public.fx_duel_pts(sp text, w numeric) returns int language sql stable as $$
+  select least(160, greatest(1, round(100 * w / nullif((select max_w from public.fish_species where id = sp), 0))))::int $$;
 create or replace function public.fx_duel_json(d fish_duels, u uuid) returns jsonb language plpgsql stable as $$
 declare ca jsonb; cb jsonb;
 begin
   if d.start_at is not null then
-    select coalesce(jsonb_agg(jsonb_build_object('species', species, 'weight', weight, 'at', caught_at) order by caught_at), '[]') into ca from fish_catches
-      where user_id = d.a and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
-    select coalesce(jsonb_agg(jsonb_build_object('species', species, 'weight', weight, 'at', caught_at) order by caught_at), '[]') into cb from fish_catches
-      where user_id = d.b and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
+    select coalesce(jsonb_agg(jsonb_build_object('species', c.species, 'weight', c.weight, 'at', c.caught_at, 'pts', fx_duel_pts(c.species, c.weight)) order by c.caught_at), '[]') into ca from fish_catches c
+      where c.user_id = d.a and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
+    select coalesce(jsonb_agg(jsonb_build_object('species', c.species, 'weight', c.weight, 'at', c.caught_at, 'pts', fx_duel_pts(c.species, c.weight)) order by c.caught_at), '[]') into cb from fish_catches c
+      where c.user_id = d.b and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
   end if;
   return jsonb_build_object('id', d.id, 'status', d.status, 'spot', d.spot, 'stake', d.stake, 'created_at', d.created_at, 'start_at', d.start_at, 'end_at', d.end_at,
     'me_a', d.a = u, 'a_name', (select name from profiles where id = d.a), 'b_name', (select name from profiles where id = d.b),
@@ -4288,8 +4295,8 @@ begin
       update fish_duels set status = 'expired' where id = d.id;
       update fishers set gold = gold + d.stake where user_id = d.a;
     else
-      select coalesce(sum(weight), 0) into wa from fish_catches where user_id = d.a and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
-      select coalesce(sum(weight), 0) into wb from fish_catches where user_id = d.b and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
+      select coalesce(sum(fx_duel_pts(species, weight)), 0) into wa from fish_catches where user_id = d.a and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
+      select coalesce(sum(fx_duel_pts(species, weight)), 0) into wb from fish_catches where user_id = d.b and spot = d.spot and caught_at >= d.start_at and caught_at < d.end_at and not bought and trap is null;
       if wa > wb then update fishers set gold = gold + d.stake * 2 where user_id = d.a;
       elsif wb > wa then update fishers set gold = gold + d.stake * 2 where user_id = d.b;
       else update fishers set gold = gold + d.stake where user_id in (d.a, d.b); end if;
