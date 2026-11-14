@@ -151,6 +151,7 @@ function fishCard(id) {
             <div class="fc-row"><span class="ic">🕐</span><div class="v"><small>Parim aeg</small>
               ${b ? (times.length ? `<div class="fc-time">${fcDayRing(times, now)}<div class="tl">${times.map(t => `<span>${DP[t] ? DP[t][0] + ' ' + DP[t][1] + ' <small style="color:#8fb0ba">' + DP[t][2] + '</small>' : t}</span>`).join('')}${bestNow ? '<span class="now">✨ Praegu on parim aeg!</span>' : ''}</div></div>` : '<span>Igal ajal</span>') : '<span class="fc-hid">???</span>'}</div></div>
             <div class="fc-row"><span class="ic">💪</span><div class="v"><small>Raskus</small><div class="fc-pips" style="--dc:${df[2]}" aria-label="Raskus ${s2.difficulty} / 10">${pips}</div></div></div>
+            ${typeof ilmRow === 'function' ? ilmRow(s2) : ''}
             <div class="fc-row"><span class="ic">🎂</span><div class="v"><small>Vanus · ${s2.real === false ? 'muinasjutu järgi elab' : 'elab'} kuni ~${fmt(s2.max_age || 0)} aastat</small>${fcAges(s2, b)}</div></div>
             ${b && b.fa ? `<div class="fc-row"><span class="ic">📖</span><div class="v"><small>Sinu kalaraamatust</small><div class="fc-disc"><span>Avastasid <b>${fcDate(b.fa)}</b> · ${esc(fcSpot(b.fs))}</span>${b.ra && b.n > 1 ? `<span>🏆 Rekord püütud <b>${fcDate(b.ra)}</b> · ${esc(fcSpot(b.rs))}</span>` : ''}</div></div></div>` : ''}
             <div class="fc-row"><span class="ic">📏</span><div class="v"><small>Mängus püütav suurus${s2.real === false ? '' : ' · päris kala mõõdud'}</small>${fcTape(s2, b)}</div></div>

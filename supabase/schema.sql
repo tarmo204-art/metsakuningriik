@@ -1230,6 +1230,24 @@ on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=e
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
 -- ---------------------------------------------------------------------
+-- 2r. Ilmastik nagu päris elus: aastaaeg, õhu- ja veetemperatuur (Eesti keskmised), õhurõhk ja selle muutus.
+--     Iga liik reageerib omamoodi: temp_pref (cold/cool/warm) ja wx_tags (pred, night, rain, dim, sun).
+-- ---------------------------------------------------------------------
+alter table public.fish_species add column if not exists temp_pref text not null default 'cool';
+alter table public.fish_species add column if not exists wx_tags text[] not null default '{}';
+update public.fish_species set temp_pref = case
+  when id = any(array['luts','siig','raabis','peled','joeforell','vikerforell','harjus','lohe','meriforell','tursk','joesilm','ojasilm','merihark','tint','emakala','kilu','raim','ogahai']) then 'cold'
+  when id = any(array['karpkala','linask','latikas','saga','koger','hobekoger','hobekarp','amuur','roosarg','vingerjas','nurg','hink','tuun']) then 'warm'
+  else 'cool' end,
+ wx_tags = array_remove(array[
+  case when id = any(array['haug','ahven','koha','toogjas','tursk','meriforell','lohe','joeforell','vikerforell','nokkhaug','makrell','tuun','sainas','heeringahai','ogahai','merikurat']) then 'pred' end,
+  case when id = any(array['angerjas','luts','saga','koha','vingerjas','emakala','joesilm']) then 'night' end,
+  case when id = any(array['ahven','joeforell','vikerforell','sarg','teib','sainas','harjus','meriforell','turb','lohe']) then 'rain' end,
+  case when id = any(array['koha','haug','toogjas','luts','angerjas']) then 'dim' end,
+  case when id = any(array['karpkala','koger','hobekoger','hobekarp','roosarg','amuur','viidikas']) then 'sun' end], null)
+where real;
+
+-- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1583,7 +1601,7 @@ declare
   u uuid := fx_uid(); f fishers; sp fish_spots; b fish_baits; w numeric[]; roll numeric; acc numeric := 0; rar int := 1; i int;
   s fish_species; kind text := 'fish'; junk text; wt numeric; giant boolean := false; wait_ms int; cid bigint; cnt int;
   night boolean := fx_is_night(); winter boolean := fx_is_winter(); wthr text := fx_weather(); g jsonb; chm numeric; dp text := fx_daypart(); lure boolean; rr int;
-  bsaved boolean := false; korv numeric; korv2 numeric; fit jsonb; wade boolean; peek numeric; ev text := fx_event(); evb boolean := false; lv int;
+  bsaved boolean := false; korv numeric; korv2 numeric; fit jsonb; wade boolean; peek numeric; ev text := fx_event(); evb boolean := false; lv int; wtemp numeric := fx_water(p_spot, now()); wpre boolean := fx_prestorm(); avgact numeric; att int; evs boolean;
 begin
   f := fx_fisher(u);
   -- kahevõitluses on mõlemal samad kalad: arvestatakse madalama mängija taset
@@ -1627,40 +1645,50 @@ begin
     elsif ev = 'saga' and p_spot = any(array['jogi','kuninglik']) and f.level >= 16 and random() < (case when night then 0.18 else 0.06 end) then
       select * into s from fish_species where id = 'saga'; evb := true;
     end if;
-    w := fx_rarity_weights(u, p_spot, p_bait);
-    roll := random() * 100;
-    for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
-    -- Lant (peibutis, mis ei kulu ja on ostetud) meelitab peamiselt röövkalu: 85% juhtudest otsitakse
-    -- valitud või madalamast klassist kala, kelle lemmik on lant; muidu tavaline valik (rahulik kala harva).
-    lure := not b.consumable and b.price > 0;
-    if s.id is null and lure and random() < 0.85 then
-      rr := rar;
-      while rr >= 1 loop
-        select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
+    -- ilm ja vesi: loid kala jätab sageli näkkamata – siis proovib järgmine (kuni 3 korda)
+    evs := s.id is not null;
+    for att in 1..3 loop
+      acc := 0; rar := 1;
+      w := fx_rarity_weights(u, p_spot, p_bait);
+      roll := random() * 100;
+      for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
+      -- Lant (peibutis, mis ei kulu ja on ostetud) meelitab peamiselt röövkalu: 85% juhtudest otsitakse
+      -- valitud või madalamast klassist kala, kelle lemmik on lant; muidu tavaline valik (rahulik kala harva).
+      lure := not b.consumable and b.price > 0;
+      if s.id is null and lure and random() < 0.85 then
+        rr := rar;
+        while rr >= 1 loop
+          select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
+            and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
+            and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
+            order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
+          exit when s.id is not null;
+          rr := rr - 1;
+        end loop;
+      end if;
+      while s.id is null and rar >= 1 loop
+        select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
           and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
-          and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
-          order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)) limit 1;
+          and (fs.weather is null or wthr = any(fs.weather))
+          order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
+            -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)
+              * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)
+              * (case when wade and fs.id = any(array['harjus','joeforell','vikerforell','lohe','toogjas','teib','sainas','turb','vimb','koha']) then 1.6 else 1 end)
+              * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
         exit when s.id is not null;
-        rr := rr - 1;
+        rar := rar - 1;
       end loop;
-    end if;
-    while s.id is null and rar >= 1 loop
-      select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
-        and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
-        and (fs.weather is null or wthr = any(fs.weather))
-        order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
-          -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)
-            * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)
-            * (case when wade and fs.id = any(array['harjus','joeforell','vikerforell','lohe','toogjas','teib','sainas','turb','vimb','koha']) then 1.6 else 1 end)) limit 1;
-      exit when s.id is not null;
-      rar := rar - 1;
+      exit when s.id is null or evs or att = 3 or random() < least(1, fx_act(s.temp_pref, s.wx_tags, wthr, wtemp, wpre, dp) / 1.15);
+      s := null;
     end loop;
     if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
     wt := s.min_w + (s.max_w - s.min_w) * power(random(), case when evb then 1.3 else 2.2 end);
     if random() < 0.03 * (g ->> 'giant')::numeric then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
     wt := round(wt, case when wt < 1 then 3 else 2 end);
   end if;
-  wait_ms := round((1800 + random() * 5200) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
+  -- kalade üldine aktiivsus selles kohas mõjutab, kui kiiresti näkkab
+  select avg(fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) into avgact from fish_species fs where p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null;
+  wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
   if kind = 'fish' and (fit -> 'worn') ? 'polar' and wthr in ('paike','pilves') then peek := round(least(1, sqrt(wt / 15.0)), 2); end if;
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
@@ -4360,6 +4388,82 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6q. Ilmastik (jaotis 2r)
+-- ---------------------------------------------------------------------
+-- ilm antud hetkel (3-tunnised plokid, kõigile sama)
+create or replace function public.fx_weather_at(ts timestamptz) returns text language sql immutable as $$
+  select case when h < 35 then 'paike' when h < 60 then 'pilves' when h < 80 then 'vihm' when h < 92 then 'udu' else 'torm' end
+  from (select abs(hashtext('ilm' || floor(extract(epoch from ts) / 10800)::text)) % 100 as h) x $$;
+create or replace function public.fx_season(ts timestamptz default now()) returns text language sql stable as $$
+  select case when m in (12,1,2) then 'talv' when m in (3,4,5) then 'kevad' when m in (6,7,8) then 'suvi' else 'sügis' end
+  from (select extract(month from ts at time zone 'Europe/Tallinn')::int m) x $$;
+-- kuu keskmistest sujuvalt (päev aastas), Tallinna kliima
+create or replace function public.fx_clim(ts timestamptz, kind text) returns numeric language plpgsql immutable as $$
+declare loc timestamp := ts at time zone 'Europe/Tallinn'; doy numeric := extract(doy from loc) + extract(hour from loc) / 24.0;
+  air numeric[] := array[-3.5,-4,-0.8,5,11,15,18,17,12,7,2.5,-1]; wat numeric[] := array[1,0.5,1,4,10,16,19,18,14,9,5,2];
+  v numeric[]; m numeric; i int; j int; f numeric;
+begin
+  v := case when kind = 'air' then air else wat end;
+  m := (doy - 15.5) / 30.44; i := floor(m)::int; f := m - i; j := i + 1;
+  i := ((i % 12) + 12) % 12 + 1; j := ((j % 12) + 12) % 12 + 1;
+  return v[i] * (1 - f) + v[j] * f;
+end $$;
+create or replace function public.fx_pressure(ts timestamptz) returns numeric language sql immutable as $$
+  select (case w when 'paike' then 1022 when 'pilves' then 1013 when 'vihm' then 1004 when 'udu' then 1016 else 992 end)
+    + (abs(hashtext('rohk' || floor(extract(epoch from ts) / 10800)::text)) % 9) - 4
+  from (select public.fx_weather_at(ts) w) x $$;
+create or replace function public.fx_air(ts timestamptz) returns numeric language plpgsql immutable as $$
+declare loc timestamp := ts at time zone 'Europe/Tallinn'; h numeric := extract(hour from loc) + extract(minute from loc) / 60.0; w text := public.fx_weather_at(ts);
+  amp numeric := case when extract(month from loc) between 5 and 8 then 5 when extract(month from loc) in (11,12,1,2) then 2 else 3.5 end;
+begin
+  return round(public.fx_clim(ts, 'air') + amp * cos((h - 15) / 24 * 2 * pi())::numeric
+    + case w when 'paike' then case when h between 9 and 18 then 2.5 else -2 end when 'vihm' then -1.5 when 'udu' then -1 when 'torm' then -2.5 else 0 end, 1);
+end $$;
+create or replace function public.fx_water(p_spot text, ts timestamptz) returns numeric language plpgsql immutable as $$
+declare loc timestamp := ts at time zone 'Europe/Tallinn'; h numeric := extract(hour from loc); base numeric := public.fx_clim(ts, 'water');
+begin
+  if p_spot = 'jaa' then return 1.0; end if;
+  if p_spot = 'sugavik' then return round(4 + base * 0.15, 1); end if;
+  return round(greatest(0.2, base + 0.6 * cos((h - 17) / 24 * 2 * pi())::numeric
+    + case when p_spot in ('meri','saarestik','avameri') then case when base > 10 then -1.5 else 1 end when p_spot = 'jogi' then case when base > 10 then -1 else 0.3 end else 0 end), 1);
+end $$;
+-- kas torm on tulekul (järgmine plokk on torm, praegu mitte) – rõhk langeb ja kalad söövad ahnelt
+create or replace function public.fx_prestorm(ts timestamptz default now()) returns boolean language sql immutable as $$
+  select public.fx_weather_at(ts) <> 'torm' and public.fx_weather_at(ts + interval '3 hours') = 'torm' $$;
+-- liigi aktiivsus 0,25–1,9 (1 = tavaline)
+create or replace function public.fx_act(pref text, tags text[], wthr text, water numeric, pre boolean, dp text) returns numeric language sql immutable as $$
+  select least(1.9, greatest(0.25,
+    (0.35 + 0.95 * exp(-power((water - case pref when 'cold' then 6 when 'warm' then 22 else 14 end) / case pref when 'cold' then 8 when 'warm' then 7 else 11 end, 2)))
+    * case wthr when 'paike' then case when 'sun' = any(tags) then 1.15 else 0.82 end
+                when 'pilves' then case when 'dim' = any(tags) then 1.2 else 1 end
+                when 'vihm' then case when 'rain' = any(tags) then 1.35 else 1.05 end
+                when 'udu' then case when 'dim' = any(tags) then 1.3 else 0.95 end
+                else case when 'pred' = any(tags) then 1.05 else 0.85 end end
+    * case when pre then 1.4 else 1 end
+    * case dp when 'hommik' then case when 'pred' = any(tags) then 1.25 else 1.05 end
+              when 'õhtu' then case when 'pred' = any(tags) then 1.25 else 1.05 end
+              when 'öö' then case when 'night' = any(tags) then 1.45 else 0.9 end
+              else case when 'sun' = any(tags) then 1.1 when 'pred' = any(tags) then 0.88 else 0.95 end end))::numeric $$;
+
+create or replace function public.weather_state(p_spot text default 'metsajarv') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; wthr text := fx_weather(); water numeric := fx_water(p_spot, now()); pre boolean := fx_prestorm(); dp text := fx_daypart();
+  blk timestamptz := to_timestamp(floor(extract(epoch from now()) / 10800) * 10800); fc jsonb := '[]'; i int;
+begin
+  f := fx_fisher(u);
+  for i in 1..4 loop
+    fc := fc || jsonb_build_object('at', blk + make_interval(hours => 3 * i), 'weather', fx_weather_at(blk + make_interval(hours => 3 * i)),
+      'air', fx_air(blk + make_interval(hours => 3 * i) + interval '90 minutes'), 'pressure', fx_pressure(blk + make_interval(hours => 3 * i)));
+  end loop;
+  return jsonb_build_object('now', now(), 'spot', p_spot, 'season', fx_season(), 'weather', wthr, 'daypart', dp, 'night', fx_is_night(),
+    'air', fx_air(now()), 'water', water, 'pressure', fx_pressure(now()), 'trend', fx_pressure(blk + interval '3 hours') - fx_pressure(now()), 'prestorm', pre,
+    'block_end', blk + interval '3 hours', 'forecast', fc,
+    'species', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'pref', s.temp_pref, 'tags', to_jsonb(s.wx_tags),
+                  'act', round(fx_act(s.temp_pref, s.wx_tags, wthr, water, pre, dp), 2)) order by fx_act(s.temp_pref, s.wx_tags, wthr, water, pre, dp) desc), '[]')
+                from fish_species s where p_spot = any(s.spots) and s.min_level <= f.level and s.event is null
+                  and (not s.night_only or fx_is_night()) and (not s.winter_only or fx_is_winter() or p_spot = 'jaa') and (s.weather is null or wthr = any(s.weather))));
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -4379,7 +4483,8 @@ do $$ declare r record; begin
               'research_state','research_start','research_rush','research_claim','research_gene','research_skill',
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
-              'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer')) loop
+              'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
+              'weather_state')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

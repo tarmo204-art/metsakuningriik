@@ -171,6 +171,12 @@ grip (kindad, põgenemine ×0,85), wade (kahlajad Suurel jõel, jõekalad ×1,6)
   Võitluse ajal fish_cast kasutab liikide valikul madalama mängija taset. Võitja saab 2 × panus, viik → tagasi. Mängus: kutse aken, HUD püügilehel, tulemuse graafik.
 - Hai pilt `drawShark` (drawFishReal 'ogahai'/'heeringahai').
 
+**Ilmastik nagu päris elus** (14.11.2026) – schema.sql 2r (fish_species.temp_pref cold/cool/warm, wx_tags pred/night/rain/dim/sun)
+ja 6q (fx_weather_at, fx_season, fx_clim – Tallinna kuu keskmised, fx_air, fx_water (koha järgi), fx_pressure, fx_prestorm, fx_act, weather_state).
+fish_cast: liigi valik × fx_act; kui valitud kala on loid, proovitakse uuesti (kuni 3 korda, tõenäosus act/1,15); ootus sõltub koha
+keskmisest aktiivsusest. Mäng `src/ilm.js`: ilmajaam püügilehel (termomeetrid, baromeeter, 12 h ilmateade, kalade aktiivsus põhjustega),
+kalakaardil rida „Millal aktiivne“ (`ilmRow`). Uue päris kala lisamisel määra temp_pref ja wx_tags (schema.sql 2r).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
