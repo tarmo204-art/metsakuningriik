@@ -1381,6 +1381,14 @@ update public.fish_species s set season = v.se from (values
  ('lohe','{sügis}'), ('meriforell','{sügis}'), ('siig','{sügis}'), ('angerjas','{suvi}'), ('linask','{suvi}'), ('karpkala','{suvi}'), ('latikas','{suvi}'), ('koha','{suvi,sügis}')
 ) v(id, se) where s.id = v.id;
 
+-- 2x. Kaluri statistika: uued saavutused
+insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
+ ('kirst10','Aardekütt','Leia 10 veealust aardekirstu',null,2000,800,90),
+ ('oo100','Öö valitseja','Püüa öösel 100 kala','Öö valitseja',1500,700,91),
+ ('voit10','Võistluste kuningas','Võida 10 kalapüügivõistlust','Võistluste kuningas',8000,3000,92),
+ ('boss1','Koletise alistaja','Aita Kalatunnis järvekoletis alistada',null,1500,600,93)
+on conflict (id) do update set name = excluded.name, descr = excluded.descr, title = excluded.title, reward_gold = excluded.reward_gold, reward_xp = excluded.reward_xp, sort = excluded.sort;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1566,6 +1574,8 @@ begin
       when 'parija' then exists (select 1 from public.fisher_myth where user_id = u and myth = 'parijasormus')
       when 'taht1' then f.prestige >= 1 when 'taht5' then f.prestige >= 5 when 'taht10' then f.prestige >= 10 when 'taht25' then f.prestige >= 25
       when 'oo' then f.night >= 50 when 'prugi' then f.junk >= 10 when 'kirst' then f.chests >= 5
+      when 'oo100' then f.night >= 100 when 'kirst10' then f.chests >= 10 when 'voit10' then f.comp_wins >= 10
+      when 'boss1' then exists (select 1 from public.kalatund_score k join public.kalatund_boss b on b.day = k.day where k.user_id = u and k.dmg > 0 and b.killed_at is not null)
       when 'kuldkala' then coalesce(hasgold,false) when 'tellimused' then f.orders_done >= 20
       when 'voitja' then f.comp_wins >= 1 when 'murdja' then f.broken >= 5
       when 'ilmakalur' then nweather_all > 0 and nweather >= nweather_all when 'kuldkirst' then goldchest
@@ -5083,6 +5093,43 @@ begin
           from fish_catches where user_id = u and not bought group by 1 order by 1 desc limit 30) x) q);
 end $$;
 
+-- 6w. Kaluri statistika: kõik numbrid tulevad mängija enda päris püükidest
+create or replace function public.fish_stats() returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; fish jsonb; byr jsonb; rec jsonb := '{}'; x record; fast numeric; streak int; boss jsonb;
+begin
+  select * into f from fishers where user_id = u;
+  if f.user_id is null then return jsonb_build_object('empty', true); end if;
+  select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought and species is not null group by rarity) q;
+  -- isiklikud rekordid
+  select species, weight, rarity, caught_at, spot into x from fish_catches where user_id = u and not bought order by weight desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('big', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'at', x.caught_at, 'spot', x.spot)); end if;
+  select c.species, c.weight, c.rarity, fx_base_value(c.species, c.weight) v into x from fish_catches c where c.user_id = u and not c.bought order by 4 desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('value', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'v', x.v)); end if;
+  select c.species, c.weight, c.rarity, fx_duel_pts(c.species, c.weight) p into x from fish_catches c where c.user_id = u and not c.bought order by 4 desc, c.weight desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('pts', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'p', x.p)); end if;
+  select c.species, c.weight, c.rarity, c.spot into x from fish_catches c join fish_spots sp on sp.id = c.spot where c.user_id = u and not c.bought order by sp.difficulty desc, sp.min_level desc, c.weight desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('deep', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'spot', x.spot)); end if;
+  select c.species, c.weight, c.rarity into x from fish_catches c where c.user_id = u and not c.bought order by c.rarity desc, c.weight desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('rare', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity)); end if;
+  select min(extract(epoch from hooked_at - bite_at)) into fast from fish_casts where user_id = u and state = 'landed' and kind = 'fish' and hooked_at is not null and hooked_at >= bite_at;
+  if fast is not null then rec := rec || jsonb_build_object('fast', round(fast, 2)); end if;
+  -- pikim järjestikuste püügipäevade seeria
+  select coalesce(max(n), 0) into streak from (select count(*) n from (select d, d - (row_number() over (order by d))::int g from (select distinct (caught_at at time zone 'Europe/Tallinn')::date d from fish_catches where user_id = u and not bought) a) b group by g) z;
+  if streak > 0 then rec := rec || jsonb_build_object('streak', streak); end if;
+  select max(pts) into fast from kalatund_score where user_id = u;
+  if fast is not null and fast > 0 then rec := rec || jsonb_build_object('comp', fast); end if;
+  -- bossid (Kalatunni järvekoletis)
+  select jsonb_build_object(
+    'killed', count(*) filter (where b.killed_at is not null and k.dmg > 0), 'dmg', coalesce(sum(k.dmg), 0), 'best', coalesce(max(k.dmg), 0), 'joined', count(*),
+    'prizes', (select count(*) from kalatund_prize z join kalatund_boss b2 on b2.day = z.day join kalatund_score k2 on k2.day = z.day and k2.user_id = u where z.user_id = u and b2.killed_at is not null and k2.dmg > 0),
+    'strongest', max(b.max_hp) filter (where b.killed_at is not null and k.dmg > 0)) into boss
+  from kalatund_score k left join kalatund_boss b on b.day = k.day where k.user_id = u;
+  return jsonb_build_object('total', f.total, 'level', f.level, 'title', f.title, 'by_rarity', byr,
+    'night', f.night, 'junk', f.junk, 'chests', f.chests, 'lost', f.lost, 'broken', f.broken, 'orders', f.orders_done, 'quests', coalesce(f.quests_done, 0), 'wins', f.comp_wins,
+    'records', rec, 'boss', boss,
+    'species', (select count(distinct species) from fish_catches where user_id = u and not bought and species is not null), 'species_all', (select count(*) from fish_species));
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5103,7 +5150,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
