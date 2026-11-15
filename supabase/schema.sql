@@ -122,6 +122,7 @@ create table if not exists public.fish_catches (
 );
 create index if not exists fish_catches_user on public.fish_catches(user_id, status);
 create index if not exists fish_catches_time on public.fish_catches(caught_at);
+create index if not exists fish_catches_spw on public.fish_catches(species, weight desc);
 create table if not exists public.fish_unlocked (
   user_id uuid not null references auth.users(id) on delete cascade,
   ach text not null references public.fish_achievements(id),
@@ -1985,6 +1986,12 @@ begin
     perform fx_news(u, 'catch', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
   elsif c.giant and s.rarity >= 3 then
     perform fx_news(u, 'giant', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
+  elsif c.weight >= 1 and c.weight > coalesce((select max(weight) from fish_catches where species = s.id and id <> cid and not bought), c.weight) then
+    -- uus mängurekord selle liigi kohta (kõigi mängijate peale)
+    perform fx_news(u, 'grecord', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
+  elsif c.weight >= 10 and c.weight > coalesce((select max(weight) from fish_catches where user_id = u and id <> cid and not bought), c.weight) then
+    -- mängija kõigi aegade suurim kala
+    perform fx_news(u, 'pbig', jsonb_build_object('species', s.id, 'weight', c.weight, 'rarity', s.rarity));
   end if;
   -- harva leiab kala kõhust midagi
   if random() < 0.04 then items := fx_give_random(u, least(5, s.rarity + 1), 1); end if;
@@ -2302,7 +2309,7 @@ begin
       elsif cmp = 'rare' then v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Haruldaste jahtija';
       else v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Nädala kalur'; end if;
       insert into fish_prizes(user_id, comp, period, place) values (u, cmp, per.p_start, pl);
-      if pl = 1 then perform fx_news(u, 'comp', jsonb_build_object('comp', cmp, 'period', per.p_start)); end if;
+      if pl <= 3 then perform fx_news(u, 'comp', jsonb_build_object('comp', cmp, 'period', per.p_start, 'place', pl)); end if;
       update fishers set gold = fishers.gold + v_gold, comp_wins = comp_wins + (pl = 1)::int,
         titles = case when pl = 1 and not (ttl = any(titles)) then titles || ttl else titles end where user_id = u;
       levels := levels || fx_add_xp(u, v_xp);
@@ -2999,6 +3006,7 @@ begin
     if b.hp <= 0 then
       update kalatund_boss set killed_at = now(), killer = u where day = d; killed := true;
       perform fx_news(u, 'boss', jsonb_build_object('day', d));
+      perform fx_news(u, 'boss_team', fx_boss_team(d));
     end if;
   end if;
   insert into kalatund_score(day, user_id, pts, fish, dmg, best_rarity) values (d, u, v_pts, 1, v_dmg, p_rarity)
@@ -4899,7 +4907,8 @@ begin
   v_dmg := case when b.killed_at is null then least(b.hp, v_pts) else 0 end;
   if v_dmg > 0 then
     update public.kalatund_boss set hp = hp - v_dmg where day = d returning * into b;
-    if b.hp <= 0 then update public.kalatund_boss set killed_at = now(), killer = null, killer_bot = p_bot where day = d; end if;
+    if b.hp <= 0 then update public.kalatund_boss set killed_at = now(), killer = null, killer_bot = p_bot where day = d;
+      insert into public.fish_news(at, user_id, bot, kind, data) values (now(), null, p_bot, 'boss_team', public.fx_boss_team(d)); end if;
   end if;
   insert into public.kalatund_bot_score(day, bot, pts, fish, dmg) values (d, p_bot, v_pts, 1, v_dmg)
   on conflict (day, bot) do update set pts = kalatund_bot_score.pts + v_pts, fish = kalatund_bot_score.fish + 1, dmg = kalatund_bot_score.dmg + v_dmg;
@@ -5153,6 +5162,22 @@ begin
     'species', (select count(distinct species) from fish_catches where user_id = u and not bought and species is not null), 'species_all', (select count(*) from fish_species));
 end $$;
 
+-- 6x. Kuningriigi uudised: bossi alistajad ja vanemate uudiste lehitsemine
+create or replace function public.fx_boss_team(d date) returns jsonb language sql stable as $$
+  select jsonb_build_object('day', d, 'n', (select count(*) from public.kalatund_score where day = d and dmg > 0) + (select count(*) from public.kalatund_bot_score where day = d and dmg > 0),
+    'names', coalesce((select jsonb_agg(z.nm order by z.dmg desc) from (
+        select case when p.hidden then 'Salapärane kalur' else p.name end nm, k.dmg from public.kalatund_score k join public.profiles p on p.id = k.user_id where k.day = d and k.dmg > 0
+        union all select b.name || ' 🎣', k.dmg from public.kalatund_bot_score k join public.fish_bots b on b.id = k.bot where k.day = d and k.dmg > 0
+        order by 2 desc limit 8) z), '[]')) $$;
+create or replace function public.kingdom_news_older(p_before bigint) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.id desc), '[]') from (
+    select n.id, n.at, n.kind, n.data, coalesce(n.user_id = auth.uid(), false) as me, n.bot, bt.emoji as bot_emoji,
+      case when n.bot is not null then bt.name when p.hidden and n.user_id <> auth.uid() then 'Salapärane kalur' else coalesce(p.name, 'Kalur') end as name,
+      case when n.bot is not null then 'Järve kalur' when p.hidden and n.user_id <> auth.uid() then null else f.title end as title
+    from fish_news n left join profiles p on p.id = n.user_id left join fishers f on f.user_id = n.user_id left join fish_bots bt on bt.id = n.bot
+    where n.id < p_before order by n.id desc limit 30) x
+$$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5173,7 +5198,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
