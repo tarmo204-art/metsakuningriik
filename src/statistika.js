@@ -101,6 +101,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 async function ksLoad(force) {
   if (KS.loading || (!force && KS.d && Date.now() - KS.at < 30000)) return;
   KS.loading = true; try { KS.d = await rpc('fish_stats'); KS.at = Date.now() } catch (e) { KS.err = e.message } KS.loading = false;
+  if (KS.d && (KS.d.ach || []).length) { try { afterAch(KS.d.ach) } catch (e) { } try { await refreshFS() } catch (e) { } if (typeof sfx === 'function') sfx('levelup') }
   if (FV.open && FV.tab === 'stats') renderFV(true);
 }
 const KS_NONE = 'Pole veel saavutatud';

@@ -1383,7 +1383,7 @@ update public.fish_species s set season = v.se from (values
 
 -- 2x. Kaluri statistika: uued saavutused
 insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
- ('kirst10','Aardekütt','Leia 10 veealust aardekirstu',null,2000,800,90),
+ ('kirst10','Suur aardekütt','Leia 10 veealust aardekirstu',null,2000,800,90),
  ('oo100','Öö valitseja','Püüa öösel 100 kala','Öö valitseja',1500,700,91),
  ('voit10','Võistluste kuningas','Võida 10 kalapüügivõistlust','Võistluste kuningas',8000,3000,92),
  ('boss1','Koletise alistaja','Aita Kalatunnis järvekoletis alistada',null,1500,600,93)
@@ -5094,11 +5094,14 @@ begin
 end $$;
 
 -- 6w. Kaluri statistika: kõik numbrid tulevad mängija enda päris püükidest
-create or replace function public.fish_stats() returns jsonb language plpgsql stable security definer set search_path = public as $$
-declare u uuid := fx_uid(); f fishers; fish jsonb; byr jsonb; rec jsonb := '{}'; x record; fast numeric; streak int; boss jsonb;
+create or replace function public.fish_stats() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; fish jsonb; byr jsonb; rec jsonb := '{}'; x record; fast numeric; streak int; boss jsonb; newach jsonb;
 begin
   select * into f from fishers where user_id = u;
   if f.user_id is null then return jsonb_build_object('empty', true); end if;
+  -- kui mõni saavutus on juba täis, aga pole veel avatud (nt uued saavutused vanadele mängijatele), avatakse see kohe koos auhinnaga
+  newach := fx_check_ach(u);
+  select * into f from fishers where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought and species is not null group by rarity) q;
   -- isiklikud rekordid
   select species, weight, rarity, caught_at, spot into x from fish_catches where user_id = u and not bought order by weight desc limit 1;
@@ -5124,7 +5127,7 @@ begin
     'prizes', (select count(*) from kalatund_prize z join kalatund_boss b2 on b2.day = z.day join kalatund_score k2 on k2.day = z.day and k2.user_id = u where z.user_id = u and b2.killed_at is not null and k2.dmg > 0),
     'strongest', max(b.max_hp) filter (where b.killed_at is not null and k.dmg > 0)) into boss
   from kalatund_score k left join kalatund_boss b on b.day = k.day where k.user_id = u;
-  return jsonb_build_object('total', f.total, 'level', f.level, 'title', f.title, 'by_rarity', byr,
+  return jsonb_build_object('ach', newach, 'total', f.total, 'level', f.level, 'title', f.title, 'by_rarity', byr,
     'night', f.night, 'junk', f.junk, 'chests', f.chests, 'lost', f.lost, 'broken', f.broken, 'orders', f.orders_done, 'quests', coalesce(f.quests_done, 0), 'wins', f.comp_wins,
     'records', rec, 'boss', boss,
     'species', (select count(distinct species) from fish_catches where user_id = u and not bought and species is not null), 'species_all', (select count(*) from fish_species));
