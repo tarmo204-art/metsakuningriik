@@ -16,7 +16,7 @@ const SH_GEAR = {
   '🕶 Vees liigub kala…': ['🕶️ VEES LIIKUB KALA…', 'peek', 'Midagi liigub vee all. Ole tähelepanelik!'],
   '🕶 Suur vari läheneb!': ['🕶️ SUUR VARI LÄHENEB!', 'vari', 'Vee sügavusest läheneb midagi suurt. Valmistu tõeliseks võitluseks!']
 };
-{ const _ft = fxText; fxText = function (x, y, txt, col, size) { if (SH_OWN.has(txt)) return; const g = SH_GEAR[txt]; if (g) { shout(g[0], g[1], g[2]); return } return _ft(x, y, txt, col, size) } }
+{ const _ft = fxText; fxText = function (x, y, txt, col, size) { if (SH_OWN.has(txt)) return; const g = SH_GEAR[txt]; if (g) { shout(g[0], g[1]); return } return _ft(x, y, txt, col, size) } }
 
 const SH_STYLE = {
   tapne: { col: '#5fe08a', hi: '#e8fff0', fx: 'flash', dur: 1.0, size: 1, sfx: 'tapne' },
@@ -190,7 +190,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
   const _lose = doLose; doLose = async function (msg) { if (!FV.loss || FV.loss.k !== 'release') shout('PÄÄSES!', 'paases'); return _lose.apply(this, arguments) };
   // kala pääses viimasel hetkel või murdis õnge (need ei käi läbi doLose)
   const _sp = setPhase; setPhase = function (p, msg) { const was = FV.phase; _sp(p, msg); if (p === 'lost' && FV.loss && (FV.loss.k === 'last' || FV.loss.k === 'gone') && was !== 'lost') shout('PÄÄSES!', 'paases');
-    if (p === 'reel' && FV.hook && +FV.hook.est >= +FV.hook.strength * 1.5) shout('🐉 MIDAGI HIIGLASLIKKU!', 'hiiglane', 'Vee all liigub midagi, mida tavalise õngega püüda ei tasu!');
+    if (p === 'reel' && FV.hook && +FV.hook.est >= +FV.hook.strength * 1.5) shout('🐉 MIDAGI HIIGLASLIKKU!', 'hiiglane');
     if (p === 'reel' && typeof KT !== 'undefined' && KT.d && KT.d.active) { const day = new Date().toDateString(); if (SH.bossDay !== day) { SH.bossDay = day; shout('BOSS ON KONKSUS!', 'bosshook', 'Kalatund käib – iga kala teeb koletisele kahju') } } };
   const _land = fxLand;
   fxLand = function (r) {
@@ -214,8 +214,8 @@ function shBg(c, w, h, cx, cy, a, st, low) {
       }
     } else if (r.kind === 'chest' && +r.gold > 0) list.push([`+${fmt(+r.gold)} KULDA!`, 'kuld', 'Veealune aardekirst']);
     else if (r.kind === 'junk' && +r.gold > 0) list.push([`+${fmt(+r.gold)} KULDA!`, 'kuld']);
-    if (r.kind === 'fish' && r.rarity >= 2 && !r.fav) { const b = FD.bait && FD.bait[FS.bait]; if (b && +b.rarity_bonus > 0) list.push(['🧲 ERILINE SÖÖT!', 'eriline', 'Sinu sööt meelitas ligi ebatavalise kala.']) }
-    if (r.kind === 'fish' && r.rarity >= 3 && FS.gear && (+FS.gear.upg > 0 || FS.gear.ench)) list.push(['⚡ VARUSTUSE BOONUS!', 'boonus', 'Sinu täiustatud varustus andis püügile lisaboonuse.']);
+    if (r.kind === 'fish' && r.rarity >= 2 && !r.fav) { const b = FD.bait && FD.bait[FS.bait]; if (b && +b.rarity_bonus > 0) list.push(['🧲 ERILINE SÖÖT!', 'eriline']) }
+    if (r.kind === 'fish' && r.rarity >= 3 && FS.gear && (+FS.gear.upg > 0 || FS.gear.ench)) list.push(['⚡ VARUSTUSE BOONUS!', 'boonus']);
     for (const it of r.items || []) { const d = FD.item && FD.item[it.id]; if (d && d.rarity >= 3) list.push(['HARULDASE ESEME LEID!', 'ese', d.name]) }
     for (const a of r.ach || []) { list.push(['UUS SAAVUTUS AVATUD!', 'saavutus', a.name]); if (a.title) list.push(['TIITEL SAADUD!', 'tiitel', `„${a.title}“`]) }
     // kala hüppab veest välja ~2,3 s – hüüdsõnad tulevad maandumise hetkel järjest
