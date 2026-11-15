@@ -1289,6 +1289,11 @@ do $$ declare t text; begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 2t. Kes on mängus (online)
+alter table public.profiles add column if not exists last_seen timestamptz;
+alter table public.profiles add column if not exists last_where text;
+create index if not exists profiles_last_seen_idx on public.profiles(last_seen);
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -4682,6 +4687,26 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 6s. Kes on mängus: mängija annab märku, et ta on mängus, ja saab nimekirja teistest
+create or replace function public.presence_ping(p_where text default 'kuningriik') returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); w text := case when p_where ~ '^[a-z]{1,12}$' then p_where else 'kuningriik' end;
+begin
+  if u is null then raise exception 'Logi sisse'; end if;
+  update profiles set last_seen = now(), last_where = w where id = u;
+  if w <> 'kuningriik' then update fishers set last_seen = now() where user_id = u; end if;
+  perform fx_bots_tick();
+  return jsonb_build_object('now', now(),
+    'players', (select coalesce(jsonb_agg(x order by (x ->> 'ago')::int, x ->> 'name'), '[]') from (
+      select jsonb_build_object('id', p.id, 'name', p.name, 'kingdom', p.kingdom, 'level', coalesce(sv.level, 1),
+        'flevel', f.level, 'title', f.title, 'where', p.last_where,
+        'ago', extract(epoch from now() - p.last_seen)::int,
+        'spot', (select c.spot from fish_casts c where c.user_id = p.id and c.created_at > now() - interval '8 minutes' order by c.id desc limit 1),
+        'busy', exists (select 1 from fish_duels d where (d.a = p.id or d.b = p.id) and d.status in ('invited','live'))) x
+      from profiles p left join saves sv on sv.user_id = p.id left join fishers f on f.user_id = p.id
+      where p.id <> u and not p.hidden and p.last_seen > now() - interval '75 seconds') q),
+    'bots', fx_bots_online());
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -4702,7 +4727,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
