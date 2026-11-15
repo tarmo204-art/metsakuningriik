@@ -31,7 +31,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .on-list{display:grid;gap:7px}
 .on-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07)}
 .on-row.me{background:rgba(79,220,124,.08);border-color:rgba(79,220,124,.3)}
-.on-av{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:800 17px/1 inherit;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.on-av{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:800 17px/1 inherit;color:#cfe6d8;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
 .on-av.bot{background:rgba(255,255,255,.1);font-size:22px}
 .on-av b{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;background:#4fdc7c;border:2px solid #10261c}
 .on-av b.busy{background:#ffb648}
@@ -64,8 +64,8 @@ function onPlace() {
 const _onRenderFV = renderFV; renderFV = function (...a) { const r = _onRenderFV.apply(this, a); onPlace(); return r };
 
 function onHue(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.codePointAt(0)) % 360; return h }
-function onFace(name) { const h = onHue(name); return `background:linear-gradient(135deg,hsl(${h} 55% 48%),hsl(${(h + 40) % 360} 60% 34%))` }
-function onInit(name) { return esc(([...String(name || '?').trim()][0] || '?').toUpperCase()) }
+function onFace(name) { return '' } // värvilisi algustähti enam ei näidata
+function onInit(name) { return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>' }
 function onWhere(p) {
   if (p.spot) { const sp = FD.spot && FD.spot[p.spot]; return `🎣 püüab kala${sp ? ': ' + esc(sp.name) : ''}` }
   const w = ON_WHERE[p.where] || ON_WHERE.kuningriik; return w[0] + ' ' + w[1];
@@ -91,7 +91,7 @@ function onChip() {
   const c = ON.el; if (!c) return;
   if (!onVisible() || !ON.d) { c.hidden = true; return }
   const pl = ON.d.players || [], bots = ON.d.bots || [], n = pl.length + 1;
-  const faces = pl.slice(0, 3).map(p => `<i style="${onFace(p.name)}">${onInit(p.name)}</i>`).join('');
+  const faces = '';
   c.innerHTML = `<span class="on-dot"></span>${faces ? `<span class="on-faces">${faces}</span>` : ''}<span>${n}<em> mängus</em></span>${bots.length ? `<small>· 🎣 ${bots.length}</small>` : ''}`;
   c.title = pl.length ? 'Praegu mängivad: ' + pl.map(p => p.name).join(', ') : 'Praegu oled ainult sina mängus';
   c.hidden = false; onPlace();
