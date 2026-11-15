@@ -8,7 +8,15 @@ try { SH.lvl = localStorage.getItem('mk.fxLvl') || 'full' } catch (e) { }
 const shLow = () => SH.lvl === 'low' || stReduce();
 // tekstid, mida joonistab nüüd see süsteem (vana väike tekst jääb ära, et kaks ei tuleks korraga)
 const SH_OWN = new Set(['TÄPNE!', 'HEA!', 'MÖÖDA!', 'PÄÄSES!', 'Püütud!', 'Ebatavaline!', 'HARULDANE!', 'EEPILINE!', 'LEGENDAARNE!', 'MÜÜTILINE!', 'REKORDSUURUS!', 'UUS LIIK KALARAAMATUS!', 'ISIKLIK REKORD!']);
-{ const _ft = fxText; fxText = function (x, y, txt, col, size) { if (SH_OWN.has(txt)) return; return _ft(x, y, txt, col, size) } }
+const SH_GEAR = {
+  '❤ Lemmiksööt!': ['SEE OLI KALA LEMMIKSÖÖT! ❤️', 'lemmik', 'Kasutasid kala lemmiksööta! Suurem võimalus soovitud kala tabamiseks.'],
+  '🔔 TEINE ÕNG!': ['🔔 TEINE ÕNG!', 'teine', 'Sinu varuõng läks kasutusse! Kalapüük jätkub.'],
+  '🥅 KAHV PÄÄSTIS!': ['🥅 KAHV PÄÄSTIS!', 'kahv', 'Kahv aitas kala turvaliselt kaldale tõmmata!'],
+  '🪣 Sööt jäi alles': ['🪣 SÖÖT JÄI ALLES!', 'soot', 'Tänu sinu varustusele ei kulunud sööt selle püügikatsega ära.'],
+  '🕶 Vees liigub kala…': ['🕶️ VEES LIIKUB KALA…', 'peek', 'Midagi liigub vee all. Ole tähelepanelik!'],
+  '🕶 Suur vari läheneb!': ['🕶️ SUUR VARI LÄHENEB!', 'vari', 'Vee sügavusest läheneb midagi suurt. Valmistu tõeliseks võitluseks!']
+};
+{ const _ft = fxText; fxText = function (x, y, txt, col, size) { if (SH_OWN.has(txt)) return; const g = SH_GEAR[txt]; if (g) { shout(g[0], g[1], g[2]); return } return _ft(x, y, txt, col, size) } }
 
 const SH_STYLE = {
   tapne: { col: '#5fe08a', hi: '#e8fff0', fx: 'flash', dur: 1.0, size: 1, sfx: 'tapne' },
@@ -36,7 +44,16 @@ const SH_STYLE = {
   kahju: { col: '#ff6a4a', hi: '#ffe8e0', fx: 'boss', dur: 1.4, size: .8, sfx: 'hea' },
   alistatud: { col: '#ffcf4a', hi: '#ffffff', fx: 'gold', dur: 2.6, size: 1.05, sfx: 'r5', shake: true },
   kogukond: { col: '#7fe0a0', hi: '#ffffff', fx: 'magic', dur: 2.4, size: .95, sfx: 'saavutus' },
-  eriauhind: { col: '#ffcf4a', hi: '#ffffff', fx: 'coins', dur: 2.0, size: .85, sfx: 'kuld' }
+  eriauhind: { col: '#ffcf4a', hi: '#ffffff', fx: 'coins', dur: 2.0, size: .85, sfx: 'kuld' },
+  lemmik: { col: '#ff7eb6', hi: '#fff0f6', fx: 'sparkle', dur: 2.0, size: .62, sfx: 'hea' },
+  teine: { col: '#ffd24a', hi: '#fffbe6', fx: 'coins', dur: 2.0, size: .7, sfx: 'kuld' },
+  kahv: { col: '#6fe8c0', hi: '#effffa', fx: 'flash', dur: 2.0, size: .7, sfx: 'hea' },
+  soot: { col: '#8ad4ff', hi: '#f0faff', fx: 'flash', dur: 2.0, size: .62, sfx: 'xp' },
+  peek: { col: '#9fe6ff', hi: '#ffffff', fx: 'flash', dur: 2.0, size: .62, sfx: '' },
+  vari: { col: '#4a8cff', hi: '#e8f2ff', fx: 'boss', dur: 2.2, size: .66, sfx: 'boss' },
+  eriline: { col: '#3fe0d0', hi: '#effffd', fx: 'sparkle', dur: 2.0, size: .7, sfx: 'r3' },
+  boonus: { col: '#ffe84a', hi: '#fffde6', fx: 'burst', dur: 2.0, size: .7, sfx: 'tapne' },
+  hiiglane: { col: '#ff4a3a', hi: '#ffe4e0', fx: 'boss', dur: 2.4, size: .7, sfx: 'boss', shake: true }
 };
 function shout(txt, kind, sub) {
   const st = SH_STYLE[kind] || SH_STYLE.hea;
@@ -109,8 +126,10 @@ function shDraw(c, w, h, dt) {
   if (st.fx === 'magic') { const hg = c.createLinearGradient(-fs * 3, 0, fs * 3, 0); for (let i = 0; i <= 6; i++) hg.addColorStop(i / 6, `hsl(${(i * 60 + now / 5) % 360} 95% 72%)`); c.fillStyle = hg } else c.fillStyle = g;
   c.lineJoin = 'round'; c.lineWidth = fs * .13; c.strokeStyle = 'rgba(8,16,24,.9)'; c.strokeText(S.txt, 0, 0);
   c.shadowColor = st.col; c.shadowBlur = low ? fs * .15 : fs * .4; c.fillText(S.txt, 0, 0); c.shadowBlur = 0;
-  if (S.sub) { c.font = `800 ${fs * .34}px "Alegreya Sans", system-ui, sans-serif`; c.lineWidth = fs * .06; c.strokeText(S.sub, 0, fs * .72); c.fillStyle = st.hi; c.fillText(S.sub, 0, fs * .72) }
   c.restore();
+  if (S.sub) { const sfs = Math.max(12, Math.min(w * .032, h * .07)); c.save(); c.globalAlpha = Math.max(0, fade) * Math.min(1, a / .2); c.font = `800 ${sfs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const sw = c.measureText(S.sub).width, sy = cy - rise + fs * .78; c.translate(cx, sy); if (sw > w * .92) c.scale(w * .92 / sw, w * .92 / sw);
+    c.lineJoin = 'round'; c.lineWidth = sfs * .28; c.strokeStyle = 'rgba(8,16,24,.85)'; c.strokeText(S.sub, 0, 0); c.fillStyle = st.hi; c.fillText(S.sub, 0, 0); c.restore() }
 }
 function shDark(hex) { const n = parseInt(hex.slice(1), 16), r = (n >> 16) * .55, g = (n >> 8 & 255) * .55, b = (n & 255) * .55; return `rgb(${r | 0},${g | 0},${b | 0})` }
 function shRgb(hex) { const n = parseInt(hex.slice(1), 16); return `${n >> 16},${n >> 8 & 255},${n & 255}` }
@@ -171,6 +190,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
   const _lose = doLose; doLose = async function (msg) { if (!FV.loss || FV.loss.k !== 'release') shout('PÄÄSES!', 'paases'); return _lose.apply(this, arguments) };
   // kala pääses viimasel hetkel või murdis õnge (need ei käi läbi doLose)
   const _sp = setPhase; setPhase = function (p, msg) { const was = FV.phase; _sp(p, msg); if (p === 'lost' && FV.loss && (FV.loss.k === 'last' || FV.loss.k === 'gone') && was !== 'lost') shout('PÄÄSES!', 'paases');
+    if (p === 'reel' && FV.hook && +FV.hook.est >= +FV.hook.strength * 1.5) shout('🐉 MIDAGI HIIGLASLIKKU!', 'hiiglane', 'Vee all liigub midagi, mida tavalise õngega püüda ei tasu!');
     if (p === 'reel' && typeof KT !== 'undefined' && KT.d && KT.d.active) { const day = new Date().toDateString(); if (SH.bossDay !== day) { SH.bossDay = day; shout('BOSS ON KONKSUS!', 'bosshook', 'Kalatund käib – iga kala teeb koletisele kahju') } } };
   const _land = fxLand;
   fxLand = function (r) {
@@ -194,6 +214,8 @@ function shBg(c, w, h, cx, cy, a, st, low) {
       }
     } else if (r.kind === 'chest' && +r.gold > 0) list.push([`+${fmt(+r.gold)} KULDA!`, 'kuld', 'Veealune aardekirst']);
     else if (r.kind === 'junk' && +r.gold > 0) list.push([`+${fmt(+r.gold)} KULDA!`, 'kuld']);
+    if (r.kind === 'fish' && r.rarity >= 2 && !r.fav) { const b = FD.bait && FD.bait[FS.bait]; if (b && +b.rarity_bonus > 0) list.push(['🧲 ERILINE SÖÖT!', 'eriline', 'Sinu sööt meelitas ligi ebatavalise kala.']) }
+    if (r.kind === 'fish' && r.rarity >= 3 && FS.gear && (+FS.gear.upg > 0 || FS.gear.ench)) list.push(['⚡ VARUSTUSE BOONUS!', 'boonus', 'Sinu täiustatud varustus andis püügile lisaboonuse.']);
     for (const it of r.items || []) { const d = FD.item && FD.item[it.id]; if (d && d.rarity >= 3) list.push(['HARULDASE ESEME LEID!', 'ese', d.name]) }
     for (const a of r.ach || []) { list.push(['UUS SAAVUTUS AVATUD!', 'saavutus', a.name]); if (a.title) list.push(['TIITEL SAADUD!', 'tiitel', `„${a.title}“`]) }
     // kala hüppab veest välja ~2,3 s – hüüdsõnad tulevad maandumise hetkel järjest
