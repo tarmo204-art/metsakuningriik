@@ -403,7 +403,10 @@ function kvShopHtml() {
   const grp = k => { const list = KV.d.gear.filter(g => g.kind === k), kit = kvKit(k), K = KV_KIND[k];
     return `<div class="kv-grp"><h3>${K.ic} ${K.n}${kit ? ' <span class="pill ok">Olemas</span>' : ''}</h3><p class="job"><b>Ülesanne:</b> ${K.job}</p><div class="kv-tiers">${list.map(g => kvItemCard(g, kit && kit.id === g.id)).join('')}</div></div>` };
   return `<div class="fv-card"><h2>🧰 Kalamehe varustus</h2><p class="lead">Päris kalamehe abivahendid. Igaüks teeb kindlat tööd ja mõjub püügile kohe pärast ostmist. Kui sul on sama asja mitu, kasutatakse kõige paremat.</p><div style="display:grid;gap:10px">${KV_HELP.map(grp).join('')}</div></div>
-    <div class="fv-card"><h2>🪤 Püünised</h2><p class="lead">Püünis töötab ise: pane vette, tee vahepeal muid asju ja tule saaki välja võtma vahekaardil „Püünised“. Igat liiki püünist saab korraga vees olla üks.</p><div style="display:grid;gap:10px">${KV_TRAPS.map(grp).join('')}</div></div>`;
+    <div class="fv-card"><h2>🪤 Püünised</h2><div class="kt-intro"><p class="lead">Püünised võimaldavad sul kala püüda ka siis, kui tegeled samal ajal teiste kuningriigi tegevustega.</p>
+      <p class="lead">Paiguta püünis vette, lase sellel iseseisvalt töötada ja tule hiljem oma saaki kontrollima!</p>
+      <div class="kt-ib"><b>Kuidas püünised töötavad?</b><ul><li>🪤 Paiguta püünis sobivasse veekogusse.</li><li>⏳ Püünis püüab iseseisvalt, ilma et peaksid ise midagi tegema.</li><li>🎣 Tule hiljem tagasi ja kogu püütud saak vahekaardilt „Püünised“.</li><li>🐟 Erinevad püünised võivad anda erinevat saaki.</li></ul></div>
+      <div class="kt-ib"><b>Oluline teada:</b><p class="lead">Iga püünisetüüpi saab korraga kasutada ainult ühte. Kui üks sama tüüpi püünis on juba vees, ei saa teist samasugust enne selle eemaldamist või tühjendamist paigaldada.</p></div></div><div style="display:grid;gap:10px">${KV_TRAPS.map(grp).join('')}</div></div>`;
 }
 function tabPuunised() {
   KV.objs = [];
@@ -413,7 +416,10 @@ function tabPuunised() {
   h += `<div class="kv-lic"><span class="em">🐟</span><div><h3>KALASTUSKAART</h3><p>Nakkevõrguga püüdmiseks on vaja kehtivat kalastuskaarti – nii nagu päris elus. Kehtib 7 päeva.</p>
     <p class="st ${lic ? 'ok' : 'no'}">${lic ? `✓ Kehtib kuni ${new Date(lic).toLocaleString('et-EE', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}` : '✗ Kalastuskaarti pole'}</p></div>
     <button class="btn sm" type="button" data-kv="lic" ${FS.gold >= d.license_price && !KV.busy && !(lic && Date.parse(lic) - now > 7 * 864e5) ? '' : 'disabled'}>${lic ? 'Pikenda' : 'Osta'} · ${d.license_price} 🪙</button></div>`;
-  h += `<div class="fv-card"><h2>Sinu püünised</h2><p class="lead">Vali koht, pane püünis vette ja tule hiljem tagasi. Püünisest tulnud kalad lähevad saaki ja kalaraamatusse, aga ülesannete püügiarvestusse lähevad ainult õngega püütud kalad.</p><div class="kv-traps">${KV_TRAPS.map(k => {
+  h += `<div class="fv-card"><h2>Sinu püünised</h2><div class="kt-intro"><p class="lead">Püünised võimaldavad sul kala püüda ka siis, kui tegeled samal ajal teiste kuningriigi tegevustega.</p>
+      <p class="lead">Paiguta püünis vette, lase sellel iseseisvalt töötada ja tule hiljem oma saaki kontrollima!</p>
+      <div class="kt-ib"><b>Kuidas püünised töötavad?</b><ul><li>🪤 Paiguta püünis sobivasse veekogusse.</li><li>⏳ Püünis püüab iseseisvalt, ilma et peaksid ise midagi tegema.</li><li>🎣 Tule hiljem tagasi ja kogu püütud saak vahekaardilt „Püünised“.</li><li>🐟 Erinevad püünised võivad anda erinevat saaki.</li></ul></div>
+      <div class="kt-ib"><b>Oluline teada:</b><p class="lead">Iga püünisetüüpi saab korraga kasutada ainult ühte. Kui üks sama tüüpi püünis on juba vees, ei saa teist samasugust enne selle eemaldamist või tühjendamist paigaldada.</p></div></div><p class="lead"> Püünisest tulnud kalad lähevad saaki ja kalaraamatusse, aga ülesannete püügiarvestusse lähevad ainult õngega püütud kalad.</p><div class="kv-traps">${KV_TRAPS.map(k => {
     const K = KV_KIND[k], kit = kvKit(k), tr = (d.traps || []).find(q => q.kind === k);
     if (!kit) { const g1 = KV.d.gear.find(g => g.kind === k && g.tier === 1); return `<div class="kv-trap"><div class="top">${gearCv('kit', g1.id, 'kitcv')}<div><b>${K.ic} ${K.n}</b><small>${K.job}</small></div></div><button class="btn sm ghost" type="button" data-kv="shop">Osta poest · ${fmt(g1.price)} 🪙 (${g1.min_level}. tase)</button></div>` }
     if (tr) { const t0 = Date.parse(tr.set_at), t1 = Date.parse(tr.ready_at), ready = now >= t1, p = Math.min(1, (now - t0) / Math.max(1, t1 - t0));
