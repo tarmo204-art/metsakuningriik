@@ -42,15 +42,18 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .on-acts .btn{padding:6px 10px;font-size:12.5px}
 .on-empty{padding:14px;border-radius:14px;background:rgba(255,255,255,.04);text-align:center;opacity:.85}
 @media (max-width:600px){.on-faces,.on-chip small{display:none}.on-chip{padding:5px 10px 5px 8px}}
-@media (max-width:420px){.on-chip em{display:none}}
+@media (max-width:420px){.on-chip em{display:none}.fv-top:has(>.on-chip){gap:8px}.fv-top:has(>.on-chip) h1{font-size:21px}.fv-top>.on-chip{padding:5px 8px 5px 7px;gap:5px}}
 .on-chip em{font-style:normal}
 @media (max-width:520px){.on-row{grid-template-columns:40px minmax(0,1fr)}.on-acts{grid-column:1/-1;justify-content:stretch}.on-acts .btn{flex:1}}
 @media (prefers-reduced-motion:reduce){.on-dot::after,.on-chip.pop{animation:none}}
 </style>`);
-document.body.insertAdjacentHTML('beforeend', '<button class="on-chip" id="onChip" type="button" hidden aria-label="Kes on praegu mängus"></button>');
+// silt on üks ja sama element, mida tõstetakse päisest päisesse (kalapüügi vaade joonistatakse tihti uuesti, silt ei tohi sellega kaduda)
+ON.el = document.createElement('button'); ON.el.className = 'on-chip'; ON.el.id = 'onChip'; ON.el.type = 'button'; ON.el.hidden = true; ON.el.setAttribute('aria-label', 'Kes on praegu mängus');
+ON.el.addEventListener('click', () => { showModal(onView, 'wide'); onPing() });
+document.body.appendChild(ON.el);
 // silt elab kuningriigis päises, kalapüügil kalapüügi päises
 function onPlace() {
-  const c = document.getElementById('onChip'); if (!c) return;
+  const c = ON.el; if (!c) return;
   const tgt = FV.open ? document.querySelector('#fvIn .fv-top') : document.querySelector('.hud-world');
   if (!tgt) return;
   if (FV.open) { const h = tgt.querySelector('h1'); if (c.parentNode !== tgt) h ? h.after(c) : tgt.appendChild(c) }
@@ -76,14 +79,14 @@ async function onPing() {
     const fresh = (d.players || []).filter(p => !ON.seen.has(p.id));
     if (fresh.length) {
       toast(fresh.length === 1 ? `🟢 ${fresh[0].name} tuli mängu` : `🟢 ${fresh.length} mängijat tuli mängu`, 'info');
-      const c = document.getElementById('onChip'); if (c) { c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop') }
+      const c = ON.el; if (c) { c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop') }
     }
   }
   ON.seen = ids; ON.d = d; onChip();
   if (UI.modalView === onView) renderModal(true);
 }
 function onChip() {
-  const c = document.getElementById('onChip'); if (!c) return;
+  const c = ON.el; if (!c) return;
   if (!onVisible() || !ON.d) { c.hidden = true; return }
   const pl = ON.d.players || [], bots = ON.d.bots || [], n = pl.length + 1;
   const faces = pl.slice(0, 3).map(p => `<i style="${onFace(p.name)}">${onInit(p.name)}</i>`).join('');
@@ -117,7 +120,6 @@ async function onDuel(id) {
   DU.pick = id; renderFV(true);
   setTimeout(() => { const el = document.querySelector('.du-list'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 500);
 }
-document.getElementById('onChip').addEventListener('click', () => { showModal(onView, 'wide'); onPing() });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-on]'); if (!b) return;
   if (b.dataset.on === 'visit') { closeModal(); visitK(b.dataset.arg) }
@@ -125,4 +127,4 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) onPing() });
 (function onLoop() { onPing(); setTimeout(onLoop, 30000) })();
-setInterval(() => { const c = document.getElementById('onChip'); if (!c) return; if (onVisible() && !ON.d && !ON.busy) { ON.busy = true; onPing().finally(() => ON.busy = false) } else if ((!onVisible()) !== c.hidden) onChip(); onPlace() }, 1500);
+setInterval(() => { const c = ON.el; if (!c) return; if (onVisible() && !ON.d && !ON.busy) { ON.busy = true; onPing().finally(() => ON.busy = false) } else if ((!onVisible()) !== c.hidden) onChip(); onPlace() }, 1500);
