@@ -1178,7 +1178,12 @@ setInterval(() => { if (CL.user && running && !['waiting', 'bite', 'reel', 'land
 /* ---------- Tellimused ---------- */
 function tabTellimus() {
   const O = FV.orders;
-  let h = `<div class="fv-card"><h2>Kuningliku köögi tellimused</h2><p class="lead">Lossi kokk vajab iga päev värsket kala. Täidetud tellimus toob kulda kalurikassasse ning kuulsust ja toitu sinu kuningriiki. Rohkem tellimusi avaneb kalapüügi 5., 12. ja 20. tasemel. Uued tellimused tulevad iga päev kesköösel.</p>`;
+  let h = `<div class="fv-card"><h2>👑 Kuningliku köögi tellimused</h2><div class="kt-intro"><p class="lead">Lossi peakokk vajab iga päev värsket kala, et valmistada kuninglikule õukonnale maitsvaid roogasid!</p>
+  <p class="lead">Võta vastu peakoka tellimusi, püüa vajalikud kalad ja toimeta need kuninglikku kööki.</p>
+  <div class="kt-ib"><b>Iga täidetud tellimus annab sulle:</b><ul><li>💰 Kulda sinu kalurikassasse.</li><li>⭐ Kuulsust sinu kuningriigile.</li><li>🍖 Toitu kuningriigi varudesse.</li></ul></div>
+  <div class="kt-ib"><b>Ava uusi tellimusi ja suurenda oma võimalusi!</b><ul><li>5. kalapüügi tasemel avanevad uued tellimused.</li><li>12. kalapüügi tasemel avanevad veelgi väärtuslikumad tellimused.</li><li>20. kalapüügi tasemel saad ligipääsu kõige nõudlikumatele tellimustele.</li></ul></div>
+  <p class="lead">📜 Uued tellimused saabuvad iga päev keskööl.</p>
+  <p class="lead kt-end">Kas suudad täita peakoka kõik soovid ja tuua kuningriigile rikkalikku kalasaaki?</p></div>`;
   if (!O) return h + '<p class="lead">Laadin tellimusi…</p></div>';
   if (!O.length) return h + '<p class="lead">Täna tellimusi pole.</p></div>';
   h += `<div class="shop">${O.map(o => { const s = FD.sp[o.species], [rn, rc] = RAR2[s.rarity]; return `<div class="srow" style="${o.done ? 'opacity:.6' : ''}"><div style="display:grid;grid-template-columns:90px minmax(0,1fr);gap:10px;align-items:center"><canvas data-fl="${s.id}" data-r="${s.rarity}" data-unk="${FS.book[s.id] ? 0 : 1}" style="width:90px;height:50px;border-radius:8px"></canvas><div><b>${o.qty} × ${esc(s.name)}</b> <span class="rpill" style="color:${rc}">${rn}</span><small>Saagis: ${Math.min(o.have, o.qty)} / ${o.qty} · ${esc(s.spots.map(x => FD.spot[x].name).join(', '))}</small><small>Preemia: ${o.gold} kulda, ${o.xp} kogemust, ${o.fame} kuulsust ja ${o.qty * 4} toitu kuningriiki</small></div></div>
