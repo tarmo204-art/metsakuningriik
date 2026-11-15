@@ -8,7 +8,7 @@
    ===================================================================== */
 const KV = { d: null, loading: false, conf: null, pick: {}, netAt: 0, bellAt: 0, saveAt: 0, objs: [], raf: 0, skew: 0, busy: false };
 const KV_KIND = {
-  kahv: { ic: '🥅', n: 'Kahv', job: 'Suur kala ei pääse viimasel hetkel minema ega rebi tamiili katki.' },
+  kahv: { ic: '🥅', n: 'Kahv', job: 'Suur kala ei pääse viimasel hetkel minema ja liiga raske kala murrab õnge harvemini.' },
   korv: { ic: '🧺', n: 'Söödakorv', job: 'Peibutussööt meelitab kalad kohale: näkkab kiiremini, latikat ja karpkala tuleb rohkem.' },
   hoidja: { ic: '🎣', n: 'Ridvahoidja', job: 'Teine õng on vees – vahel tuleb kaks kala korraga.' },
   sump: { ic: '🪣', n: 'Kalasump', job: 'Kala püsib elus ja värske – müües saad parema hinna.' },
@@ -87,7 +87,7 @@ function kvLeft(ms) { const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floo
 function kvEff(g) {
   const p = v => Math.round(v * 100) + '%';
   switch (g.kind) {
-    case 'kahv': return [`−${p(g.val)} põgenemisi`, `−${p(g.val2)} katkiminekuid`];
+    case 'kahv': return [`−${p(g.val)} põgenemisi`, `−${p(g.val2)} murdunud õngesid`];
     case 'korv': return [`${p(g.val)} kiirem näkkamine`, `rahulikke kalu ${String(g.val2).replace('.', ',')}×`];
     case 'hoidja': return [`${p(g.val)} viskest teine kala`];
     case 'sump': return [`+${p(g.val)} müügihind`];

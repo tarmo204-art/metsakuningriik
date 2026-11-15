@@ -808,7 +808,7 @@ function phaseMsg() {
     case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
     case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
     case 'hooking': return 'Haagid…';
-    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda. Kui ei taha riskida, vajuta „Lase lahti“.`; return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.' }
+    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.' }
     case 'landing': return 'Tood kala välja…';
     default: return '';
   }
@@ -882,7 +882,7 @@ async function doLand() {
     const r = await rpc('fish_land', { p_cast: FV.cast.cast_id });
     const est = h && +h.est; FV.hook = null;
     if (!r.ok) {
-      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} kaalus päriselt ${fKg(+r.weight)}${est ? ` (silma järgi tundus ~${fKg(est)})` : ''}, aga sinu õng kannab ${fKg(+r.strength)} – õng murdus. Meister parandab selle tasuta 2 tunniga või võid kohe parandada. Nii suurte kalade jaoks on vaja tugevamat õnge.`); sparkleScene('#ff8a78'); }
+      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} kaalus päriselt ${fKg(+r.weight)}${est ? ` (silma järgi tundus ~${fKg(est)})` : ''}, aga sinu õng kannab ${fKg(+r.strength)} – õng murdus${+r.kahv ? ` enne, kui kala kahva ulatusse jõudis (oht oli ~${r.risk}%, kahv vähendas seda ${Math.round(+r.kahv * 100)}%)` : ''}. Meister parandab selle tasuta 2 tunniga või võid kohe parandada. Nii suurte kalade jaoks on vaja tugevamat õnge.`); sparkleScene('#ff8a78'); }
       else if (r.reason === 'escaped') setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`);
       else setPhase('lost', 'Kala pääses minema.');
       await refreshFS(); afterAch(r.ach); renderFV(true);

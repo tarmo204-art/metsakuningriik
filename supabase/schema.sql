@@ -1086,9 +1086,9 @@ create table if not exists public.fish_gear (
   price int not null, min_level int not null, val numeric not null, val2 numeric not null default 0, sort int not null default 0
 );
 insert into public.fish_gear (id, kind, tier, name, descr, price, min_level, val, val2, sort) values
- ('kahv1','kahv',1,'Väike kahv','Kala pääseb viimasel hetkel 30% harvemini ja raske kala rebib tamiili 15% harvemini katki.',150,2,0.30,0.15,1),
- ('kahv2','kahv',2,'Teleskoopkahv','Pikk vars ulatub kaugele: 50% vähem põgenemisi, 25% vähem katkiminekuid.',900,8,0.50,0.25,2),
- ('kahv3','kahv',3,'Kummeeritud suurkahv','Suur kummeeritud võrk ka hiidkaladele: 70% vähem põgenemisi, 35% vähem katkiminekuid.',3500,16,0.70,0.35,3),
+ ('kahv1','kahv',1,'Väike kahv','Kala pääseb viimasel hetkel 30% harvemini ja liiga raske kala murrab õnge 35% harvemini.',150,2,0.30,0.35,1),
+ ('kahv2','kahv',2,'Teleskoopkahv','Pikk vars ulatub kaugele: 50% vähem põgenemisi, 55% vähem murdunud õngesid.',900,8,0.50,0.55,2),
+ ('kahv3','kahv',3,'Kummeeritud suurkahv','Suur kummeeritud võrk ka hiidkaladele: 70% vähem põgenemisi, 75% vähem murdunud õngesid.',3500,16,0.70,0.75,3),
  ('korv1','korv',1,'Söödakorv','Puistab põhja peibutussööta: kala võtab 15% kiiremini, latikat, karpkala ja teisi rahulikke kalu tuleb 1,5× rohkem.',200,3,0.15,1.5,4),
  ('korv2','korv',2,'Method-feeder','Kokkupressitud peibutussööt konksu ümber: kala võtab 25% kiiremini, rahulikke kalu 2× rohkem.',1500,10,0.25,2.0,5),
  ('hoidja1','hoidja',1,'Ridvahoidja','Teine õng on hoidjas vees: 7% juhtudest tuleb sinna samal ajal teine kala.',400,5,0.07,0,6),
@@ -1808,7 +1808,7 @@ begin
   end if;
   update fish_casts set state = 'hooked', hooked_at = now(), need_hits = need where id = c.id;
   return jsonb_build_object('ok', true, 'need', need, 'zone', round(zone, 3), 'speed', round(speed, 2), 'est', est,
-    'strength', r.strength, 'difficulty', diff);
+    'strength', r.strength, 'difficulty', diff, 'kahv', fx_kit_v(u, 'kahv', true));
 end $$;
 
 -- 3a) Kala pääses (mängija eksis liiga palju)
@@ -1881,7 +1881,8 @@ begin
       update fish_casts set state = 'broken' where id = c.id;
       update fishers set rod_broken = true, broken = broken + 1, rods_broken = case when f.rod = any(rods_broken) then rods_broken else rods_broken || f.rod end where user_id = u;
       ach := fx_check_ach(u);
-      return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach);
+      return jsonb_build_object('ok', false, 'reason', 'broken', 'weight', c.weight, 'strength', r.strength, 'name', s.name, 'ach', ach, 'kahv', fx_kit_v(u, 'kahv', true),
+        'risk', round(least(1, (c.weight / r.strength - 1) * 1.3) * (1 - fx_kit_v(u, 'kahv', true)) * 100));
     end if;
   end if;
   fit := fx_fit(u, c.spot); dressed := fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0;
