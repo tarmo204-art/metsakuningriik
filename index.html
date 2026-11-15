@@ -4595,6 +4595,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-hp span{display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000}
 .kt-boss .bn{position:absolute;left:12px;top:10px;font-family:var(--f-head);font-size:20px;color:#ffd0b0;text-shadow:0 2px 6px #000}
 .kt-boss.dead .bar i{background:#6a7a80;box-shadow:none}
+.kt-intro{display:grid;gap:8px}.kt-intro p{margin:0}.kt-ib{padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,200,140,.18)}.kt-ib b{color:#ffe2b8}.kt-ib p{margin:4px 0 0}.kt-ib ul{margin:6px 0 0;padding-left:20px;display:grid;gap:3px;color:#d8e6ea;font-size:14px}.kt-end{font-weight:700;color:#ffd8b0!important;font-style:italic}
 .kt-pts{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.kt-pts span{font-size:12.5px;padding:5px 8px;border-radius:8px;background:rgba(0,0,0,.25)}
 .kt-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(90deg,rgba(200,48,44,.9),rgba(160,60,20,.85));color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid rgba(255,200,140,.5)}
 .kt-banner .mini{flex:1;min-width:120px;height:9px;border-radius:999px;background:rgba(0,0,0,.45);overflow:hidden}.kt-banner .mini i{display:block;height:100%;background:#ffd25e}
@@ -6026,7 +6027,11 @@ function tabKalatund() {
   const end = new Date(d.end).getTime(), next = new Date(d.next).getTime(), m = d.mine || { pts: 0, fish: 0, dmg: 0 }, b = d.boss;
   const myPlace = (d.top.find(r => r.me) || {}).place;
   let h = `<div class="fv-card kt-hero"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Kalatund</h2>${d.active ? '<span class="kt-live">OTSE · KÄIB PRAEGU</span>' : `<span class="kt-wait">Iga päev kell ${d.hour}:00–${d.hour + 1}:00</span>`}</div>
-    <p class="lead">Üks tund päevas, kui kõik kalurid püüavad korraga. Iga püütud kala annab punkte ja võtab järvekoletiselt elu. Kolm parimat saavad suure auhinna, kõik osalejad tänukingi. Kui bossikala koos alistatakse, saab iga aitaja lisaks kulda, kogemust ja haruldase eseme.</p>
+    <div class="kt-intro"><p class="lead">Kord päevas toimub ühe tunni jooksul eriline kalapüügiüritus, kus kõik kuningriigi kalurid saavad ühiselt osaleda.</p>
+    <p class="lead">Eesmärk on püüda võimalikult palju kalu, koguda punkte ja vähendada järve sügavustes peituva võimsa järvekoletise elupunkte. Iga püütud kala annab mängijale punkte ning aitab kaasa koletise alistamisele.</p>
+    <div class="kt-ib"><b>🏆 Parimad kalurid saavad väärilise tasu:</b><ul><li>1.–3. koht saavad suure väärtusega auhinnad.</li><li>Kõik osalejad saavad tänukingi osalemise eest.</li></ul></div>
+    <div class="kt-ib"><b>🐉 Järvekoletise alistamise boonus:</b><p class="lead">Kui kalurid suudavad ühiselt järvekoletise alistada, saavad kõik sellesse panustanud mängijad lisaks:</p><ul><li>Kuldmünte.</li><li>Kogemuspunkte.</li><li>Võimaluse saada haruldane ese.</li></ul></div>
+    <p class="lead kt-end">Üksi on raske, kuid kogu kuningriigiga on võimalik alistada isegi kõige võimsam järvekoletis!</p></div>
     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="lead" style="margin:0">${d.active ? 'Lõpuni jäänud' : 'Järgmine Kalatund algab'}</span><span class="kt-clock" data-ktto="${d.active ? end : next}">${ktClock((d.active ? end : next) - ktNow())}</span></div>
     ${d.active ? `<div class="kt-stats"><div><small>Sinu punktid</small><b>${fmt(m.pts)}</b></div><div><small>Koht</small><b>${myPlace ? myPlace + '.' : '–'}</b></div><div><small>Kalu</small><b>${m.fish}</b></div><div><small>Bossikahju</small><b>${fmt(m.dmg)}</b></div></div>
       <div><button class="btn" type="button" data-fa="ktGo" data-arg="puuk">Mine püüdma!</button></div>` : ''}
