@@ -787,7 +787,7 @@ function tabPuuk() {
   const owned = FD.baits.filter(b => b.price === 0 || (b.consumable ? ((FS.baits || {})[b.id] || 0) > 0 : (FS.baits || {})[b.id] !== undefined) || b.id === FS.bait);
   const odds = FV.odds;
   const active = !['idle', 'result', 'lost'].includes(FV.phase);
-  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), lock = FS.level < s.min_level || noBoat; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
+  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), noPier = s.id === 'udulaht' && !(FS.cabin || []).includes('sild'), lock = FS.level < s.min_level || noBoat || noPier; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : noPier ? 'Vaja: Kalurimaja paadisild' : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
     <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
   h += `<div class="fv-card"><div id="fvSceneSlot"></div>
     <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
@@ -1372,7 +1372,8 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'close': closeFishView(); break;
     case 'tab': FV.tab = arg; if (arg === 'kalatund') loadKT(); if (arg === 'maja') { AQ.visit = null; AQ.list = null } if (arg === 'turg') { FMK.seenSold = Date.now(); try { localStorage.setItem('mk.mkSeen', FMK.seenSold) } catch (e2) { } FMK.newSold = 0; loadMarket() } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
-    case 'spot': if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return }
+    case 'spot': if (arg === 'udulaht' && FS.level >= FD.spot[arg].min_level && !(FS.cabin || []).includes('sild')) { toast('Udulahte pääseb, kui oled Kalurimaja paadisilla korda teinud.', 'info'); FV.tab = 'kalurimaja'; renderFV(true); return }
+      if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return }
       if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;

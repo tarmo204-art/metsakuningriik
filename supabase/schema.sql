@@ -1329,6 +1329,51 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- 2v. Kalurimaja ja Udulaht: vana kaluri Kustase maja, mida taastatakse tuba-toa haaval (kulla, kuningriigi puidu ja kiviga)
+insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort) values
+ ('udulaht','Udulaht','Udune roostikuline laht, mille kaldal seisab vana kaluri Kustase maja. Siin saab püüda, kui maja paadisild on korda tehtud.',10,3,0.07,3)
+on conflict (id) do update set name = excluded.name, descr = excluded.descr, min_level = excluded.min_level, difficulty = excluded.difficulty, bonus = excluded.bonus, sort = excluded.sort;
+update public.fish_species set spots = spots || '{udulaht}'::text[]
+  where id in ('ahven','sarg','kiisk','latikas','roosarg','nurg','linask','koger','haug','vingerjas','mudamaim','koha','angerjas','uduhobe','kuldahven') and not ('udulaht' = any(spots));
+-- legend: Kustase hallhaug (püütav ainult Udulahes, kui maja pööning on korras; udus ja öösel sagedamini)
+insert into public.fish_species
+select (jsonb_populate_record(null::public.fish_species, to_jsonb(h) || jsonb_build_object(
+  'id', 'hallhaug', 'name', 'Kustase hallhaug', 'rarity', 5, 'min_w', 12, 'max_w', 24, 'price', 900, 'xp', 420, 'spots', '{udulaht}'::text[], 'min_level', 10,
+  'difficulty', 9, 'look', '{"c":["#9aa4a8","#4a5458","#e2e6e6","#7a8488"],"s":"l","sp":1,"g":"#d8e4ea"}'::jsonb, 'sort', 120, 'event', 'kustas', 'real', false,
+  'max_len', 140, 'weather', null, 'descr', 'Vana kaluri Kustase legend: hiiglaslik hall haug, kes on Udulahes elanud kauem, kui keegi mäletab. Võtab udus või öösel ja ainult sellelt, kes on lahe maja korda teinud.'))).*
+from public.fish_species h where h.id = 'haug'
+on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, min_w = excluded.min_w, max_w = excluded.max_w, price = excluded.price, xp = excluded.xp,
+  spots = excluded.spots, difficulty = excluded.difficulty, look = excluded.look, event = excluded.event, real = excluded.real, max_len = excluded.max_len, descr = excluded.descr;
+create table if not exists public.fish_cabin_rooms (
+  id text primary key, sort int not null, icon text not null, name text not null, descr text not null, bonus text not null,
+  gold int not null, wood int not null, stone int not null, hours numeric not null, min_level int not null, page text not null
+);
+insert into public.fish_cabin_rooms (id, sort, icon, name, descr, bonus, gold, wood, stone, hours, min_level, page) values
+ ('sild', 1, '🛶', 'Paadisild', 'Kõdunenud sild ja vana paat lahe kaldal.', 'Avab Udulahe püügikoha; seal näkkab 15% kiiremini.', 600, 120, 30, 1, 10,
+  'Kevad. Parandasin silla. Paat on vana, aga peab veel vett. Udu tõuseb igal hommikul lahelt nagu hingeõhk. Isa ütles, et laht hingab, sest selle põhjas elab keegi.'),
+ ('suitsukoda', 2, '🔥', 'Suitsuköök', 'Kivist suitsuahi ja lepapuu riit.', 'Kalade müügihind +8%.', 1400, 220, 120, 2, 11,
+  'Suitsuahi töötab jälle. Kui lepapuud suitsu sisse panna, tulevad isegi naabrid küsima. Täna nägin vees varju – pikem kui mu paat. Ilmselt palk. Ilmselt.'),
+ ('aidake', 3, '🪢', 'Võrguait', 'Ait, kus võrgud ja mõrrad kuivavad.', 'Püünised valmivad 25% kiiremini.', 2000, 280, 80, 3, 12,
+  'Võrgud on paigas. Hommikul olid kaks võrku keskelt läbi rebitud, nagu oleks keegi neist lihtsalt läbi ujunud. Palk ei rebi võrku.'),
+ ('laternatuba', 4, '🏮', 'Laternatuba', 'Tuba, mille aknast paistab latern üle lahe.', 'Öösel püütud kalad annavad 15% rohkem kogemust.', 3000, 200, 200, 4, 13,
+  'Panin akna peale laterna. Öösel tuleb see vari valguse juurde. Hall nagu udu ise ja silmad nagu kaks vana hõbemünti. Haug. Kõige suurem haug, keda ma elus näinud olen.'),
+ ('poonung', 5, '📜', 'Pööning', 'Tolmune pööning, kus on vana kirst.', 'Kustase päevik: Udulahes saab püüda legendaarset hallhaugi.', 4500, 350, 150, 5, 14,
+  'Kirjutan selle pööningule, et keegi kunagi leiaks: hallhaug võtab ainult udus või öösel ja ainult sellelt, kes on lahe maja korda teinud. Ta tunneb ära, kes siin elab. Mina olen liiga vana. Võib-olla sina. — Kustas'),
+ ('majakas', 6, '🗼', 'Majakas', 'Väike kivimajakas kaljunukil.', 'Udulahes on haruldasi kalu rohkem (+6% õnne).', 7000, 300, 400, 8, 16,
+  'Majakas põleb. Nüüd leiavad ka teised kalurid tee Udulahte. Kui näed udus halli varju – ära kiirusta. Ta on oodanud kaua.')
+on conflict (id) do update set sort = excluded.sort, icon = excluded.icon, name = excluded.name, descr = excluded.descr, bonus = excluded.bonus, gold = excluded.gold,
+  wood = excluded.wood, stone = excluded.stone, hours = excluded.hours, min_level = excluded.min_level, page = excluded.page;
+create table if not exists public.fisher_cabin (
+  user_id uuid not null references auth.users(id) on delete cascade, room text not null references public.fish_cabin_rooms(id),
+  started_at timestamptz not null default now(), done_at timestamptz not null, primary key (user_id, room)
+);
+do $$ declare t text; begin
+  foreach t in array array['fish_cabin_rooms','fisher_cabin'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1442,7 +1487,7 @@ begin
   select * into sp from public.fish_spots where id = p_spot;
   select * into r from public.fish_rods where id = coalesce(f.rod, 'algaja');
   select * into b from public.fish_baits where id = p_bait;
-  bonus := coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
+  bonus := case when p_spot = 'udulaht' and public.fx_room(u, 'majakas') then 0.06 else 0 end + coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
            + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0)
            + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end + public.fx_lab_aura(u, 'onn') * 0.2;
   for i in 1..6 loop
@@ -1666,6 +1711,7 @@ begin
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
+    || jsonb_build_object('cabin', (select coalesce(jsonb_agg(c.room), '[]') from fisher_cabin c where c.user_id = u and c.done_at <= now()))
     || jsonb_build_object('kuma', fx_kuma(), 'daypart', fx_daypart(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
 
@@ -1696,6 +1742,7 @@ begin
   if sp.id is null then raise exception 'Tundmatu püügikoht'; end if;
   if f.level < sp.min_level then raise exception 'See püügikoht avaneb kalapüügi % tasemel', sp.min_level; end if;
   if sp.boat is not null and not (sp.boat = any(f.boats)) then raise exception 'Siia pääsemiseks on vaja paati: %', (select name from fish_boats where id = sp.boat); end if;
+  if p_spot = 'udulaht' and not fx_room(u, 'sild') then raise exception 'Udulahes saab püüda, kui oled Kalurimaja paadisilla korda teinud'; end if;
   g := fx_gear(u, p_spot); chm := (g ->> 'chest')::numeric;
   if f.rod_broken then raise exception 'Õng on katki. Paranda see enne püüki.'; end if;
   select * into b from fish_baits where id = p_bait;
@@ -1725,6 +1772,8 @@ begin
       if s.min_level > f.level then s := null; end if;
     elsif ev = 'saga' and p_spot = any(array['jogi','kuninglik']) and f.level >= 16 and random() < (case when night then 0.18 else 0.06 end) then
       select * into s from fish_species where id = 'saga'; evb := true;
+    elsif p_spot = 'udulaht' and fx_room(u, 'poonung') and random() < (case when wthr = 'udu' then 0.035 when night then 0.022 else 0.006 end) then
+      select * into s from fish_species where id = 'hallhaug'; evb := true;
     end if;
     -- ilm ja vesi: loid kala jätab sageli näkkamata – siis proovib järgmine (kuni 3 korda)
     evs := s.id is not null;
@@ -1769,7 +1818,7 @@ begin
   end if;
   -- kalade üldine aktiivsus selles kohas mõjutab, kui kiiresti näkkab
   select avg(fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) into avgact from fish_species fs where p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null;
-  wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
+  wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * (case when p_spot = 'udulaht' then 0.85 else 1 end) * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
   if kind = 'fish' and (fit -> 'worn') ? 'polar' and wthr in ('paike','pilves') then peek := round(least(1, sqrt(wt / 15.0)), 2); end if;
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
@@ -1926,7 +1975,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus') + case when dressed then 0.10 else 0 end)) * fx_xp_mult();
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus') + case when v_night and fx_room(u, 'laternatuba') then 0.15 else 0 end + case when dressed then 0.10 else 0 end)) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -1960,7 +2009,7 @@ begin
   avgw := (s.min_w + s.max_w) / 2;
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
        * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
-            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + fx_lab_aura(u, 'kuld') + case when c.bought then 0 else fx_kit_v(u, 'sump') end)
+            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + case when fx_room(u, 'suitsukoda') then 0.08 else 0 end + fx_lab_aura(u, 'kuld') + case when c.bought then 0 else fx_kit_v(u, 'sump') end)
        * (case when c.bought then 0.6 else 1 end);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
@@ -4077,7 +4126,7 @@ begin
   if p_kind = 'vork' and (f.license_until is null or f.license_until < now()) then raise exception 'Võrguga püüdmiseks on vaja kehtivat kalastuskaarti'; end if;
   perform pg_advisory_xact_lock(hashtext('trap:' || u::text));
   if exists (select 1 from fish_traps where user_id = u and kind = p_kind and status = 'set') then raise exception 'See püünis on juba vees'; end if;
-  insert into fish_traps(user_id, kind, gear, spot, ready_at) values (u, p_kind, g.id, p_spot, now() + make_interval(mins => round(g.val * 60)::int));
+  insert into fish_traps(user_id, kind, gear, spot, ready_at) values (u, p_kind, g.id, p_spot, now() + make_interval(mins => round(g.val * 60 * case when fx_room(u, 'aidake') then 0.75 else 1 end)::int));
   return gear_state() || jsonb_build_object('set', p_kind);
 end $$;
 
@@ -4950,6 +4999,61 @@ begin
   return event_state() || jsonb_build_object('swapped', jsonb_build_object('from', cur ->> 'species', 'to', s.id));
 end $$;
 
+-- 6u. Kalurimaja: taastamine ja toa boonused
+create or replace function public.fx_room(u uuid, r text) returns boolean language sql stable as $$
+  select exists (select 1 from public.fisher_cabin c where c.user_id = u and c.room = r and c.done_at <= now()) $$;
+create or replace function public.cabin_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; sv saves;
+begin
+  f := fx_fisher(u);
+  select * into sv from saves where user_id = u;
+  return jsonb_build_object('now', now(), 'gold', f.gold, 'level', f.level,
+    'wood', floor(coalesce((sv.data -> 'res' ->> 'wood')::numeric, 0)), 'stone', floor(coalesce((sv.data -> 'res' ->> 'stone')::numeric, 0)), 'kingdom', sv.user_id is not null,
+    'legend', (select count(*) from fish_catches where user_id = u and species = 'hallhaug'),
+    'rooms', (select jsonb_agg(jsonb_build_object('id', r.id, 'icon', r.icon, 'name', r.name, 'descr', r.descr, 'bonus', r.bonus, 'gold', r.gold, 'wood', r.wood, 'stone', r.stone,
+        'hours', r.hours, 'min_level', r.min_level, 'started_at', c.started_at, 'done_at', c.done_at, 'done', c.done_at is not null and c.done_at <= now(),
+        'page', case when c.done_at is not null and c.done_at <= now() then r.page end) order by r.sort)
+      from fish_cabin_rooms r left join fisher_cabin c on c.user_id = u and c.room = r.id));
+end $$;
+-- taastamine: kuld kalurikassast, puit ja kivi serveris hoitud kuningriigi salvestusest (nagu monumendi puhul)
+create or replace function public.cabin_build(p_room text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; r fish_cabin_rooms; sv saves; w numeric; st numeric;
+begin
+  f := fx_fisher(u);
+  select * into r from fish_cabin_rooms where id = p_room;
+  if r.id is null then raise exception 'Tundmatu ruum'; end if;
+  if exists (select 1 from fisher_cabin where user_id = u and room = r.id) then raise exception 'See ruum on juba taastatud või pooleli'; end if;
+  if exists (select 1 from fisher_cabin where user_id = u and done_at > now()) then raise exception 'Üks töö on juba pooleli. Oota, kuni see valmib.'; end if;
+  if exists (select 1 from fish_cabin_rooms p where p.sort < r.sort and not exists (select 1 from fisher_cabin c where c.user_id = u and c.room = p.id and c.done_at <= now())) then
+    raise exception 'Taasta enne eelmised ruumid'; end if;
+  if f.level < r.min_level then raise exception 'Selleks on vaja kalapüügi % taset', r.min_level; end if;
+  perform 1 from fishers where user_id = u for update;
+  select gold into f.gold from fishers where user_id = u;
+  if f.gold < r.gold then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', r.gold; end if;
+  select * into sv from saves where user_id = u for update;
+  if sv.user_id is null then raise exception 'Kuningriik pole veel salvestatud – oota paar sekundit'; end if;
+  w := coalesce((sv.data -> 'res' ->> 'wood')::numeric, 0); st := coalesce((sv.data -> 'res' ->> 'stone')::numeric, 0);
+  if w < r.wood then raise exception 'Puitu on vaja % (sul on %). Raiu puid Udulahe kaldal või kuningriigis.', r.wood, floor(w); end if;
+  if st < r.stone then raise exception 'Kivi on vaja % (sul on %). Korja kive Udulahe kaldal või kuningriigis.', r.stone, floor(st); end if;
+  update saves set data = jsonb_set(jsonb_set(data, '{res,wood}', to_jsonb(w - r.wood)), '{res,stone}', to_jsonb(st - r.stone)) where user_id = u;
+  update fishers set gold = gold - r.gold where user_id = u;
+  insert into fisher_cabin(user_id, room, done_at) values (u, r.id, now() + make_interval(secs => round(r.hours * 3600)::int));
+  return cabin_state() || jsonb_build_object('spent', jsonb_build_object('gold', r.gold, 'wood', r.wood, 'stone', r.stone), 'built', r.id);
+end $$;
+-- kiirusta kullaga (40 kulda minuti kohta, vähemalt 100)
+create or replace function public.cabin_rush() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; c fisher_cabin; cost int;
+begin
+  f := fx_fisher(u);
+  select * into c from fisher_cabin where user_id = u and done_at > now() for update;
+  if c.user_id is null then raise exception 'Midagi pole pooleli'; end if;
+  cost := greatest(100, ceil(extract(epoch from (c.done_at - now())) / 60.0 * 40))::int;
+  if f.gold < cost then raise exception 'Kiirendamiseks on vaja % kulda', cost; end if;
+  update fishers set gold = gold - cost where user_id = u;
+  update fisher_cabin set done_at = now() where user_id = u and room = c.room;
+  return cabin_state() || jsonb_build_object('rushed', cost);
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -4970,7 +5074,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
