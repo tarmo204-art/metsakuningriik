@@ -1086,9 +1086,11 @@ create table if not exists public.fish_gear (
   price int not null, min_level int not null, val numeric not null, val2 numeric not null default 0, sort int not null default 0
 );
 insert into public.fish_gear (id, kind, tier, name, descr, price, min_level, val, val2, sort) values
- ('kahv1','kahv',1,'Väike kahv','Kala pääseb viimasel hetkel 30% harvemini ja liiga raske kala murrab õnge 35% harvemini.',150,2,0.30,0.35,1),
- ('kahv2','kahv',2,'Teleskoopkahv','Pikk vars ulatub kaugele: 50% vähem põgenemisi, 55% vähem murdunud õngesid.',900,8,0.50,0.55,2),
- ('kahv3','kahv',3,'Kummeeritud suurkahv','Suur kummeeritud võrk ka hiidkaladele: 70% vähem põgenemisi, 75% vähem murdunud õngesid.',3500,16,0.70,0.75,3),
+ ('kahv1','kahv',1,'Väike kahv','I tase: 10% väiksem kala pääsemise võimalus ja 35% väiksem õnge purunemise risk suure kala väljatoomisel.',150,2,0.10,0.35,1),
+ ('kahv2','kahv',2,'Teleskoopkahv','II tase: pikk vars ulatub kaugele – 20% väiksem kala pääsemise võimalus ja 45% väiksem õnge purunemise risk.',900,8,0.20,0.45,2),
+ ('kahv3','kahv',3,'Kummeeritud suurkahv','III tase: suur kummeeritud võrk ka hiidkaladele – 30% väiksem kala pääsemise võimalus ja 55% väiksem õnge purunemise risk.',3500,16,0.30,0.55,3),
+ ('kahv4','kahv',4,'Meistri kahv','IV tase: süsinikvarre ja sügava võrguga – 40% väiksem kala pääsemise võimalus ja 65% väiksem õnge purunemise risk.',9000,24,0.40,0.65,27),
+ ('kahv5','kahv',5,'Kuninglik kahv','V tase: kuldse raamiga meisterteos – 50% väiksem kala pääsemise võimalus ja 75% väiksem õnge purunemise risk.',22000,30,0.50,0.75,28),
  ('korv1','korv',1,'Söödakorv','I tase: puistab põhja peibutussööta – 5% kiirem näkkamine, latikat ja karpkala 1,2× rohkem.',200,3,0.05,1.2,4),
  ('korv2','korv',2,'Method-feeder','II tase: kokkupressitud peibutussööt konksu ümber – 10% kiirem näkkamine, latikat ja karpkala 1,4× rohkem.',1500,10,0.10,1.4,5),
  ('korv3','korv',3,'Pikaviskeline söödakorv','III tase: raskem korv viib sööda kaugele ja täpselt – 15% kiirem näkkamine, latikat ja karpkala 1,6× rohkem.',3500,16,0.15,1.6,6),
