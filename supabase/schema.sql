@@ -1802,7 +1802,7 @@ begin
     need := 2 + (s.rarity >= 3)::int + (s.rarity >= 5)::int + (s.difficulty >= 9)::int;
     zone := greatest(0.08, 0.27 - s.rarity * 0.025 - sp.difficulty * 0.01 + r.reel_bonus);
     speed := 1.0 + s.difficulty * 0.12 + least(0.5, c.weight / 60);
-    est := round(c.weight * (0.85 + random()::numeric * 0.3), 1);
+    est := round(c.weight * (0.96 + random()::numeric * 0.08), case when c.weight >= 10 then 0 else 1 end);  -- silma järgi hinnang, viga kuni ±4%
   else
     diff := 2; need := 2; zone := 0.26 + r.reel_bonus; speed := 1.0; est := case when c.kind = 'chest' then round((6 + random() * 6)::numeric, 1) else round((0.3 + random())::numeric, 1) end;
   end if;

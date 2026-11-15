@@ -808,7 +808,7 @@ function phaseMsg() {
     case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
     case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
     case 'hooking': return 'Haagid…';
-    case 'reel': return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.';
+    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda. Kui ei taha riskida, vajuta „Lase lahti“.`; return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.' }
     case 'landing': return 'Tood kala välja…';
     default: return '';
   }
@@ -817,7 +817,7 @@ function mainButton() {
   if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return repairButtons(true);
   if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast">Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
   if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
-  if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut">Lase lahti</button></div>`;
+  if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut"${FV.hook && +FV.hook.est > +FV.hook.strength ? ' style="border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)"' : ''}>✋ Lase lahti</button></div>`;
   return `<button class="btn bigbtn" type="button" disabled>…</button>`;
 }
 function repairCost2() { const r = FD.rod[FS.rod]; return Math.max(10, Math.round((r ? r.price : 0) * 0.2)) }
@@ -880,9 +880,9 @@ async function doLand() {
   if (el < minT) await new Promise(r => setTimeout(r, minT - el));
   try {
     const r = await rpc('fish_land', { p_cast: FV.cast.cast_id });
-    FV.hook = null;
+    const est = h && +h.est; FV.hook = null;
     if (!r.ok) {
-      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} (${fKg(+r.weight)}) oli liiga raske ja õng murdus. Paranda õng või osta tugevam.`); sparkleScene('#ff8a78'); }
+      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} kaalus päriselt ${fKg(+r.weight)}${est ? ` (silma järgi tundus ~${fKg(est)})` : ''}, aga sinu õng kannab ${fKg(+r.strength)} – õng murdus. Meister parandab selle tasuta 2 tunniga või võid kohe parandada. Nii suurte kalade jaoks on vaja tugevamat õnge.`); sparkleScene('#ff8a78'); }
       else if (r.reason === 'escaped') setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`);
       else setPhase('lost', 'Kala pääses minema.');
       await refreshFS(); afterAch(r.ach); renderFV(true);
