@@ -4596,6 +4596,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-boss .bn{position:absolute;left:12px;top:10px;font-family:var(--f-head);font-size:20px;color:#ffd0b0;text-shadow:0 2px 6px #000}
 .kt-boss.dead .bar i{background:#6a7a80;box-shadow:none}
 .kk-list{margin:0;padding-left:20px;display:grid;gap:3px;color:#d8e6ea;font-size:14px}.kk-list b{color:#eaf6fa}
+.kt-podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}.kt-podium>div{padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.04)}.kt-podium>div:first-child{background:rgba(255,200,80,.1);box-shadow:inset 0 0 0 1px rgba(255,200,80,.35)}@media (max-width:640px){.kt-podium{grid-template-columns:1fr}}
 .kt-intro{display:grid;gap:8px}.kt-intro p{margin:0}.kt-ib{padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,200,140,.18)}.kt-ib b{color:#ffe2b8}.kt-ib p{margin:4px 0 0}.kt-ib ul{margin:6px 0 0;padding-left:20px;display:grid;gap:3px;color:#d8e6ea;font-size:14px}.kt-end{font-weight:700;color:#ffd8b0!important;font-style:italic}
 .kt-pts{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.kt-pts span{font-size:12.5px;padding:5px 8px;border-radius:8px;background:rgba(0,0,0,.25)}
 .kt-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(90deg,rgba(200,48,44,.9),rgba(160,60,20,.85));color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid rgba(255,200,140,.5)}
@@ -5828,7 +5829,7 @@ document.addEventListener('click', async e => {
     case 'sellall': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_sell_all', { p_max_rarity: +arg }); toast(`Müüsid ${r.n} kala ja said ${r.gold} kulda.`, 'good', 'gold'); FV.sel.clear(); await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'ktClaim': {
       if (FV.busy) break; FV.busy = true;
-      try { const r = await rpc('fish_kt_claim'); if (!r.prizes.length) toast('Uusi Kalatunni auhindu pole.', 'info'); else r.prizes.forEach(p => toast(`Kalatund ${new Date(p.day).toLocaleDateString('et-EE')}: ${p.place}. koht (${fmt(p.pts)} punkti)${p.boss ? ', bossikala alistatud' : ''}! +${fmt(p.gold)} kulda, +${p.xp} kogemust${itemsTxt(p.items)}`, 'gold', 'gold')); await refreshFS(); afterLevels(r.levels); afterAch(r.ach) } catch (e2) { toast(e2.message, 'bad') }
+      try { const r = await rpc('fish_kt_claim'); if (!r.prizes.length) toast('Uusi Kalatunni auhindu pole.', 'info'); else { KT.won = r.prizes; showModal(ktPrizeView, 'wide'); if (typeof sfx === 'function') sfx('levelup') } await refreshFS(); afterLevels(r.levels); afterAch(r.ach) } catch (e2) { toast(e2.message, 'bad') }
       FV.busy = false; await loadKT(); break }
     case 'ktGo': FV.tab = arg || 'puuk'; renderFV(true); break;
     case 'mkSell': { const id = [...FV.sel][0]; if (id) showListing(id); break }
@@ -6029,6 +6030,15 @@ function ktResult(kt) {
   if (kt.killed) { setTimeout(() => toast('SINA andsid bossikalale viimase löögi! Järvekoletis on alistatud!', 'gold', 'fish'), 600); if (typeof sfx === 'function') sfx('levelup') }
   return ` Kalatund: +${fmt(kt.pts)} punkti${kt.dmg ? `, bossile −${fmt(kt.dmg)} elu` : ''}.`;
 }
+// auhindade aken: lõplik punktisumma, koht ja teenitud preemiad iga Kalatunni kohta
+function ktPrizeView() {
+  const L = KT.won || []; if (!L.length) return null;
+  const medal = p => p === 1 ? '🥇 1. koht – Kalatunni meister' : p === 2 ? '🥈 2. koht – Hõbekalur' : p === 3 ? '🥉 3. koht – Pronkskalur' : `${p}. koht`;
+  return `<h2>🏆 Kalatunni auhinnad</h2><div class="kt-intro">${L.map(p => `<div class="kt-ib"><b>Kalatund ${new Date(p.day).toLocaleDateString('et-EE', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+    <ul><li>Sinu lõplik punktisumma: <b>${fmt(p.pts)}</b></li><li>Paremusjärjestus: <b>${medal(p.place)}</b></li>${p.boss ? '<li>🐉 Järvekoletis alistati – said eriauhinna!</li>' : ''}</ul>
+    <p class="lead" style="margin-top:6px"><b>Teenitud preemiad:</b> 💰 ${fmt(p.gold)} kulda · ⭐ ${fmt(p.xp)} kogemust${(p.items || []).length ? ' · 💎 ' + esc(itemsTxt(p.items, true)) : ''}</p></div>`).join('')}</div>
+    <div class="mbtns"><button class="btn" type="button" data-act="closeModal">🎁 Võtan vastu!</button></div>`;
+}
 function tabKalatund() {
   const d = KT.d; if (!d) { setTimeout(loadKT, 0); return '<div class="fv-card"><p class="lead">Laadin Kalatundi…</p></div>' }
   const end = new Date(d.end).getTime(), next = new Date(d.next).getTime(), m = d.mine || { pts: 0, fish: 0, dmg: 0 }, b = d.boss;
@@ -6051,9 +6061,23 @@ function tabKalatund() {
   }
   h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: (!d.active || d.top.length >= 3) && !d.top.slice(0, 3).some(r => r.bot), rows: d.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
     ${d.yesterday && d.yesterday.top.length ? `<p class="lead" style="font-size:12.5px">Eile: ${d.yesterday.top.map(r => `${r.place}. ${esc(r.name)} (${fmt(r.pts)})`).join(', ')}${d.yesterday.boss ? (d.yesterday.boss.killed ? ` · boss alistati, viimase löögi andis ${esc(d.yesterday.boss.killer || '?')}` : ' · boss pääses minema') : ''}</p>` : ''}</div>`;
-  h += `<div class="fv-card"><h3>Punktid ja auhinnad</h3><div class="kt-pts">${[1, 2, 3, 4, 5, 6].map(r => `<span style="color:${RAR2[r][1]}">${RAR2[r][0]}: ${[5, 10, 25, 60, 150, 400][r - 1]} p</span>`).join('')}</div>
-    <p class="lead" style="font-size:13px">Suurem kala annab rohkem punkte (kuni 2× tavalisest) ja rekordsuurus veel 1,5× juurde. Turult ostetud kalad ei loe.</p>
-    <p class="lead" style="font-size:13px">🥇 1500 kulda + 500 kogemust + tiitel „Kalatunni kuningas“ · 🥈 800 kulda + 250 kogemust · 🥉 400 kulda + 120 kogemust · igale osalejale 100 kulda + 60 kogemust. Bossi alistamisel igale aitajale lisaks kulda, 200 kogemust ja haruldane ese; kõige rohkem kahju teinud saab tiitli „Bossikala alistaja“. Auhinnad saab võtta pärast Kalatunni lõppu.</p></div>`;
+  const ktIc = ['', '🐟', '🐠', '💙', '💜', '👑', '🔮'];
+  h += `<div class="fv-card"><h2>🎣 Kalatund – punktid ja auhinnad</h2><div class="kt-intro">
+    <div class="kt-ib"><b>🏆 Kalade eest saadavad punktid</b><p class="lead">Iga püütud kala annab punkte vastavalt oma haruldusastmele.</p>
+      <ul>${[1, 2, 3, 4, 5, 6].map(r => `<li><span style="color:${RAR2[r][1]};font-weight:800">${ktIc[r]} ${RAR2[r][0]} kala</span> – ${[5, 10, 25, 60, 150, 400][r - 1]} punkti</li>`).join('')}</ul></div>
+    <div class="kt-ib"><b>📏 Kala suuruse boonus</b><p class="lead">Mida suurema kala püüad, seda rohkem punkte teenid!</p>
+      <ul><li>Suurem kala võib anda kuni 2 korda rohkem punkte.</li><li>Rekordsuuruses kala annab lisaks veel 1,5-kordse boonuse.</li><li>Mõlemad boonused rakenduvad püütud kala tegeliku suuruse põhjal.</li><li>Turult ostetud kalad ei anna Kalatunni punkte.</li></ul></div>
+    <div class="kt-ib"><b>🥇 Kalatunni parimate auhinnad</b><p class="lead">Kõige rohkem punkte kogunud kolm kalurit saavad erilised auhinnad!</p>
+      <div class="kt-podium"><div><b>🥇 1. koht – Kalatunni meister</b><ul><li>1500 kulda</li><li>500 kogemust</li><li>Ainulaadne tiitel „Kalatunni kuningas“</li></ul></div>
+        <div><b>🥈 2. koht – Hõbekalur</b><ul><li>800 kulda</li><li>250 kogemust</li></ul></div>
+        <div><b>🥉 3. koht – Pronkskalur</b><ul><li>400 kulda</li><li>120 kogemust</li></ul></div></div></div>
+    <div class="kt-ib"><b>🎁 Osalemisauhind</b><p class="lead">Iga Kalatunnil osalenud kalur saab:</p><ul><li>100 kulda</li><li>60 kogemust</li></ul></div>
+    <div class="kt-ib"><b>🐉 Järvekoletise alistamise eriauhinnad</b><p class="lead">Kalatunni ajal võib järves ilmuda võimas järvekoletis, kelle alistamiseks peavad kõik kalurid koostööd tegema.</p>
+      <p class="lead">Kui koletis alistatakse, saavad kõik sellesse kahju panustanud kalurid lisaks:</p><ul><li>💰 Täiendava kullatasu.</li><li>⭐ 200 kogemust.</li><li>💎 Ühe haruldase eseme.</li></ul>
+      <p class="lead"><b>Eriline tiitel: „Bossikala alistaja“</b><br>Kõige rohkem kahju tekitanud kalur saab ainulaadse tiitli „Bossikala alistaja“.</p></div>
+    <div class="kt-ib"><b>🎁 Auhindade kättesaamine</b><p class="lead">Kõik Kalatunni auhinnad muutuvad kättesaadavaks pärast ürituse lõppu.</p>
+      <p class="lead">Mängija saab avada auhindade akna, vaadata oma lõplikku punktisummat, paremusjärjestust ja teenitud preemiaid ning võtta auhinnad vastu.</p></div>
+    <p class="lead kt-end">Pea meeles: iga kala loeb! Püüa suuri ja haruldasi kalu ning võitle koos teiste kaluritega järvekoletise vastu!</p></div></div>`;
   return h;
 }
 function ktPaint(root) {
