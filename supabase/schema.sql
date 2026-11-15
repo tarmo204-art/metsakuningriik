@@ -1104,7 +1104,11 @@ insert into public.fish_gear (id, kind, tier, name, descr, price, min_level, val
  ('katiska1','katiska',1,'Katiska','Soome traatmõrd väikestele kaladele: ahven, särg, kiisk. 3 tunniga kuni 6 kala.',350,3,3,6,16),
  ('katiska2','katiska',2,'Kahekordne katiska','Kaks katiskat korraga: 2 tunniga kuni 9 kala.',1600,11,2,9,17),
  ('loks1','loks',1,'Vähimõrd','Püüab jõevähke. Pane järve või jõkke, 3 tunniga kuni 6 vähki.',500,4,3,6,18),
- ('loks2','loks',2,'Vähimõrrad (3 tk)','Kolm mõrda korraga: 2 tunniga kuni 10 vähki.',2200,13,2,10,19)
+ ('loks2','loks',2,'Vähimõrrad (3 tk)','Kolm mõrda korraga: 2 tunniga kuni 10 vähki.',2200,13,2,10,19),
+ ('vork3','vork',3,'Meisternakkevõrk 90 m','Meisterpüünis: peen ja pikk võrk. 1,5 tunniga kuni 11 kala, võimalus haruldasteks kaladeks ja erilisteks leidudeks. Vajab kalastuskaarti.',9000,24,1.5,11,20),
+ ('mord3','mord',3,'Meistermõrd','Meisterpüünis: tugev suur mõrd kahe tiivaga. 2,5 tunniga kuni 8 kala, võimalus haruldasteks kaladeks ja erilisteks leidudeks.',11000,26,2.5,8,21),
+ ('katiska3','katiska',3,'Meisterkatiska','Meisterpüünis: kolm katiskat ühes reas. 1,5 tunniga kuni 12 kala, võimalus haruldasteks kaladeks ja erilisteks leidudeks.',5000,20,1.5,12,22),
+ ('loks3','loks',3,'Meistri vähimõrrad (5 tk)','Meisterpüünis: viis mõrda korraga. 1,5 tunniga kuni 14 vähki, vahel ka haruldane kala või eriline leid.',6000,22,1.5,14,23)
 on conflict (id) do update set kind = excluded.kind, tier = excluded.tier, name = excluded.name, descr = excluded.descr, price = excluded.price,
   min_level = excluded.min_level, val = excluded.val, val2 = excluded.val2, sort = excluded.sort;
 create table if not exists public.fisher_gear (
@@ -4159,7 +4163,7 @@ end $$;
 
 create or replace function public.trap_collect(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; t fish_traps; g fish_gear; n int; i int; s fish_species; wt numeric; pw numeric; got jsonb := '[]'; xp int; levels int[];
-  lst text[]; wthr text := fx_weather(); winter boolean := fx_is_winter(); cid bigint;
+  lst text[]; wthr text := fx_weather(); winter boolean := fx_is_winter(); cid bigint; items jsonb := '[]';
 begin
   f := fx_fisher(u);
   select * into t from fish_traps where id = p_id and user_id = u and status = 'set' for update;
@@ -4174,26 +4178,34 @@ begin
   pw := case t.kind when 'mord' then 1.6 when 'katiska' then 2.8 else 2.0 end;
   for i in 1..n loop
     s := null;
-    if t.kind = 'loks' and random() < 0.85 then
+    -- meisterpüünis: vahel haruldane kala (sellest kohast, päris liik)
+    if g.tier >= 3 and random() < 0.15 then
+      select fs.* into s from fish_species fs where t.spot = any(fs.spots) and fs.min_level <= f.level and fs.weather is null and fs.event is null and fs.real
+        and fs.rarity between 3 and 4 and (not fs.winter_only or winter or t.spot = 'jaa') order by -ln(greatest(random(), 1e-9)) * fs.rarity limit 1;
+    end if;
+    if s.id is not null then null;
+    elsif t.kind = 'loks' and random() < 0.85 then
       select * into s from fish_species where id = 'vahk';
     else
       select fs.* into s from fish_species fs where t.spot = any(fs.spots) and fs.min_level <= f.level and fs.weather is null and fs.event is null
         and (not fs.winter_only or winter or t.spot = 'jaa') and fs.real
         and case when t.kind = 'vork' then fs.rarity <= 3 and fs.max_w >= 0.2
                  when t.kind = 'loks' then fs.id = any(array['ahven','sarg','kiisk','roosarg','viidikas','nurg','ogalik','mudamaim','lepamaim','hink','trulling','voldas','teib','luukarits'])
-                 else fs.id = any(lst) end
+                 else fs.id = any(lst) or (g.tier >= 2 and fs.rarity <= 2 and (t.kind <> 'katiska' or fs.max_w <= 2)) end
         order by -ln(greatest(random(), 1e-9)) * fs.rarity limit 1;
     end if;
     continue when s.id is null;
-    wt := s.min_w + (case when t.kind in ('katiska','loks') and s.id <> 'vahk' then least(s.max_w, 0.4) else s.max_w end - s.min_w) * power(random(), pw);
+    wt := s.min_w + (case when t.kind in ('katiska','loks') and s.id <> 'vahk' and s.rarity <= 2 then least(s.max_w, 0.4) else s.max_w end - s.min_w) * power(random(), pw);
     wt := round(greatest(wt, s.min_w), case when wt < 1 then 3 else 2 end);
     insert into fish_catches(user_id, species, rarity, weight, spot, night, weather, trap) values (u, s.id, s.rarity, wt, t.spot, false, wthr, t.kind) returning id into cid;
     got := got || jsonb_build_array(jsonb_build_object('id', cid, 'species', s.id, 'name', s.name, 'rarity', s.rarity, 'weight', wt));
   end loop;
+  -- meisterpüünis: eriline leid (haruldane ese) 25% juhtudest
+  if g.tier >= 3 and random() < 0.25 then items := fx_give_random(u, 4, 1); end if;
   xp := (6 + 4 * jsonb_array_length(got)) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
-  update fish_traps set status = 'done', result = jsonb_build_object('fish', got, 'xp', xp) where id = t.id;
-  return gear_state() || jsonb_build_object('collected', jsonb_build_object('kind', t.kind, 'gear', t.gear, 'spot', t.spot, 'fish', got, 'xp', xp),
+  update fish_traps set status = 'done', result = jsonb_build_object('fish', got, 'xp', xp, 'items', items) where id = t.id;
+  return gear_state() || jsonb_build_object('collected', jsonb_build_object('kind', t.kind, 'gear', t.gear, 'spot', t.spot, 'fish', got, 'xp', xp, 'items', items, 'tier', g.tier),
     'lvlup', to_jsonb(levels), 'ach', fx_check_ach(u));
 end $$;
 
