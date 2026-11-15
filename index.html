@@ -4401,7 +4401,7 @@ function xmSleighHit(x, y) {
 @container (max-width:520px){.lbx{--cw:54px}.lbx .xm{display:none}.lbx .hd,.lbx .rw{grid-template-columns:34px minmax(0,1fr) repeat(var(--nm),var(--cw)) var(--ax,0px);gap:6px;padding:0 9px}.lbx .av{width:30px;height:30px;font-size:13px}}`; document.head.appendChild(st);
 }
 function lbAvCol(s) { let h = 0; for (const ch of String(s || '?')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const hue = h % 360; return `linear-gradient(145deg,hsl(${hue} 55% 52%),hsl(${(hue + 30) % 360} 50% 34%))` }
-function lbAv(name) { const n = String(name || '?').trim(); return `<span class="av" style="background:${lbAvCol(n)}">${esc((n[0] || '?').toUpperCase())}</span>` }
+function lbAv(name) { return '' } // värvilised algustähed eemaldatud – tabel on puhtam (lbAvCol jääb alles, kui kunagi vaja)
 /* cfg: { cols: ['Tase', 'Kuulsus'], main: 0 (rõhutatud veerg), unit: ['', ' kg'], rows: [{ place, name, sub, me, vals: [..], live, act }], podium: true, act: true, actW: '90px' } */
 function lbHtml(cfg) {
   const rows = cfg.rows || [], n = cfg.cols.length, mainI = cfg.main ?? 0;
