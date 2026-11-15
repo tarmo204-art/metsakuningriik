@@ -9542,7 +9542,8 @@ const KV_KIND = {
   korv: { ic: '🧺', n: 'Söödakorv', job: 'Peibutussööt meelitab kalad kohale: näkkab kiiremini, latikat ja karpkala tuleb rohkem.' },
   hoidja: { ic: '🎣', n: 'Ridvahoidja', job: 'Teine õng on vees – vahel tuleb kaks kala korraga.' },
   sump: { ic: '🪣', n: 'Kalasump', job: 'Kala püsib elus ja värske – müües saad parema hinna.' },
-  ammber: { ic: '🪱', n: 'Söödaämber', job: 'Elussööt püsib ämbris elus – iga vise ei kuluta sööta.' },
+  ammber: { ic: '🪱', n: 'Söödaämber', job: 'Söödaämber hoiab elussööda elus ja kasutusvalmis, nii et iga kalapüügivise ei kuluta uut söödaühikut.',
+    extra: '<div class="kt-ib" style="margin:6px 0"><b>Efekt:</b><ul><li>Elussööt säilib ämbris elusana.</li><li>Iga vise ei vähenda sööda kogust.</li><li>Säästad sööta ja saad teha rohkem viskeid.</li><li>Ämber töötab automaatselt, kui see on sinu varustuses.</li></ul><p class="lead" style="margin-top:6px"><b>Eesmärk:</b> Muuta elussööda kasutamine soodsamaks ja mugavamaks.</p></div>' },
   vork: { ic: '🕸️', n: 'Nakkevõrk', job: 'Pane vette ja tule paari tunni pärast saaki välja võtma. Vajab kalastuskaarti.', trap: 1 },
   mord: { ic: '🪤', n: 'Mõrd', job: 'Suur püünis haugile, latikale, linaskile ja angerjale.', trap: 1 },
   katiska: { ic: '📦', n: 'Katiska', job: 'Soome traatmõrd väikestele kaladele: ahven, särg, kiisk.', trap: 1 },
@@ -9622,7 +9623,7 @@ function kvEff(g) {
     case 'korv': return [`${p(g.val)} kiirem näkkamine`, `rahulikke kalu ${String(g.val2).replace('.', ',')}×`];
     case 'hoidja': return [`${p(g.val)} viskest teine kala`];
     case 'sump': return [`+${p(g.val)} müügihind`];
-    case 'ammber': return [`${p(g.val)} viskest sööt ei kulu`];
+    case 'ammber': return [g.val >= 1 ? '♾️ sööt ei kulu kunagi' : `${p(g.val)} võimalus sööta mitte kulutada`];
     default: return [`⏱ ${String(g.val).replace('.', ',')} h`, `kuni ${g.val2} ${g.kind === 'loks' ? 'vähki' : 'kala'}`].concat(g.tier === 2 ? ['🐟 suurem kalade valik'] : g.tier >= 3 ? ['✨ haruldased kalad', '💎 erilised leiud'] : []);
   }
 }
@@ -9694,8 +9695,9 @@ function kvRod(c, x0, y0, x1, y1, s, col, reel = true) { // õngeritv: korgist k
 // varustuse pildid; keskel (0,0), laius ~S
 // meisterpüünis: täiustatud püünise pilt + kuldsed servad ja sädelus
 function drawKit(c, S, kind, tier, t) {
-  if (tier >= 3 && ['vork', 'mord', 'katiska', 'loks'].includes(kind)) {
-    drawKitBase(c, S, kind, 2, t);
+  if (tier >= 3 && ['vork', 'mord', 'katiska', 'loks', 'ammber'].includes(kind)) {
+    if (kind === 'ammber') { c.save(); c.filter = tier === 3 ? 'hue-rotate(-20deg) saturate(2.6) brightness(1.04)' : tier === 4 ? 'sepia(.9) saturate(2.4) hue-rotate(-28deg) brightness(.98)' : 'sepia(1) saturate(3.2) hue-rotate(-8deg) brightness(1.12)'; drawKitBase(c, S, kind, 2, t); c.restore() }
+    else drawKitBase(c, S, kind, 2, t);
     c.save(); c.globalCompositeOperation = 'lighter';
     const g = c.createRadialGradient(0, 0, 0, 0, 0, S * .7); g.addColorStop(0, 'rgba(255,210,110,.18)'); g.addColorStop(1, 'rgba(255,210,110,0)'); c.fillStyle = g; c.fillRect(-S, -S, S * 2, S * 2);
     for (let i = 0; i < 6; i++) { const a = i * 1.9 + (t || 0) * .8, x = Math.cos(a) * S * .38, y = Math.sin(a * 1.3) * S * .28, r = S * (.008 + .008 * Math.abs(Math.sin((t || 0) * 3 + i)));
@@ -9937,14 +9939,14 @@ function kvPaint(ts) {
 function kvItemCard(g, best) {
   const lock = FS.level < g.min_level;
   return `<div class="kv-item ${g.own ? 'own' : ''} ${best ? 'best' : ''} ${lock && !g.own ? 'locked' : ''}"><span class="tier">${'★'.repeat(g.tier)}</span>${gearCv('kit', g.id, 'kitcv')}
-    <div>${KV_TRAPS.includes(g.kind) ? `<span class="kv-tl t${g.tier}">${['', 'Tavaline püünis', 'Täiustatud püünis', 'Meisterpüünis'][g.tier] || ''}</span>` : ''}<b>${esc(g.name)}</b><small>${esc(g.descr)}</small><div class="kv-eff">${kvEff(g).map(x => `<span>${x}</span>`).join('')}</div>
+    <div>${KV_TRAPS.includes(g.kind) ? `<span class="kv-tl t${g.tier}">${['', 'Tavaline püünis', 'Täiustatud püünis', 'Meisterpüünis'][g.tier] || ''}</span>` : g.kind === 'ammber' ? `<span class="kv-tl t${Math.min(3, g.tier)}">${g.tier}. tase</span>` : ''}<b>${esc(g.name)}</b><small>${esc(g.descr)}</small><div class="kv-eff">${kvEff(g).map(x => `<span>${x}</span>`).join('')}</div>
     ${g.own ? `<span class="pill ok">${best ? 'Kasutusel' : 'Sinu oma'}</span>` : lock ? `<span class="pill">🔒 ${g.min_level}. tasemel</span>`
       : `<button class="btn sm" type="button" data-kv="buy" data-arg="${g.id}" ${FS.gold >= g.price && !KV.busy ? '' : 'disabled'}>${KV.conf === 'buy' + g.id ? `Kinnita: ${fmt(g.price)} kulda` : `Osta · ${fmt(g.price)} 🪙`}</button>`}</div></div>`;
 }
 function kvShopHtml() {
   if (!KV.d) { kvLoad(); return '<div class="fv-card"><h2>🧰 Kalamehe varustus</h2><p class="lead">Laen varustust…</p></div>' }
   const grp = k => { const list = KV.d.gear.filter(g => g.kind === k), kit = kvKit(k), K = KV_KIND[k];
-    return `<div class="kv-grp"><h3>${K.ic} ${K.n}${kit ? ' <span class="pill ok">Olemas</span>' : ''}</h3><p class="job"><b>Ülesanne:</b> ${K.job}</p><div class="kv-tiers">${list.map(g => kvItemCard(g, kit && kit.id === g.id)).join('')}</div></div>` };
+    return `<div class="kv-grp"><h3>${K.ic} ${K.n}${kit ? ' <span class="pill ok">Olemas</span>' : ''}</h3><p class="job"><b>Ülesanne:</b> ${K.job}</p>${K.extra || ''}<div class="kv-tiers">${list.map(g => kvItemCard(g, kit && kit.id === g.id)).join('')}</div></div>` };
   return `<div class="fv-card"><h2>🧰 Kalamehe varustus</h2><p class="lead">Päris kalamehe abivahendid. Igaüks teeb kindlat tööd ja mõjub püügile kohe pärast ostmist. Kui sul on sama asja mitu, kasutatakse kõige paremat.</p><div style="display:grid;gap:10px">${KV_HELP.map(grp).join('')}</div></div>
     <div class="fv-card"><h2>🪤 Püünised</h2><div class="kt-intro"><p class="lead">Püünised võimaldavad sul kala püüda ka siis, kui tegeled samal ajal teiste kuningriigi tegevustega.</p>
       <p class="lead">Paiguta püünis vette, lase sellel iseseisvalt töötada ja tule hiljem oma saaki kontrollima!</p>
