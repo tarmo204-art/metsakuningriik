@@ -172,6 +172,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-hp span{display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000}
 .kt-boss .bn{position:absolute;left:12px;top:10px;font-family:var(--f-head);font-size:20px;color:#ffd0b0;text-shadow:0 2px 6px #000}
 .kt-boss.dead .bar i{background:#6a7a80;box-shadow:none}
+.kk-list{margin:0;padding-left:20px;display:grid;gap:3px;color:#d8e6ea;font-size:14px}.kk-list b{color:#eaf6fa}
 .kt-intro{display:grid;gap:8px}.kt-intro p{margin:0}.kt-ib{padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,200,140,.18)}.kt-ib b{color:#ffe2b8}.kt-ib p{margin:4px 0 0}.kt-ib ul{margin:6px 0 0;padding-left:20px;display:grid;gap:3px;color:#d8e6ea;font-size:14px}.kt-end{font-weight:700;color:#ffd8b0!important;font-style:italic}
 .kt-pts{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.kt-pts span{font-size:12.5px;padding:5px 8px;border-radius:8px;background:rgba(0,0,0,.25)}
 .kt-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(90deg,rgba(200,48,44,.9),rgba(160,60,20,.85));color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid rgba(255,200,140,.5)}
@@ -1048,7 +1049,7 @@ function tabPood() {
 /* ---------- Kalaraamat ---------- */
 function tabRaamat() {
   const book = FS.book || {}, caught = FD.species.filter(s => book[s.id]).length;
-  let h = badgesCard() + `<div class="fv-card"><h2>Kalaraamat</h2><p class="lead">Püütud ${caught} / ${FD.species.length} liiki. Kõigi kalade leidmine annab tiitli „Kalakuningas“ ja suure preemia.</p><div class="bar green"><i style="width:${(caught / FD.species.length * 100).toFixed(1)}%"></i></div>`;
+  let h = badgesCard() + `<div class="fv-card"><h2>🐟 Kalakogu</h2><p class="lead" style="margin:0"><b style="color:#eaf6fa">Avastatud kalaliigid: ${caught} / ${FD.species.length}</b></p><p class="lead" style="margin:0">Iga kala on uus avastus! Vajuta kalale, et avada tema kalakaart ja tutvuda tema omadustega:</p><ul class="kk-list"><li><b>Lemmiksööt</b> – millist sööta kala eelistab.</li><li><b>Parim püügiaeg</b> – millal on kõige parem teda püüda.</li><li><b>Püüdmise raskus</b> – kui keeruline on kala kätte saada.</li></ul><div class="kt-ib"><b>🏆 Leia kõik ${FD.species.length} kalaliiki!</b><p class="lead" style="margin:4px 0 0">Täieliku kalakogu täitmisel saad ainulaadse tiitli „Kalakuningas“ ja väärtusliku eriauhinna.</p></div><div class="bar green"><i style="width:${(caught / FD.species.length * 100).toFixed(1)}%"></i></div>`;
   for (let r = 1; r <= 6; r++) {
     const list = FD.species.filter(s => s.rarity === r), [rn, rc] = RAR2[r];
     h += `<div class="sec-h" style="color:${rc}">${rn} <small>${list.filter(s => book[s.id]).length} / ${list.length}</small></div><div class="book">${list.map(s => {

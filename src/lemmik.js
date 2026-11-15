@@ -213,7 +213,7 @@ function favStrip() {
   };
   const baseRaamat = tabRaamat;
   tabRaamat = function () {
-    return baseRaamat().replace('Kõigi kalade leidmine annab', 'Vajuta kalale, et näha selle kalakaarti: lemmiksööt, parim aeg ja raskus. Kõigi kalade leidmine annab')
+    return baseRaamat()
       .replace(/<div class="bcell"([^>]*)><canvas data-fl="([^"]+)"/g, '<div class="bcell fcbtn" role="button" tabindex="0" data-fcard="$2"$1><canvas data-fl="$2"');
   };
   const baseResult = resultCard;
