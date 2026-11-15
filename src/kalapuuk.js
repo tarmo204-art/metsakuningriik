@@ -824,7 +824,7 @@ function mainButton() {
 }
 function repairCost2() { const r = FD.rod[FS.rod]; return Math.max(10, Math.round((r ? r.price : 0) * 0.2)) }
 function setMsg(m) { FV.msg = m; const el = $('#fvMsg'); if (el) el.textContent = m }
-function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; renderFV(true) }
+function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; if (p !== 'lost') FV.loss = null; else if (FV.loss) FV.loss.at = performance.now(); renderFV(true) }
 
 /* põhitegevused */
 async function doCast() {
@@ -847,6 +847,7 @@ async function doPull() {
     const r = await rpc('fish_hook', { p_cast: FV.cast.cast_id });
     if (!r.ok) {
       FS.lost++;
+      FV.loss = { k: r.reason === 'early' || early ? 'early' : 'late' };
       setPhase('lost', r.reason === 'early' || early ? 'Liiga vara! Kala ehmus ära. Oota, kuni ujuk vee alla tõmbub.' : 'Liiga hilja! Kala jõudis minema ujuda.');
     } else {
       FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 };
@@ -866,7 +867,7 @@ function reelHit() {
     setMsg(['Hea! Kala väsib.', 'Veel natuke!', 'Tõmba, tõmba!'][h.hits % 3]);
   } else {
     h.misses++; fxMiss();
-    if (h.misses >= h.maxMiss) { doLose('Nöör läks lõdvaks ja kala rebis end lahti.'); return }
+    if (h.misses >= h.maxMiss) { FV.loss = { k: 'slack' }; doLose('Nöör läks lõdvaks ja kala rebis end lahti.'); return }
     setMsg(`Mööda! Nöör on pingul. Vigu veel lubatud: ${h.maxMiss - h.misses}.`);
   }
 }
@@ -884,9 +885,9 @@ async function doLand() {
     const r = await rpc('fish_land', { p_cast: FV.cast.cast_id });
     const est = h && +h.est; FV.hook = null;
     if (!r.ok) {
-      if (r.reason === 'broken') { setPhase('lost', `Krõks! ${esc(r.name)} kaalus päriselt ${fKg(+r.weight)}${est ? ` (silma järgi tundus ~${fKg(est)})` : ''}, aga sinu õng kannab ${fKg(+r.strength)} – õng murdus${+r.kahv ? ` enne, kui kala kahva ulatusse jõudis (oht oli ~${r.risk}%, kahv vähendas seda ${Math.round(+r.kahv * 100)}%)` : ''}. Meister parandab selle tasuta 2 tunniga või võid kohe parandada. Nii suurte kalade jaoks on vaja tugevamat õnge.`); sparkleScene('#ff8a78'); }
-      else if (r.reason === 'escaped') setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`);
-      else setPhase('lost', 'Kala pääses minema.');
+      if (r.reason === 'broken') { FV.loss = { k: 'broken', name: r.name, w: +r.weight, est, str: +r.strength, kahv: +r.kahv || 0, risk: r.risk }; setPhase('lost', `Krõks! ${esc(r.name)} kaalus päriselt ${fKg(+r.weight)}${est ? ` (silma järgi tundus ~${fKg(est)})` : ''}, aga sinu õng kannab ${fKg(+r.strength)} – õng murdus${+r.kahv ? ` enne, kui kala kahva ulatusse jõudis (oht oli ~${r.risk}%, kahv vähendas seda ${Math.round(+r.kahv * 100)}%)` : ''}. Meister parandab selle tasuta 2 tunniga või võid kohe parandada. Nii suurte kalade jaoks on vaja tugevamat õnge.`); sparkleScene('#ff8a78'); }
+      else if (r.reason === 'escaped') { FV.loss = { k: 'last', name: r.name }; setPhase('lost', `Viimasel hetkel pääses ${r.name} õnge otsast!`) }
+      else { FV.loss = { k: 'gone' }; setPhase('lost', 'Kala pääses minema.') }
       await refreshFS(); afterAch(r.ach); renderFV(true);
     } else {
       FV.result = r; fxLand(r);
@@ -934,7 +935,7 @@ function sceneLoop(ts) {
   const dt = Math.min(.05, (ts - lastSc) / 1000 || 0); lastSc = ts; const t = ts / 1000;
   // ajastused
   if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
-  if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.');
+  if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) (FV.loss = { k: 'bait' }, doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.'));
   if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
@@ -1379,7 +1380,7 @@ document.addEventListener('click', async e => {
       if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
-    case 'cut': if (FV.phase === 'reel') doLose('Lasid kala lahti. Õng jäi terveks.'); break;
+    case 'cut': if (FV.phase === 'reel') { FV.loss = { k: 'release' }; doLose('Lasid kala lahti. Õng jäi terveks.') } break;
     case 'repair': fShop('repair', null); break;
     case 'repairFree': fShop('repair_free', null); break;
     case 'use': { const [act, id] = arg.split(':'); fUse(act, [+id]); break }

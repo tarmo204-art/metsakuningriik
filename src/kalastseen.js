@@ -278,7 +278,7 @@ function drawFx(c, w, h, dt, t) {
   }
   FX.texts = FX.texts.filter(x => x.life > 0);
 }
-{ const _dl = doLose; doLose = async function (msg) { fxDrops(FX.bx, FX.by, 10, .8); fxRing(FX.bx, FX.by, 40, '255,150,130'); fxText(FX.w / 2, FX.h * .3, 'PÄÄSES!', '#ff9a8a', 26); return _dl.apply(this, arguments) } }
+{ const _dl = doLose; doLose = async function (msg) { if (FV.loss && FV.loss.k === 'release') { fxRing(FX.bx, FX.by, 50, '150,240,170'); fxRing(FX.bx, FX.by, 32, '150,240,170'); fxText(FX.w / 2, FX.h * .3, 'VABASTATUD', '#a8f0b8', 24) } else { fxDrops(FX.bx, FX.by, 10, .8); fxRing(FX.bx, FX.by, 40, '255,150,130'); fxText(FX.w / 2, FX.h * .3, 'PÄÄSES!', '#ff9a8a', 26) } return _dl.apply(this, arguments) } }
 
 /* ---------- ujuk, nöör, viskamine ---------- */
 FX.bub = []; FX.castT0 = 0; FX.lastPh = ''; FX.snap = 0; FX.nib = 0;
