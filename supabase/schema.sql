@@ -1089,8 +1089,11 @@ insert into public.fish_gear (id, kind, tier, name, descr, price, min_level, val
  ('kahv1','kahv',1,'Väike kahv','Kala pääseb viimasel hetkel 30% harvemini ja liiga raske kala murrab õnge 35% harvemini.',150,2,0.30,0.35,1),
  ('kahv2','kahv',2,'Teleskoopkahv','Pikk vars ulatub kaugele: 50% vähem põgenemisi, 55% vähem murdunud õngesid.',900,8,0.50,0.55,2),
  ('kahv3','kahv',3,'Kummeeritud suurkahv','Suur kummeeritud võrk ka hiidkaladele: 70% vähem põgenemisi, 75% vähem murdunud õngesid.',3500,16,0.70,0.75,3),
- ('korv1','korv',1,'Söödakorv','Puistab põhja peibutussööta: kala võtab 15% kiiremini, latikat, karpkala ja teisi rahulikke kalu tuleb 1,5× rohkem.',200,3,0.15,1.5,4),
- ('korv2','korv',2,'Method-feeder','Kokkupressitud peibutussööt konksu ümber: kala võtab 25% kiiremini, rahulikke kalu 2× rohkem.',1500,10,0.25,2.0,5),
+ ('korv1','korv',1,'Söödakorv','I tase: puistab põhja peibutussööta – 5% kiirem näkkamine, latikat ja karpkala 1,2× rohkem.',200,3,0.05,1.2,4),
+ ('korv2','korv',2,'Method-feeder','II tase: kokkupressitud peibutussööt konksu ümber – 10% kiirem näkkamine, latikat ja karpkala 1,4× rohkem.',1500,10,0.10,1.4,5),
+ ('korv3','korv',3,'Pikaviskeline söödakorv','III tase: raskem korv viib sööda kaugele ja täpselt – 15% kiirem näkkamine, latikat ja karpkala 1,6× rohkem.',3500,16,0.15,1.6,6),
+ ('korv4','korv',4,'Meistri söödakorv','IV tase: aeglaselt lahustuv meistrisegu – 20% kiirem näkkamine, latikat ja karpkala 1,8× rohkem.',8000,23,0.20,1.8,7),
+ ('korv5','korv',5,'Kuninglik söödakorv','V tase: kuningliku köögi salasegu – 25% kiirem näkkamine, latikat ja karpkala 2× rohkem.',20000,30,0.25,2.0,8),
  ('hoidja1','hoidja',1,'Ridvahoidja','Teine õng on hoidjas vees: 7% juhtudest tuleb sinna samal ajal teine kala.',400,5,0.07,0,6),
  ('hoidja2','hoidja',2,'Kahe õnge alus','Kindel alus kelluke-signalisaatoriga: 13% juhtudest tuleb teise õnge otsa kala.',2500,14,0.13,0,7),
  ('sump1','sump',1,'Kalasump','Kala püsib vees elus ja värske: müües saad 5% parema hinna.',300,4,0.05,0,8),
@@ -1826,7 +1829,7 @@ begin
           and (fs.weather is null or wthr = any(fs.weather))
           order by case when fs.weather is not null and random() < (g ->> 'wpref')::numeric then 0 else 1 end,
             -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)
-              * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)
+              * (case when fs.baits && array['mais','leib'] or fs.id in ('latikas','karpkala') then korv2 else 1 end)
               * (case when wade and fs.id = any(array['harjus','joeforell','vikerforell','lohe','toogjas','teib','sainas','turb','vimb','koha']) then 1.6 else 1 end)
               * fx_season_k(fs.season) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
         exit when s.id is not null;
