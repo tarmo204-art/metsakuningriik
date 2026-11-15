@@ -4321,7 +4321,9 @@ begin
     select fs.* into s from fish_species fs where sp = any(fs.spots) and fs.rarity <= 2 and fs.min_level <= f.level and not fs.night_only
       and (not fs.winter_only or sp = 'jaa') and fs.weather is null and fs.event is null
       and not (fs.id = any(array(select x ->> 'species' from jsonb_array_elements(legs) x)))
-      order by md5(u::text || wk::text || fs.id) limit 1;
+      -- eelistame kalu, kes praegusel aastaajal ja ilmaga hästi võtavad (muidu võib retk jääda toppama)
+      order by fx_act(fs.temp_pref, fs.wx_tags, fx_weather_at(now()), fx_water(sp, now()), false, 'päev') / fs.rarity
+               * (0.75 + 0.25 * ('x' || substr(md5(u::text || wk::text || fs.id), 1, 6))::bit(24)::int / 16777215.0) desc limit 1;
     if s.id is null then select fs.* into s from fish_species fs where sp = any(fs.spots) and fs.rarity <= 2 and fs.event is null order by md5(u::text || fs.id) limit 1; end if;
     legs := legs || jsonb_build_object('spot', sp, 'species', s.id, 'n', case when s.rarity = 1 then 3 else 2 end, 'gold', 150 + i * 75, 'xp', 60 + i * 30);
   end loop;
@@ -4929,6 +4931,24 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- retke peatuse kala vahetamine (üks kord peatuse kohta): uus kala on selles kohas praegu kõige paremini võttev tavaline kala
+create or replace function public.journey_swap() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); j fish_journey; cur jsonb; f fishers; s fish_species; wthr text := fx_weather_at(now()); dp text := fx_daypart();
+begin
+  f := fx_fisher(u);
+  j := fx_journey(u);
+  select * into j from fish_journey where user_id = u and week = j.week for update;
+  if j.finished then raise exception 'Retk on juba läbitud'; end if;
+  cur := j.legs -> j.leg;
+  if coalesce((cur ->> 'swapped')::boolean, false) then raise exception 'Selle peatuse kala oled juba korra vahetanud'; end if;
+  select fs.* into s from fish_species fs where (cur ->> 'spot') = any(fs.spots) and fs.rarity = 1 and fs.min_level <= f.level and not fs.night_only
+    and (not fs.winter_only or fx_is_winter() or cur ->> 'spot' = 'jaa') and fs.weather is null and fs.event is null and fs.id <> cur ->> 'species'
+    order by fx_act(fs.temp_pref, fs.wx_tags, wthr, fx_water(cur ->> 'spot', now()), fx_prestorm(now()), dp) desc, random() limit 1;
+  if s.id is null then raise exception 'Selles kohas pole teist sobivat kala'; end if;
+  update fish_journey set legs = jsonb_set(legs, array[j.leg::text], cur || jsonb_build_object('species', s.id, 'n', 3, 'swapped', true)) where user_id = u and week = j.week;
+  return event_state() || jsonb_build_object('swapped', jsonb_build_object('from', cur ->> 'species', 'to', s.id));
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -4949,7 +4969,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

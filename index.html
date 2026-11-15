@@ -10565,7 +10565,7 @@ function tabSundmused() {
     h += `<div class="fv-card"><h2>🗺️ Kalastusretk <small class="lead">uus retk ${evLeft(Date.parse(j.ends) - now)} pärast · läbitud kokku ${j.done_total}</small></h2>
       <div class="jr-map">${evCv({ draw: jrMapDraw })}</div><div class="jr-legs">${j.legs.map((l, i) => { const st = i < j.leg || j.finished ? 'done' : i === j.leg ? 'cur' : '', s = FD.sp[l.species];
         return `<div class="jr-leg ${st}"><span class="n">${st === 'done' ? '✓' : i + 1}</span><div><b>${esc(FD.spot[l.spot] ? FD.spot[l.spot].name : l.spot)}</b>: püüa ${l.n} × ${esc(s ? s.name.toLowerCase() : l.species)}<br><small>${st === 'cur' ? `Tehtud ${j.progress}/${l.n} · ` : ''}Preemia ${l.gold} kulda, ${l.xp} kogemust</small></div>
-          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button>`) : ''}</div>` }).join('')}</div>${bwJourneyLine()}
+          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${l.swapped ? '' : `<button class="btn sm ghost" type="button" data-ev="swap" title="Kui see kala ei taha võtta, vali selle asemel kala, kes praegu hästi võtab (üks kord peatuse kohta)" ${EV.busy ? 'disabled' : ''}>🔄 Vaheta kala</button>`}<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button></span>`) : ''}</div>` }).join('')}</div>${bwJourneyLine()}
       ${j.finished ? '<p class="lead" style="margin-top:8px">🎉 Retk on läbitud! Uus retk algab esmaspäeval.</p>' : `<p class="lead" style="margin-top:8px">Lõpus ootab aardekirst: 2000 kulda, 600 kogemust ja 2 eset.</p>`}</div>`;
   }
   h += duSection();
@@ -10666,10 +10666,11 @@ async function evAct(a, el) {
   if (a === 'go') { if (UI.modalView) closeModal(); FV.tab = 'puuk'; if (evSpOk(arg)) { FV.spot = arg; FV.oddsKey = ''; FV.result = null; FV.phase = 'idle' } else toast('Sinna sa veel ei pääse', 'bad'); renderFV(true); try { await loadOdds() } catch (e) { } renderFV(true); return }
   if (a === 'card') { if (typeof fishCard === 'function') fishCard(arg); return }
   if (EV.busy) return;
-  const fn = { q: 'event_quest_claim', prize: 'event_prize_claim', adv: 'journey_advance' }[a]; if (!fn) return;
+  const fn = { q: 'event_quest_claim', prize: 'event_prize_claim', adv: 'journey_advance', swap: 'journey_swap' }[a]; if (!fn) return;
   EV.busy = true; renderFV(true);
   try {
-    const r = await rpc(fn, a === 'q' ? { p_q: +arg } : {}); const { claimed, won, advanced, lvlup, ach, ...st } = r; EV.d = st;
+    const r = await rpc(fn, a === 'q' ? { p_q: +arg } : {}); const { claimed, won, advanced, swapped, lvlup, ach, ...st } = r; EV.d = st;
+    if (swapped) { const a1 = FD.sp[swapped.from], a2 = FD.sp[swapped.to]; toast(`Peatuse kala vahetatud: ${a1 ? a1.name.toLowerCase() : swapped.from} → ${a2 ? a2.name.toLowerCase() : swapped.to}. See võtab praegu hästi!`, 'good', 'fish') }
     if (claimed) { toast(`${claimed.text}: +${fmt(claimed.gold)} kulda`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }
     if (won) { toast(`${won.place}. koht! +${fmt(won.gold)} kulda${won.title ? ` ja tiitel „${won.title}“` : ''}${itemsTxt(won.items)}`, 'gold', 'fame'); if (typeof sfx === 'function') sfx('levelup') }
     if (advanced) { toast(advanced.finished ? `Retk läbitud! +${fmt(advanced.gold)} kulda${itemsTxt(advanced.items)}` : `Järgmine peatus! +${fmt(advanced.gold)} kulda`, 'gold', 'gold'); if (typeof sfx === 'function') sfx(advanced.finished ? 'levelup' : 'chime') }
