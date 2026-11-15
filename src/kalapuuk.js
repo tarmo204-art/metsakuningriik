@@ -721,8 +721,8 @@ function paintFishCanvases(root) {
     const w = cv2.clientWidth || 140, h = cv2.clientHeight || 60, d = 2; cv2.width = w * d; cv2.height = h * d;
     const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
     const r = +cv2.dataset.r || 1, col = (RAR2[r] || RAR2[1])[1];
-    const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h);
-    const rg = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w * .6); rg.addColorStop(0, col + '40'); rg.addColorStop(1, col + '00'); c.fillStyle = rg; c.fillRect(0, 0, w, h);
+    if (!cv2.dataset.nobg) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
+    if (!cv2.dataset.nobg) { const rg = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w * .6); rg.addColorStop(0, col + '40'); rg.addColorStop(1, col + '00'); c.fillStyle = rg; c.fillRect(0, 0, w, h); }
     const sp = FD.sp[cv2.dataset.fl], junk = cv2.dataset.junk;
     const L = Math.min(w * .8, h * .82 / fishFit(sp && sp.look));
     if (cv2.dataset.unk === '1') { c.filter = 'brightness(0)'; c.globalAlpha = .85 }

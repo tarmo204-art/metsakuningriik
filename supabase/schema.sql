@@ -1374,6 +1374,13 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- 2w. Hooajakalad: oma aastaajal võtavad kolm korda paremini, väljaspool hooaega harva (aga mitte kunagi päris null)
+alter table public.fish_species add column if not exists season text[];
+update public.fish_species s set season = v.se from (values
+ ('raim','{kevad}'::text[]), ('vimb','{kevad}'), ('sainas','{kevad}'), ('haug','{kevad}'), ('tint','{talv,kevad}'), ('luts','{talv}'), ('tursk','{talv}'),
+ ('lohe','{sügis}'), ('meriforell','{sügis}'), ('siig','{sügis}'), ('angerjas','{suvi}'), ('linask','{suvi}'), ('karpkala','{suvi}'), ('latikas','{suvi}'), ('koha','{suvi,sügis}')
+) v(id, se) where s.id = v.id;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1791,7 +1798,7 @@ begin
           select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
             and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
             and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
-            order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
+            order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end) * fx_season_k(fs.season) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
           exit when s.id is not null;
           rr := rr - 1;
         end loop;
@@ -1804,7 +1811,7 @@ begin
             -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end)
               * (case when fs.baits && array['mais','leib'] then korv2 else 1 end)
               * (case when wade and fs.id = any(array['harjus','joeforell','vikerforell','lohe','toogjas','teib','sainas','turb','vimb','koha']) then 1.6 else 1 end)
-              * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
+              * fx_season_k(fs.season) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
         exit when s.id is not null;
         rar := rar - 1;
       end loop;
@@ -2557,7 +2564,8 @@ begin
   return jsonb_build_object('user', p_user, 'name', coalesce(p.name, 'Kalur'), 'kingdom', p.kingdom, 'title', f.title, 'level', f.level,
     'house', f.house_level, 'house_name', h.name, 'slots', coalesce(h.slots, 0), 'score', fx_aq_score(p_user), 'likes', f.aq_likes,
     'liked', exists (select 1 from fish_aq_likes where owner = p_user and visitor = u and day = fx_today()),
-    'me', p_user = u, 'fish', fx_aq_fish(p_user));
+    'me', p_user = u, 'fish', fx_aq_fish(p_user),
+    'trophies', (select coalesce(jsonb_agg(jsonb_build_object('species', c.species, 'rarity', c.rarity, 'weight', c.weight, 'giant', c.giant) order by c.rarity desc, c.weight desc), '[]') from (select * from fish_catches where user_id = p_user and status = 'trophy' order by rarity desc, weight desc limit 12) c));
 end $$;
 
 create or replace function public.fish_aquariums() returns jsonb language sql stable security definer set search_path = public as $$
@@ -5054,6 +5062,27 @@ begin
   return cabin_state() || jsonb_build_object('rushed', cost);
 end $$;
 
+-- 6v. Hooajakalad, püügipäevik ja trofeesein
+create or replace function public.fx_season_k(se text[]) returns numeric language sql stable as $$
+  select case when se is null then 1 when public.fx_season() = any(se) then 3 else 0.4 end $$;
+-- püügipäevik: iga päeva kokkuvõte (viimased 30 püügipäeva)
+create or replace function public.fish_diary() returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  return (select coalesce(jsonb_agg(j order by day desc), '[]') from (
+    select x.day, jsonb_build_object('day', x.day, 'n', x.n, 'kg', round(x.kg, 2), 'night', x.nn,
+      'big', (select jsonb_build_object('species', c.species, 'weight', c.weight, 'rarity', c.rarity) from fish_catches c where c.user_id = u and not c.bought and (c.caught_at at time zone 'Europe/Tallinn')::date = x.day order by c.weight desc limit 1),
+      'rare', (select jsonb_build_object('species', c.species, 'weight', c.weight, 'rarity', c.rarity) from fish_catches c where c.user_id = u and not c.bought and (c.caught_at at time zone 'Europe/Tallinn')::date = x.day order by c.rarity desc, c.weight desc limit 1),
+      'new', (select count(*) from (select species, min(caught_at) m from fish_catches where user_id = u and not bought group by species) f where (f.m at time zone 'Europe/Tallinn')::date = x.day),
+      'species', (select count(distinct species) from fish_catches c where c.user_id = u and not c.bought and (c.caught_at at time zone 'Europe/Tallinn')::date = x.day),
+      'spots', (select coalesce(jsonb_agg(distinct c.spot), '[]') from fish_catches c where c.user_id = u and not c.bought and (c.caught_at at time zone 'Europe/Tallinn')::date = x.day),
+      'weather', (select c.weather from fish_catches c where c.user_id = u and not c.bought and c.weather is not null and (c.caught_at at time zone 'Europe/Tallinn')::date = x.day group by c.weather order by count(*) desc limit 1),
+      'sold', coalesce((select sum(qty) from fish_sales s where s.user_id = u and s.day = x.day), 0),
+      'season', fx_season((x.day + 1)::timestamp at time zone 'Europe/Tallinn' - interval '12 hours')) as j
+    from (select (caught_at at time zone 'Europe/Tallinn')::date as day, count(*) n, sum(weight) kg, count(*) filter (where night) nn
+          from fish_catches where user_id = u and not bought group by 1 order by 1 desc limit 30) x) q);
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5074,7 +5103,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
