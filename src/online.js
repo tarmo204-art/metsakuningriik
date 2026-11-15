@@ -40,6 +40,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .on-nm small{display:block;opacity:.8;margin-top:2px}
 .on-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .on-acts .btn{padding:6px 10px;font-size:12.5px}
+.on-xp{display:block;height:5px;margin-top:5px;max-width:180px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden}
+.on-xp i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#7fd6ff,#4fdc7c)}
 .on-empty{padding:14px;border-radius:14px;background:rgba(255,255,255,.04);text-align:center;opacity:.85}
 @media (max-width:600px){.on-faces,.on-chip small{display:none}.on-chip{padding:5px 10px 5px 8px}}
 @media (max-width:420px){.on-chip em{display:none}.fv-top:has(>.on-chip){gap:8px}.fv-top:has(>.on-chip) h1{font-size:21px}.fv-top>.on-chip{padding:5px 8px 5px 7px;gap:5px}}
@@ -101,12 +103,12 @@ function onView() {
   const rows = pl.map(p => {
     const inFish = p.where && p.where !== 'kuningriik', duel = inFish && p.flevel && !p.busy;
     return `<div class="on-row"><div class="on-av" style="${onFace(p.name)}">${onInit(p.name)}<b class="${p.busy ? 'busy' : ''}" title="${p.busy ? 'Duellis' : 'Mängus'}"></b></div>
-      <div class="on-nm"><strong>${esc(p.name)}</strong><small>${esc(p.kingdom || '')} · tase ${p.level}${p.flevel ? ` · 🎣 ${p.flevel}` : ''}</small><small>${p.busy ? '⚔ on praegu duellis' : onWhere(p)}</small></div>
+      <div class="on-nm"><strong>${esc(p.name)}</strong><small>${esc(p.kingdom || '')} · 👑 ${p.level}. tase${p.flevel ? ` · 🎣 ${p.flevel}. tase` : ''}</small><small>${p.busy ? '⚔ on praegu duellis' : onWhere(p)}</small></div>
       <div class="on-acts"><button class="btn ghost" type="button" data-on="visit" data-arg="${p.id}">🏰 Külasta</button>${duel ? `<button class="btn" type="button" data-on="duel" data-arg="${p.id}">⚔ Kutsu duellile</button>` : ''}</div></div>`;
   }).join('');
   const brows = bots.map(b => { const sp = FD.spot && FD.spot[b.spot];
     return `<div class="on-row"><div class="on-av bot">${b.emoji || '🎣'}<b></b></div>
-      <div class="on-nm"><strong>${esc(b.name)} ${duBotTag()}</strong><small>tase ${b.level} · 🎣 püüab${sp ? ': ' + esc(sp.name) : ''}</small></div>
+      <div class="on-nm"><strong>${esc(b.name)} ${duBotTag()}</strong><small>🎣 ${b.level}. tase · püüab${sp ? ': ' + esc(sp.name) : ''}</small>${b.xp_need ? `<span class="on-xp" title="${fmt(b.xp)} / ${fmt(b.xp_need)} kogemust"><i style="width:${Math.min(100, b.xp / b.xp_need * 100).toFixed(1)}%"></i></span>` : ''}</div>
       <div class="on-acts"><button class="btn ghost" type="button" data-on="duel" data-arg="bot:${b.bot}">⚔ Kutsu</button></div></div>` }).join('');
   return `<div class="on-card"><h2><span class="on-dot"></span>Kes on mängus?</h2>
     <p class="lead">${pl.length ? `Praegu mängib peale sinu veel <b>${pl.length}</b> ${pl.length === 1 ? 'inimene' : 'inimest'}.` : 'Praegu oled ainuke päris mängija. Kui keegi tuleb, annan sulle märku!'}</p>

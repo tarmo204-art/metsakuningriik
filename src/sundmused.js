@@ -337,10 +337,11 @@ setInterval(() => {
     if (n.kind === 'event_win') return `${who} võitis sündmuse „${(EV_INFO[d.kind] || { n: '' }).n}“! ${(EV_INFO[d.kind] || { ic: '' }).ic}`;
     if (n.kind === 'retk') return `${who} läbis selle nädala kalastusretke ja avas aardekirstu! 🗺️`;
     if (n.kind === 'duel') return `${who} võitis kahevõitluses ${d.bot ? 'Järve kalurit' : 'mängijat'} ${esc(d.vs || '')}${d.stake ? ` (${fmt(d.stake * 2)} kulda)` : ''}! ⚔️`;
+    if (n.kind === 'bot_level') return `${n.bot_emoji || ''} <b>${esc(n.name)}</b> ${duBotTag()} tõusis kalapüügis <b>${d.level}. tasemele</b>!`;
     if (n.kind === 'bot_catch') { const sp = FD.sp[d.species]; return `${n.bot_emoji || ''} <b>${esc(n.name)}</b> ${duBotTag()} püüdis kohas ${esc(FD.spot[d.spot] ? FD.spot[d.spot].name : d.spot || '')}: ${esc(sp ? sp.name.toLowerCase() : d.species || '')} ${fKg(+d.weight)}!` }
     return baseNewsE(n);
   };
-  Object.assign(NEWS_IC, { event_win: '🏆', retk: '🗺️', duel: '⚔️', bot_catch: '🎣' });
+  Object.assign(NEWS_IC, { event_win: '🏆', retk: '🗺️', duel: '⚔️', bot_catch: '🎣', bot_level: '⭐' });
   const baseBadgesE = fvBadges;
   fvBadges = function () { const b = baseBadgesE(); const d = EV.d; let n = 0;
     if (d) { if (d.prize) n++; if (d.event) n += (d.event.quests || []).filter(q => !q.claimed && +q.progress >= +q.target).length; const j = d.journey; if (j && !j.finished && j.legs[j.leg] && j.progress >= j.legs[j.leg].n) n++ }

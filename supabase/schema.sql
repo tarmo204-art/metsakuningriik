@@ -1274,6 +1274,10 @@ create table if not exists public.fish_bot_catches (
 );
 create index if not exists fish_bot_catches_at on public.fish_bot_catches(caught_at);
 create table if not exists public.fish_bot_meta (k text primary key, v timestamptz not null);
+-- Järve kalurid kasvavad nagu päris mängijad: kogemus tuleb nende enda püütud kaladest
+alter table public.fish_bots add column if not exists lvl int;
+alter table public.fish_bots add column if not exists xp int not null default 0;
+update public.fish_bots set lvl = base_level where lvl is null;
 alter table public.fish_news alter column user_id drop not null;
 alter table public.fish_news add column if not exists bot text;
 alter table public.fish_duels alter column b drop not null;
@@ -4583,7 +4587,24 @@ end $$;
 -- 6r. Järve kalurid (jaotis 2s)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_bot_level(b public.fish_bots) returns int language sql stable as $$
-  select least(50, b.base_level + floor((current_date - b.start_date) / 7.0 * b.rate)::int) $$;
+  select least(50, coalesce(b.lvl, b.base_level)) $$;
+-- kogemus tegelasele (sama tasemekõver mis mängijal); tõusu korral uudis
+create or replace function public.fx_bot_xp(p_bot text, p_species text, p_spot text, at2 timestamptz) returns void language plpgsql as $$
+declare b public.fish_bots; s public.fish_species; sp public.fish_spots; gain int; lv int; x int;
+begin
+  select * into b from public.fish_bots where id = p_bot for update;
+  select * into s from public.fish_species where id = p_species; select * into sp from public.fish_spots where id = p_spot;
+  if b.id is null or s.id is null then return; end if;
+  lv := coalesce(b.lvl, b.base_level); if lv >= 50 then return; end if;
+  gain := greatest(1, round(s.xp * (1 + coalesce(sp.difficulty, 0) * 0.1) * 0.6));
+  x := b.xp + gain;
+  while lv < 50 and x >= public.fx_xp_need(lv) loop
+    x := x - public.fx_xp_need(lv); lv := lv + 1;
+    insert into public.fish_news(at, user_id, bot, kind, data) values (at2, null, b.id, 'bot_level', jsonb_build_object('level', lv));
+  end loop;
+  if lv >= 50 then x := 0; end if;
+  update public.fish_bots set lvl = lv, xp = x where id = b.id;
+end $$;
 -- kas tegelane on antud hetkel vee ääres (päevakava, puhkepäevad, pausid; Tormi-Toomas tuleb tormiga alati)
 create or replace function public.fx_bot_online(b public.fish_bots, ts timestamptz) returns boolean language plpgsql stable as $$
 declare loc timestamp := ts at time zone 'Europe/Tallinn'; h int := extract(hour from loc); win jsonb; x jsonb; ok boolean := false;
@@ -4639,8 +4660,9 @@ begin
         p := public.fx_bot_pick(public.fx_bot_spot(b, at2), public.fx_bot_level(b), at2, b.size);
         if p is not null then
           insert into public.fish_bot_catches(bot, species, rarity, weight, spot, caught_at) values (b.id, p ->> 'species', (p ->> 'rarity')::int, (p ->> 'weight')::numeric, public.fx_bot_spot(b, at2), at2);
+          perform public.fx_bot_xp(b.id, p ->> 'species', public.fx_bot_spot(b, at2), at2);
           if ((p ->> 'rarity')::int >= 4 or ((p ->> 'rarity')::int >= 3 and (p ->> 'weight')::numeric >= (p ->> 'max_w')::numeric * 0.8))
-             and not exists (select 1 from public.fish_news where bot = b.id and at > now() - interval '3 hours') then
+             and not exists (select 1 from public.fish_news where bot = b.id and kind = 'bot_catch' and at > now() - interval '3 hours') then
             insert into public.fish_news(at, user_id, bot, kind, data) values (at2, null, b.id, 'bot_catch', jsonb_build_object('species', p ->> 'species', 'weight', p ->> 'weight', 'spot', public.fx_bot_spot(b, at2)));
           end if;
         end if;
@@ -4652,7 +4674,7 @@ begin
   insert into public.fish_bot_meta(k, v) values ('tick', now()) on conflict (k) do update set v = excluded.v;
 end $$;
 create or replace function public.fx_bots_online() returns jsonb language sql volatile as $$
-  select coalesce(jsonb_agg(jsonb_build_object('bot', b.id, 'name', b.name, 'emoji', b.emoji, 'level', public.fx_bot_level(b), 'descr', b.descr,
+  select coalesce(jsonb_agg(jsonb_build_object('bot', b.id, 'name', b.name, 'emoji', b.emoji, 'level', public.fx_bot_level(b), 'xp', b.xp, 'xp_need', case when public.fx_bot_level(b) >= 50 then 0 else public.fx_xp_need(public.fx_bot_level(b)) end, 'descr', b.descr,
     'spot', public.fx_bot_spot(b, now()), 'stake', b.stake) order by b.sort), '[]') from public.fish_bots b where public.fx_bot_online(b, now()) $$;
 -- kahevõitluse saak tegelasele (arvutatakse ette, näidatakse jooksvalt)
 create or replace function public.fx_bot_duel_catches(p_bot text, p_spot text, lvl int, st timestamptz, en timestamptz) returns jsonb language plpgsql volatile as $$
