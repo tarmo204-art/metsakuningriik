@@ -1078,11 +1078,11 @@ function tabVoistlus() {
     const c = C[k], [nm, ds] = COMPN[k], ends = new Date(new Date(c.ends).getTime() - 60000);
     const val = r => k === 'most' ? `${r.cnt} kala` : `${esc(FD.sp[r.species] ? FD.sp[r.species].name : r.species)} ${fKg(+r.weight)}`;
     h += `<div class="fv-card"><h3>${nm}</h3><p class="lead" style="font-size:12.5px">${ds} Lõpeb ${k === 'big' ? 'täna' : ends.toLocaleDateString('et-EE', { weekday: 'long', timeZone: 'Europe/Tallinn' })} kell 23:59.</p>
-      ${c.top.length ? lbHtml({ who: 'Kalur', cols: [k === 'most' ? 'Kalu' : 'Kala'], cw: k === 'most' ? '' : '150px', rows: c.top.map(r => ({ place: r.place, name: r.name, sub: r.title, me: r.me, vals: [val(r)], colors: [k === 'most' ? '' : RAR2[r.rarity][1]] })) }) : '<p class="lead">Keegi pole veel osalenud. Ole esimene!</p>'}
+      ${c.top.length ? lbHtml({ who: 'Kalur', cols: [k === 'most' ? 'Kalu' : 'Kala'], cw: k === 'most' ? '' : '150px', rows: c.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [val(r)], colors: [k === 'most' ? '' : RAR2[r.rarity][1]] })) }) : '<p class="lead">Keegi pole veel osalenud. Ole esimene!</p>'}
       ${c.mine ? `<p class="lead">Sinu koht: <b>${c.mine.place}.</b> (${val(c.mine)})</p>` : ''}
       ${c.last.length ? `<p class="lead" style="font-size:12.5px">Eelmine kord: ${c.last.map(r => `${r.place}. ${esc(r.name)}${r.me ? ' (sina)' : ''}`).join(', ')}</p>` : ''}</div>`;
   }
-  h += `</div><div class="fv-card"><h2>Kuningriigi kalapüügi edetabel</h2>${C.leaderboard.length ? lbHtml({ who: 'Kalur', cols: ['Tase', 'Kalu', 'Suurim'], main: 0, hideM: [2], podium: true, rows: C.leaderboard.map((r, i) => ({ place: i + 1, name: r.name, sub: r.title, me: r.me, vals: [r.level + (r.stars ? ' ★' + r.stars : ''), fmt(r.total), fmt1(+r.biggest) + ' kg'] })) }) : '<p class="lead">Edetabel on veel tühi.</p>'}</div>`;
+  h += `</div><div class="fv-card"><h2>Kuningriigi kalapüügi edetabel</h2>${C.leaderboard.length ? lbHtml({ who: 'Kalur', cols: ['Tase', 'Kalu', 'Suurim'], main: 0, hideM: [2], podium: !C.leaderboard.slice(0, 3).some(r => r.bot), rows: (() => { let n = 0; return C.leaderboard.map(r => ({ place: r.bot ? '🎣' : ++n, name: r.name, sub: r.bot ? r.emoji + ' 🎣 Järve kalur' : r.title, me: r.me, vals: [r.level + (r.stars ? ' ★' + r.stars : ''), fmt(r.total), fmt1(+r.biggest || 0) + ' kg'] })) })() }) : '<p class="lead">Edetabel on veel tühi.</p>'}</div>`;
   return h;
 }
 
@@ -1166,7 +1166,7 @@ async function loadNews(silent) {
     const newer = fresh.filter(n => n.id > NEWS.last);
     NEWS.list = fresh; if (fresh.length) NEWS.last = Math.max(NEWS.last, fresh[0].id);
     NEWS.unread = fresh.filter(n => n.id > NEWS.seen && !n.me).length;
-    if (!first && silent) newer.filter(n => !n.me).slice(0, 2).forEach(n => toast('Kuningriigi uudis: ' + newsText(n).replace(/<[^>]+>/g, ''), 'gold', 'fish'));
+    if (!first && silent) newer.filter(n => !n.me && !n.bot).slice(0, 2).forEach(n => toast('Kuningriigi uudis: ' + newsText(n).replace(/<[^>]+>/g, ''), 'gold', 'fish'));
     if (FV.open) renderFV(); else if (typeof renderPanel === 'function' && S && UI.tab === 'edetabel') renderPanel(true);
   } catch (e) { }
 }

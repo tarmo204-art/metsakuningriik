@@ -177,6 +177,14 @@ fish_cast: liigi valik × fx_act; kui valitud kala on loid, proovitakse uuesti (
 keskmisest aktiivsusest. Mäng `src/ilm.js`: ilmajaam püügilehel (termomeetrid, baromeeter, 12 h ilmateade, kalade aktiivsus põhjustega),
 kalakaardil rida „Millal aktiivne“ (`ilmRow`). Uue päris kala lisamisel määra temp_pref ja wx_tags (schema.sql 2r).
 
+**Järve kalurid (botid)** (15.11.2026) – schema.sql 2s ja 6r. Tegelased `fish_bots` (8 tk: nimi, emoji, tase + kasv nädalas, oskus, suurus,
+lemmikkohad, päevakava `hours`/`weekend`, Toomas tuleb tormiga). ALATI märgitud 🎣 „Järve kalur“ (`duBotTag`), ei võta preemiaid/tiitleid,
+ei kauple turul. `fx_bots_tick()` (kuni kord minutis, kutsutakse duel_ping/event_state/fish_competitions) simuleerib 3-min sammudega püüki
+`fish_bot_catches` (samad reeglid: koht, tase, ilm, vesi, fx_act, sündmused), suure kala uudis `fish_news.bot` kind `bot_catch` (≤ 1 / 3 h).
+Kahevõitlus: `duel_invite_bot` (tegelane vastab 3–8 s pärast, 12% keeldub), tegelane kutsub ise (`from_bot`, ~4% pingist, kord 20 min),
+saak `fx_bot_duel_catches` ette arvutatud ja näidatakse aja järgi. fish_duels.b võib olla null (bot). Võistluste ja sündmuste edetabelites
+ning üldedetabelis näidatakse tegelasi ilma kohanumbrita (🎣).
+
 ## Järgmised plaanid
 1. (Valmis: Kalatund 20–21 + bossikala, jõulud 1.12–6.1., Etapp 6 prestiiž.)
 2. Ideed: nädalavahetuse sündmused, mobiilis kaardi suum, koduloomad, külalisteraamat, hooaja edetabel, varukoopiad,
