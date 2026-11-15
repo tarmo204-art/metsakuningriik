@@ -431,9 +431,7 @@ function tabPuunised() {
   if (!KV.d) { kvLoad(); return '<div class="fv-card"><p class="lead">Laen püüniseid…</p></div>' }
   const d = KV.d, now = kvNow(), lic = kvLic();
   let h = `<div class="kv-hero">${kvCv({ draw: kvHeroDraw })}<div class="ttl"><h2>Püünised</h2><small>${(d.traps || []).length}/4 vees · jõevähke püütud ${d.vahk}</small></div></div>`;
-  h += `<div class="kv-lic"><span class="em">🐟</span><div><h3>KALASTUSKAART</h3><p>Nakkevõrguga püüdmiseks on vaja kehtivat kalastuskaarti – nii nagu päris elus. Kehtib 7 päeva.</p>
-    <p class="st ${lic ? 'ok' : 'no'}">${lic ? `✓ Kehtib kuni ${new Date(lic).toLocaleString('et-EE', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}` : '✗ Kalastuskaarti pole'}</p></div>
-    <button class="btn sm" type="button" data-kv="lic" ${FS.gold >= d.license_price && !KV.busy && !(lic && Date.parse(lic) - now > 7 * 864e5) ? '' : 'disabled'}>${lic ? 'Pikenda' : 'Osta'} · ${d.license_price} 🪙</button></div>`;
+  h += typeof kaMini === 'function' ? kaMini(['vork', 'pyynis']) : '';
   h += `<div class="fv-card"><h2>Sinu püünised</h2><div class="kt-intro"><p class="lead">Püünised võimaldavad sul kala püüda ka siis, kui tegeled samal ajal teiste kuningriigi tegevustega.</p>
       <p class="lead">Paiguta püünis vette, lase sellel iseseisvalt töötada ja tule hiljem oma saaki kontrollima!</p>
       <div class="kt-ib"><b>Kuidas püünised töötavad?</b><ul><li>🪤 Paiguta püünis sobivasse veekogusse.</li><li>⏳ Püünis püüab iseseisvalt, ilma et peaksid ise midagi tegema.</li><li>🎣 Tule hiljem tagasi ja kogu püütud saak vahekaardilt „Püünised“.</li><li>🐟 Erinevad püünised võivad anda erinevat saaki.</li></ul></div>

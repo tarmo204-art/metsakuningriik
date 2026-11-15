@@ -198,7 +198,7 @@ async function loadFD() {
 async function refreshFS() {
   FS = await rpc('fish_state');
   if (S) S.fishCache = { level: FS.level, total: FS.total };
-  if (!FV.spot || (FD.spot[FV.spot] && (FD.spot[FV.spot].min_level > FS.level || (FD.spot[FV.spot].boat && !(FS.boats || []).includes(FD.spot[FV.spot].boat))))) FV.spot = 'metsajarv';
+  if (!FV.spot || (FD.spot[FV.spot] && (FD.spot[FV.spot].min_level > FS.level || (FD.spot[FV.spot].boat && !(FS.boats || []).includes(FD.spot[FV.spot].boat)))) || (typeof licMiss === 'function' && licMiss(FV.spot))) FV.spot = 'metsajarv';
   if (FS.inbox > 0) claimInbox();
   starCheck();
   return FS;
@@ -769,7 +769,7 @@ function fvBadges() {
   b.turg = FMK.newSold || 0;
   b.kalatund = KT.d ? (KT.d.unclaimed || 0) + (KT.d.active ? 1 : 0) : 0;
   b.maja = FS.aq_pending >= 50 ? 1 : 0;
-  if (FV.comps) b.voistlus = ['big', 'rare', 'most'].filter(k => { const c = FV.comps[k]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) }).length;
+  if (FV.comps) b.voistlus = ['big', 'rare', 'most', 'royal'].filter(k => { const c = FV.comps[k]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) }).length;
   return b;
 }
 function renderFV(force) {
@@ -791,7 +791,7 @@ function tabPuuk() {
   const owned = FD.baits.filter(b => b.price === 0 || (b.consumable ? ((FS.baits || {})[b.id] || 0) > 0 : (FS.baits || {})[b.id] !== undefined) || b.id === FS.bait);
   const odds = FV.odds;
   const active = !['idle', 'result', 'lost'].includes(FV.phase);
-  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), noPier = s.id === 'udulaht' && !(FS.cabin || []).includes('sild'), lock = FS.level < s.min_level || noBoat || noPier; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : noPier ? 'Vaja: Kalurimaja paadisild' : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
+  let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), noPier = s.id === 'udulaht' && !(FS.cabin || []).includes('sild'), noLic = typeof licMiss === 'function' ? licMiss(s.id) : null, lock = FS.level < s.min_level || noBoat || noPier || !!noLic; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : noPier ? 'Vaja: Kalurimaja paadisild' : noLic ? `🎫 Vaja: ${LIC_N[noLic]}` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
     <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
   h += `<div class="fv-card"><div id="fvSceneSlot"></div>
     <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
@@ -832,6 +832,7 @@ function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; if (p !== 'lost') 
 async function doCast() {
   if (FV.busy || !['idle', 'result', 'lost'].includes(FV.phase)) return;
   if (FS.level < FD.spot[FV.spot].min_level) { toast('See koht on veel lukus.', 'bad'); return }
+  if (typeof licMiss === 'function' && licMiss(FV.spot)) { const lm = licMiss(FV.spot); toast(`Siin püüdmiseks on vaja kehtivat kaarti „${LIC_N[lm]}“. Metsajärves saab püüda ka ilma kaardita.`, 'bad'); KA.focus = lm; FV.tab = 'kaardid'; renderFV(true); return }
   FV.busy = true; FV.result = null; setPhase('casting');
   try {
     const r = await rpc('fish_cast', { p_spot: FV.spot, p_bait: FS.bait });
@@ -927,7 +928,7 @@ function resultCard() {
 }
 
 /* ---------- stseen ---------- */
-const SCN = { metsajarv: ['#3f7a3a', '#3a7a94', '#163848'], jogi: ['#4a7a3a', '#4a8aa4', '#1a4050'], kuninglik: ['#3a6a3a', '#2f6a8a', '#0e2e44'], meri: ['#c8b884', '#2a6a8a', '#0e2e44'], jaa: ['#e8f2f6', '#2a5a70', '#0e2a38'], salajane: ['#3a4a5a', '#4a3a7a', '#140e2a'], saarestik: ['#7a7468', '#2a7090', '#0c2c42'], avameri: ['#1a5a8a', '#1e5f8e', '#06203a'], sugavik: ['#0a1a2a', '#0e2a44', '#02060e'] };
+const SCN = { metsajarv: ['#3f7a3a', '#3a7a94', '#163848'], jogi: ['#4a7a3a', '#4a8aa4', '#1a4050'], kuninglik: ['#3a6a3a', '#2f6a8a', '#0e2e44'], meri: ['#c8b884', '#2a6a8a', '#0e2e44'], jaa: ['#e8f2f6', '#2a5a70', '#0e2a38'], salajane: ['#3a4a5a', '#4a3a7a', '#140e2a'], saarestik: ['#7a7468', '#2a7090', '#0c2c42'], avameri: ['#1a5a8a', '#1e5f8e', '#06203a'], sugavik: ['#0a1a2a', '#0e2a44', '#02060e'], kuningatiik: ['#3a6a3a', '#3a7a8a', '#123a40'] };
 let sparks = [];
 function sparkleScene(col) { for (let i = 0; i < 40; i++) sparks.push({ x: .6, y: .5, vx: rnd(-.4, .4), vy: rnd(-.6, .1), life: rnd(.6, 1.2), col }) }
 let lastSc = 0;
@@ -1072,17 +1073,18 @@ function tabRaamat() {
 }
 
 /* ---------- Võistlused ---------- */
-const COMPN = { big: ['Päeva suurim kala', 'Kes püüab täna kõige raskema kala?', 'Päeva hiidkala püüdja'], rare: ['Nädala haruldaseim kala', 'Kõige haruldasem kala sel nädalal. Võrdsuse korral loeb kaal.', 'Haruldaste jahtija'], most: ['Nädala usinaim kalur', 'Kes püüab sel nädalal kõige rohkem kalu?', 'Nädala kalur'] };
+const COMPN = { royal: ['Kuninglik nädalavõistlus', 'Kes püüab sel nädalal Kuninga tiigist kõige raskema kala? Ainult kuningliku kalastuskaardi omanikele.', 'Kuninglik kalur'], big: ['Päeva suurim kala', 'Kes püüab täna kõige raskema kala?', 'Päeva hiidkala püüdja'], rare: ['Nädala haruldaseim kala', 'Kõige haruldasem kala sel nädalal. Võrdsuse korral loeb kaal.', 'Haruldaste jahtija'], most: ['Nädala usinaim kalur', 'Kes püüab sel nädalal kõige rohkem kalu?', 'Nädala kalur'] };
 function tabVoistlus() {
   const C = FV.comps;
   if (!C) return '<div class="fv-card"><p class="lead">Laadin võistlusi…</p></div>';
-  const unclaimed = ['big', 'rare', 'most'].some(k => !C[k].claimed && (C[k].last || []).some(r => r.me && r.place <= 3));
+  const unclaimed = ['big', 'rare', 'most', 'royal'].some(k => C[k] && !C[k].claimed && (C[k].last || []).some(r => r.me && r.place <= 3));
   let h = `<div class="fv-card"><h2>Võistlused</h2><p class="lead">Tulemused tulevad serverist. Kolm parimat saavad kulda ja kogemust, võitja ka tiitli. Preemia saad võtta pärast võistluse lõppu.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ${unclaimed ? '' : 'ghost'}" type="button" data-fa="claim">${unclaimed ? 'Võta võidupreemiad!' : 'Kontrolli võidupreemiaid'}</button><button class="btn ghost sm" type="button" data-fa="reloadComp">Värskenda</button></div></div><div class="comps">`;
-  for (const k of ['big', 'rare', 'most']) {
+  for (const k of ['big', 'rare', 'most', 'royal']) {
+    if (!C[k]) continue;
     const c = C[k], [nm, ds] = COMPN[k], ends = new Date(new Date(c.ends).getTime() - 60000);
     const val = r => k === 'most' ? `${r.cnt} kala` : `${esc(FD.sp[r.species] ? FD.sp[r.species].name : r.species)} ${fKg(+r.weight)}`;
-    h += `<div class="fv-card"><h3>${nm}</h3><p class="lead" style="font-size:12.5px">${ds} Lõpeb ${k === 'big' ? 'täna' : ends.toLocaleDateString('et-EE', { weekday: 'long', timeZone: 'Europe/Tallinn' })} kell 23:59.</p>
+    h += `<div class="fv-card ${k === 'royal' ? 'ka-royalc' : ''}"><h3>${k === 'royal' ? '👑 ' : ''}${nm}</h3>${k === 'royal' && !c.lic ? `<p class="ka-need">🎫 Osalemiseks on vaja kehtivat Kuninglikku kalastuskaarti. <button class="btn sm ghost" type="button" data-ka-go="kuninglik">Vaata kaarti</button></p>` : ''}<p class="lead" style="font-size:12.5px">${ds} Lõpeb ${k === 'big' ? 'täna' : ends.toLocaleDateString('et-EE', { weekday: 'long', timeZone: 'Europe/Tallinn' })} kell 23:59.</p>
       ${c.top.length ? lbHtml({ who: 'Kalur', cols: [k === 'most' ? 'Kalu' : 'Kala'], cw: k === 'most' ? '' : '150px', rows: c.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [val(r)], colors: [k === 'most' ? '' : RAR2[r.rarity][1]] })) }) : '<p class="lead">Keegi pole veel osalenud. Ole esimene!</p>'}
       ${c.mine ? `<p class="lead">Sinu koht: <b>${c.mine.place}.</b> (${val(c.mine)})</p>` : ''}
       ${c.last.length ? `<p class="lead" style="font-size:12.5px">Eelmine kord: ${c.last.map(r => `${r.place}. ${esc(r.name)}${r.me ? ' (sina)' : ''}`).join(', ')}</p>` : ''}</div>`;
@@ -1384,7 +1386,9 @@ document.addEventListener('click', async e => {
     case 'tab': FV.tab = arg; if (arg === 'kalatund') loadKT(); if (arg === 'maja') { AQ.visit = null; AQ.list = null } if (arg === 'turg') { FMK.seenSold = Date.now(); try { localStorage.setItem('mk.mkSeen', FMK.seenSold) } catch (e2) { } FMK.newSold = 0; loadMarket() } renderFV(true); if (arg === 'voistlus' || arg === 'tellimus' || arg === 'uudised') loadSide(); break;
     case 'spot': if (arg === 'udulaht' && FS.level >= FD.spot[arg].min_level && !(FS.cabin || []).includes('sild')) { toast('Udulahte pääseb, kui oled Kalurimaja paadisilla korda teinud.', 'info'); FV.tab = 'kalurimaja'; renderFV(true); return }
       if (FS.level < FD.spot[arg].min_level) { toast(`${FD.spot[arg].name} avaneb kalapüügi ${FD.spot[arg].min_level}. tasemel.`, 'bad'); return }
-      if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return } FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
+      if (FD.spot[arg].boat && !(FS.boats || []).includes(FD.spot[arg].boat)) { toast(`${FD.spot[arg].name}: siia pääsemiseks osta Töökojast paat.`, 'bad'); return }
+      if (typeof licMiss === 'function' && licMiss(arg)) { const lm = licMiss(arg); toast(`${FD.spot[arg].name}: siin püüdmiseks on vaja kehtivat kaarti „${LIC_N[lm]}“.`, 'info'); KA.focus = lm; FV.tab = 'kaardid'; renderFV(true); return }
+      FV.spot = arg; FV.result = null; FV.phase = 'idle'; FV.msg = ''; renderFV(true); await loadOdds(); renderFV(true); break;
     case 'cast': doCast(); break;
     case 'pull': if (Date.now() - (FV.pdAt || 0) < 600) break; doPull(); break;
     case 'cut': if (FV.phase === 'reel') { FV.loss = { k: 'release' }; doLose('Lasid kala lahti. Õng jäi terveks.') } break;

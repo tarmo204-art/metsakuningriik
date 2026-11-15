@@ -1402,6 +1402,62 @@ insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,
  ('boss1','Koletise alistaja','Aita Kalatunnis järvekoletis alistada',null,1500,600,93)
 on conflict (id) do update set name = excluded.name, descr = excluded.descr, title = excluded.title, reward_gold = excluded.reward_gold, reward_xp = excluded.reward_xp, sort = excluded.sort;
 
+-- 2y. Kalastuskaardid: õigus püügiviisidele ja püügikohtadele (kehtivust kontrollib server oma kella järgi)
+create table if not exists public.fish_license_types (
+  id text primary key, sort int not null, icon text not null, name text not null, color text not null,
+  days int not null, price int not null, min_level int not null default 1, need_total int not null default 0, need_ach int not null default 0,
+  descr text not null, gives text not null
+);
+insert into public.fish_license_types (id, sort, icon, name, color, days, price, min_level, need_total, need_ach, descr, gives) values
+ ('harrastus', 1, '🎣', 'Harrastuskaluri kaart', 'roheline', 30, 300, 1, 0, 0, 'Annab õiguse tavaliseks õngepüügiks. Võimaldab kasutada tavalisi püügikohti.', 'Õngepüük kõigis tavalistes püügikohtades. Ilma kaardita saab püüda ainult Metsajärves.'),
+ ('vork', 2, '🕸️', 'Nakkevõrgu kaart', 'sinine', 7, 400, 4, 0, 0, 'Annab õiguse kasutada nakkevõrke. Võimaldab püüda suuremaid kalakoguseid.', 'Nakkevõrgu vettepanek.'),
+ ('pyynis', 3, '🪤', 'Püüniste kaart', 'pruun', 7, 300, 3, 25, 0, 'Annab õiguse kasutada spetsiaalseid kalapüüniseid. Võimaldab püüda kala ka siis, kui mängija ise ei kalasta.', 'Mõrra, katiska ja vähimõrra vettepanek.'),
+ ('sugavee', 4, '🚤', 'Süvaveekaluri kaart', 'lilla', 7, 2500, 28, 500, 0, 'Avab ligipääsu sügavamatele püügikohtadele. Võimaldab püüda spetsiaalseid süvaveekalu.', 'Püük Avamerel ja Sügavikus (lisaks on vaja ka paati).'),
+ ('kuninglik', 5, '👑', 'Kuninglik kalastuskaart', 'kuldne', 30, 20000, 30, 1500, 10, 'Eriline kaart kogenud kaluritele. Annab ligipääsu kuningriigi eksklusiivsetele püügialadele ja erilistele kalastusüritustele.', 'Püük Kuninga tiigis ja osalemine Kuninglikul nädalavõistlusel.')
+on conflict (id) do update set sort = excluded.sort, icon = excluded.icon, name = excluded.name, color = excluded.color, days = excluded.days, price = excluded.price,
+  min_level = excluded.min_level, need_total = excluded.need_total, need_ach = excluded.need_ach, descr = excluded.descr, gives = excluded.gives;
+create table if not exists public.fisher_licenses (
+  user_id uuid not null references auth.users(id) on delete cascade, kind text not null references public.fish_license_types(id),
+  until timestamptz not null, primary key (user_id, kind)
+);
+create table if not exists public.fish_license_log (
+  id bigserial primary key, user_id uuid not null references auth.users(id) on delete cascade, kind text not null,
+  at timestamptz not null default now(), price int not null, until timestamptz not null, what text not null
+);
+create index if not exists fish_license_log_user on public.fish_license_log(user_id, at desc);
+alter table public.fisher_licenses enable row level security;
+alter table public.fish_license_log enable row level security;
+-- vana nakkevõrgu kalastuskaart kantakse uude süsteemi üle
+insert into public.fisher_licenses(user_id, kind, until) select user_id, 'vork', license_until from public.fishers where license_until > now() on conflict do nothing;
+-- Kuninga tiik: eksklusiivne püügiala kuningliku kalastuskaardiga
+insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort) values
+ ('kuningatiik','Kuninga tiik','Lossiaia kuldsete purskkaevudega tiik. Siin võivad püüda ainult kuningliku kalastuskaardi omanikud – ja siin elavad kalad, keda mujal ei leia.',30,4,0.18,10)
+on conflict (id) do update set name = excluded.name, descr = excluded.descr, min_level = excluded.min_level, difficulty = excluded.difficulty, bonus = excluded.bonus, sort = excluded.sort;
+update public.fish_species set spots = spots || '{kuningatiik}'::text[]
+  where id in ('linask','latikas','karpkala','hobekarp','amuur','kuningkarp','kuldahven','vikerkaarekala','kuuangerjas','kuldkala') and not ('kuningatiik' = any(spots));
+insert into public.fish_species
+select (jsonb_populate_record(null::public.fish_species, to_jsonb(h) || x.j || jsonb_build_object('spots', '{kuningatiik}'::text[], 'real', false, 'season', null, 'event', null, 'weather', null, 'night_only', false, 'winter_only', false))).*
+from (values
+  ('ahven', jsonb_build_object('id','kroonahven','name','Kroonahven','rarity',3,'min_w',0.3,'min_level',30,'max_w',2.5,'price',60,'xp',45,'difficulty',6,'max_len',50,'sort',130,
+     'look','{"c":["#e8c050","#6a3a8a","#fff2c0","#9a4ad0"],"s":"n","st":6,"g":"#ffe08a"}'::jsonb,'baits','{uss,vagel}'::text[],'times','{hommik,päev}'::text[],
+     'descr','Lossiaia ahven, kelle triibud säravad kullast ja purpurist. Ujub parvedes purskkaevude all.')),
+  ('karpkala', jsonb_build_object('id','lossikarp','name','Lossikarp','rarity',4,'min_w',4,'min_level',30,'max_w',28,'price',160,'xp',120,'difficulty',8,'max_len',110,'sort',131,
+     'look','{"c":["#b88ae0","#4a2a7a","#f4e8ff","#ffd060"],"s":"d","sp":1,"g":"#e0c0ff"}'::jsonb,'baits','{mais,uss}'::text[],'times','{õhtu}'::text[],
+     'descr','Kuninga lemmikkala: lilla soomus kuldsete äärtega. Lossi kokad hoiavad teda kõige suuremas aus.')),
+  ('joeforell', jsonb_build_object('id','kroonforell','name','Kuninglik forell','rarity',4,'min_w',1,'min_level',30,'max_w',9,'price',170,'xp',125,'difficulty',8,'max_len',85,'sort',132,
+     'look','{"c":["#f0d090","#7a4a1e","#fff6e0","#e04a6a"],"s":"n","sp":1,"g":"#ffd8a0"}'::jsonb,'baits','{vagel,hobelant}'::text[],'times','{hommik}'::text[],
+     'descr','Kuldsete täppidega forell, kes kasvab ainult lossiaia puhtas allikavees.')),
+  ('saga', jsonb_build_object('id','kuningasaga','name','Kuningasäga','rarity',5,'min_w',20,'min_level',30,'max_w',110,'price',950,'xp',600,'difficulty',10,'max_len',260,'sort',133,
+     'look','{"c":["#4a3a6a","#1a1230","#c8b8e0","#ffd040"],"s":"l","w":1,"g":"#ffd870"}'::jsonb,'baits','{uss,valgus,kuldvobler}'::text[],'times','{öö}'::text[],
+     'descr','Tiigi põhjas elav vana hiiglane, kelle vurrud on kullakarva. Legendi järgi on ta tiigis elanud sama kaua kui loss.')),
+  ('haldjakala', jsonb_build_object('id','kroonkala','name','Kuninga kroonkala','rarity',6,'min_w',8,'min_level',30,'max_w',40,'price',3200,'xp',1600,'difficulty',10,'max_len',150,'sort',134,
+     'look','{"c":["#ffd040","#a0600a","#fff4c0","#ff8a3a"],"b":"#ffe890","s":"d","g":"#ffe060"}'::jsonb,'baits','{kuldvobler}'::text[],'times','{õhtu}'::text[],
+     'descr','Müütiline kala, kelle seljauim on kroonikujuline. Öeldakse, et kes ta püüab, see on kuninga silmis tõeline kalur.'))
+) as x(tpl, j) join public.fish_species h on h.id = x.tpl
+on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, min_w = excluded.min_w, max_w = excluded.max_w, price = excluded.price, xp = excluded.xp,
+  spots = excluded.spots, min_level = excluded.min_level, difficulty = excluded.difficulty, look = excluded.look, max_len = excluded.max_len, descr = excluded.descr,
+  baits = excluded.baits, times = excluded.times, sort = excluded.sort;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1742,6 +1798,7 @@ begin
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
     || jsonb_build_object('cabin', (select coalesce(jsonb_agg(c.room), '[]') from fisher_cabin c where c.user_id = u and c.done_at <= now()))
+    || jsonb_build_object('lic', fx_lic_map(u))
     || jsonb_build_object('kuma', fx_kuma(), 'daypart', fx_daypart(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
 
@@ -1764,6 +1821,7 @@ begin
   -- kahevõitluses on mõlemal samad kalad: arvestatakse madalama mängija taset
   select least(fa.level, fb.level) into lv from fish_duels d join fishers fa on fa.user_id = d.a join fishers fb on fb.user_id = d.b
     where (d.a = u or d.b = u) and d.status = 'live' and d.spot = p_spot and now() between d.start_at - interval '15 seconds' and d.end_at limit 1;
+  if lv is null then perform fx_lic_check(u, p_spot); end if;
   lv := coalesce(lv, f.level);
   korv := fx_kit_v(u, 'korv'); korv2 := greatest(1, fx_kit_v(u, 'korv', true));
   if f.auto_dress then perform fx_dress_auto(u, p_spot); end if;
@@ -2235,7 +2293,7 @@ returns table(user_id uuid, place int, species text, weight numeric, rarity int,
            count(*) over (partition by c.user_id) as cnt,
            row_number() over (partition by c.user_id order by
              case when p_comp = 'rare' then c.rarity else 0 end desc, c.weight desc, c.caught_at asc) as rn
-    from public.fish_catches c where c.caught_at >= p_from and c.caught_at < p_to and not c.bought
+    from public.fish_catches c where c.caught_at >= p_from and c.caught_at < p_to and not c.bought and (p_comp <> 'royal' or c.spot = 'kuningatiik')
   ), best as (select * from base where rn = 1)
   select b.user_id,
          (row_number() over (order by
@@ -2256,7 +2314,7 @@ declare u uuid := fx_uid(); d date := fx_today(); cmp text; per record; prev rec
 begin
   perform fx_fisher(u);
   perform fx_bots_tick();
-  foreach cmp in array array['big','rare','most'] loop
+  foreach cmp in array array['big','rare','most','royal'] loop
     select * into per from fx_period(cmp, d);
     select * into prev from fx_period(cmp, case when cmp = 'big' then d - 1 else d - 7 end);
     select coalesce(jsonb_agg(jsonb_build_object('place', r.place, 'name', p.name, 'title', f.title, 'species', r.species,
@@ -2274,10 +2332,10 @@ begin
       select jsonb_build_object('place', null, 'bot', bb.id, 'emoji', bb.emoji, 'name', bb.name, 'title', 'Järve kalur', 'species', z.species, 'weight', z.weight, 'rarity', z.rarity, 'cnt', z.cnt, 'me', false),
         case when cmp = 'most' then z.cnt when cmp = 'rare' then z.rarity * 100000 + z.weight else z.weight end
       from (select distinct on (c.bot) c.bot, c.species, c.weight, c.rarity, count(*) over (partition by c.bot) as cnt from fish_bot_catches c
-            where c.caught_at >= per.p_from and c.caught_at < per.p_to order by c.bot, case when cmp = 'rare' then c.rarity else 0 end desc, c.weight desc) z
+            where c.caught_at >= per.p_from and c.caught_at < per.p_to and (cmp <> 'royal' or c.spot = 'kuningatiik') order by c.bot, case when cmp = 'rare' then c.rarity else 0 end desc, c.weight desc) z
       join fish_bots bb on bb.id = z.bot) x;
     res := res || jsonb_build_object(cmp, jsonb_build_object('top', top, 'mine', mine, 'last', last,
-             'ends', per.p_to, 'claimed', exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = prev.p_start)));
+             'ends', per.p_to, 'lic', cmp <> 'royal' or fx_lic_ok(u, 'kuninglik'), 'claimed', exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = prev.p_start)));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('name', p.name, 'title', f.title, 'level', f.level, 'stars', f.prestige, 'total', f.total,
            'biggest', f.biggest, 'rare', f.rare, 'me', f.user_id = u) order by f.level desc, f.prestige desc, f.pxp desc, f.xp desc, f.total desc), '[]')
@@ -2299,7 +2357,7 @@ declare u uuid := fx_uid(); d date := fx_today(); cmp text; k int; per record; p
 begin
   perform fx_fisher(u);
   perform fx_bots_tick();
-  foreach cmp in array array['big','rare','most'] loop
+  foreach cmp in array array['big','rare','most','royal'] loop
     for k in 1..(case when cmp = 'big' then 7 else 2 end) loop
       select * into per from fx_period(cmp, case when cmp = 'big' then d - k else d - 7 * k end);
       if exists (select 1 from fish_prizes where user_id = u and fish_prizes.comp = cmp and period = per.p_start) then continue; end if;
@@ -2307,6 +2365,7 @@ begin
       if pl is null or pl > 3 then continue; end if;
       if cmp = 'big' then v_gold := (array[300,150,80])[pl]; v_xp := (array[150,80,40])[pl]; ttl := 'Päeva hiidkala püüdja';
       elsif cmp = 'rare' then v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Haruldaste jahtija';
+      elsif cmp = 'royal' then v_gold := (array[5000,2500,1200])[pl]; v_xp := (array[1500,800,400])[pl]; ttl := 'Kuninglik kalur';
       else v_gold := (array[1500,800,400])[pl]; v_xp := (array[600,300,150])[pl]; ttl := 'Nädala kalur'; end if;
       insert into fish_prizes(user_id, comp, period, place) values (u, cmp, per.p_start, pl);
       if pl <= 3 then perform fx_news(u, 'comp', jsonb_build_object('comp', cmp, 'period', per.p_start, 'place', pl)); end if;
@@ -4117,7 +4176,8 @@ create or replace function public.gear_state() returns jsonb language plpgsql se
 declare u uuid := fx_uid(); f fishers;
 begin
   f := fx_fisher(u);
-  return jsonb_build_object('gold', f.gold, 'level', f.level, 'now', now(), 'license_until', f.license_until, 'license_price', 400,
+  return jsonb_build_object('gold', f.gold, 'level', f.level, 'now', now(), 'license_until', (select until from fisher_licenses where user_id = u and kind = 'vork'), 'license_price', 400,
+    'lic', fx_lic_map(u),
     'kit', fx_kit(u),
     'gear', (select jsonb_agg(jsonb_build_object('id', g.id, 'kind', g.kind, 'tier', g.tier, 'name', g.name, 'descr', g.descr, 'price', g.price,
                'min_level', g.min_level, 'val', g.val, 'val2', g.val2, 'own', fg.user_id is not null) order by g.sort)
@@ -4146,9 +4206,7 @@ create or replace function public.license_buy() returns jsonb language plpgsql s
 declare u uuid := fx_uid(); f fishers;
 begin
   f := fx_fisher(u);
-  if f.license_until is not null and f.license_until > now() + interval '7 days' then raise exception 'Kalastuskaart kehtib veel üle 7 päeva'; end if;
-  if f.gold < 400 then raise exception 'Kalastuskaart maksab 400 kulda'; end if;
-  update fishers set gold = gold - 400, license_until = greatest(coalesce(license_until, now()), now()) + interval '7 days' where user_id = u;
+  perform license_buy2('vork');
   return gear_state() || jsonb_build_object('license', true);
 end $$;
 
@@ -4161,7 +4219,8 @@ begin
   select * into sp from fish_spots where id = p_spot;
   if sp.id is null or not (p_spot = any(fx_trap_spots(p_kind))) then raise exception 'Seda püünist ei saa siia panna'; end if;
   if f.level < sp.min_level then raise exception 'See püügikoht avaneb % tasemel', sp.min_level; end if;
-  if p_kind = 'vork' and (f.license_until is null or f.license_until < now()) then raise exception 'Võrguga püüdmiseks on vaja kehtivat kalastuskaarti'; end if;
+  if p_kind = 'vork' and not fx_lic_ok(u, 'vork') then raise exception 'Nakkevõrgu kasutamiseks on vaja kehtivat Nakkevõrgu kaarti. Osta see Kalastuskaartide alt.'; end if;
+  if p_kind <> 'vork' and not fx_lic_ok(u, 'pyynis') then raise exception 'Püüniste kasutamiseks on vaja kehtivat Püüniste kaarti. Osta see Kalastuskaartide alt.'; end if;
   perform pg_advisory_xact_lock(hashtext('trap:' || u::text));
   if exists (select 1 from fish_traps where user_id = u and kind = p_kind and status = 'set') then raise exception 'See püünis on juba vees'; end if;
   insert into fish_traps(user_id, kind, gear, spot, ready_at) values (u, p_kind, g.id, p_spot, now() + make_interval(mins => round(g.val * 60 * case when fx_room(u, 'aidake') then 0.75 else 1 end)::int));
@@ -4409,7 +4468,8 @@ begin
   if j.user_id is not null then return j; end if;
   select * into f from fishers where user_id = u;
   select array_agg(p.id order by p.min_level) into spots from fish_spots p where p.min_level <= f.level and (p.boat is null or p.boat = any(f.boats))
-    and p.id = any(array['metsajarv','jogi','kuninglik','meri','saarestik','jaa','avameri','salajane','sugavik']);
+    and p.id = any(array['metsajarv','jogi','kuninglik','meri','saarestik','jaa','avameri','salajane','sugavik'])
+    and (p.id = 'metsajarv' or fx_lic_ok(u, 'harrastus')) and (p.id not in ('avameri','sugavik') or fx_lic_ok(u, 'sugavee'));
   spots := spots[greatest(1, cardinality(spots) - 5):cardinality(spots)];
   while cardinality(spots) < 4 loop spots := spots || spots[1 + (cardinality(spots) % greatest(1, cardinality(spots)))]; end loop;
   foreach sp in array spots loop
@@ -5178,6 +5238,75 @@ create or replace function public.kingdom_news_older(p_before bigint) returns js
     where n.id < p_before order by n.id desc limit 30) x
 $$;
 
+-- 6y. Kalastuskaardid
+create or replace function public.fx_lic_ok(u uuid, k text) returns boolean language plpgsql as $$
+declare n int;
+begin
+  -- esimene harrastuskaluri kaart on kingitus
+  if k = 'harrastus' then
+    insert into public.fisher_licenses(user_id, kind, until) values (u, 'harrastus', now() + interval '30 days') on conflict do nothing;
+    get diagnostics n = row_count;
+    if n > 0 then insert into public.fish_license_log(user_id, kind, price, until, what) values (u, 'harrastus', 0, now() + interval '30 days', 'Tervituskingitus'); end if;
+  end if;
+  return exists (select 1 from public.fisher_licenses where user_id = u and kind = k and until > now());
+end $$;
+create or replace function public.fx_lic_need(p_spot text) returns text[] language sql immutable as $$
+  select case when p_spot = 'metsajarv' then '{}'::text[] when p_spot in ('avameri','sugavik') then array['harrastus','sugavee']
+    when p_spot = 'kuningatiik' then array['harrastus','kuninglik'] else array['harrastus'] end $$;
+create or replace function public.fx_lic_check(u uuid, p_spot text) returns void language plpgsql as $$
+declare k text;
+begin
+  foreach k in array public.fx_lic_need(p_spot) loop
+    if not public.fx_lic_ok(u, k) then
+      raise exception 'Selles kohas püüdmiseks on vaja kehtivat kaarti: %. Osta või pikenda see Kalastuskaartide alt.', (select name from public.fish_license_types where id = k);
+    end if;
+  end loop;
+end $$;
+create or replace function public.fx_lic_map(u uuid) returns jsonb language plpgsql as $$
+begin
+  perform public.fx_lic_ok(u, 'harrastus');
+  return (select coalesce(jsonb_object_agg(kind, until), '{}') from public.fisher_licenses where user_id = u);
+end $$;
+
+create or replace function public.license_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; nach int;
+begin
+  f := fx_fisher(u);
+  perform fx_lic_ok(u, 'harrastus');
+  select count(*) into nach from fish_unlocked where user_id = u;
+  return jsonb_build_object('now', now(), 'gold', f.gold, 'level', f.level, 'total', f.total, 'ach', nach,
+    'name', (select name from profiles where id = u),
+    'types', (select jsonb_agg(jsonb_build_object('id', t.id, 'icon', t.icon, 'name', t.name, 'color', t.color, 'days', t.days, 'price', t.price,
+        'min_level', t.min_level, 'need_total', t.need_total, 'need_ach', t.need_ach, 'descr', t.descr, 'gives', t.gives,
+        'until', l.until, 'since', (select min(g.at) from fish_license_log g where g.user_id = u and g.kind = t.id),
+        'can', f.level >= t.min_level and f.total >= t.need_total and nach >= t.need_ach) order by t.sort)
+      from fish_license_types t left join fisher_licenses l on l.user_id = u and l.kind = t.id),
+    'log', (select coalesce(jsonb_agg(jsonb_build_object('kind', g.kind, 'at', g.at, 'price', g.price, 'until', g.until, 'what', g.what) order by g.at desc), '[]')
+      from (select * from fish_license_log where user_id = u order by at desc limit 12) g));
+end $$;
+
+create or replace function public.license_buy2(p_kind text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; t fish_license_types; cur timestamptz; nu timestamptz; nach int;
+begin
+  f := fx_fisher(u);
+  select * into t from fish_license_types where id = p_kind;
+  if t.id is null then raise exception 'Tundmatu kalastuskaart'; end if;
+  perform pg_advisory_xact_lock(hashtext('lic:' || u::text));
+  select count(*) into nach from fish_unlocked where user_id = u;
+  if f.level < t.min_level then raise exception 'Kaart „%“ avaneb kalapüügi % tasemel', t.name, t.min_level; end if;
+  if f.total < t.need_total then raise exception 'Kaardi „%“ jaoks pead olema püüdnud vähemalt % kala', t.name, t.need_total; end if;
+  if nach < t.need_ach then raise exception 'Kaardi „%“ jaoks on vaja vähemalt % saavutust', t.name, t.need_ach; end if;
+  select until into cur from fisher_licenses where user_id = u and kind = t.id;
+  if cur is not null and cur > now() + make_interval(days => t.days * 2) then raise exception 'Kaart kehtib veel kaua. Pikendada saab, kui jäänud on kuni % päeva.', t.days * 2; end if;
+  if f.gold < t.price then raise exception '% maksab % kulda', t.name, t.price; end if;
+  -- pikendamisel lisatakse uus periood olemasolevale aegumiskuupäevale
+  nu := greatest(coalesce(cur, now()), now()) + make_interval(days => t.days);
+  update fishers set gold = gold - t.price, license_until = case when t.id = 'vork' then nu else license_until end where user_id = u;
+  insert into fisher_licenses(user_id, kind, until) values (u, t.id, nu) on conflict (user_id, kind) do update set until = excluded.until;
+  insert into fish_license_log(user_id, kind, price, until, what) values (u, t.id, t.price, nu, case when cur > now() then 'Pikendamine' when cur is not null then 'Uuendamine' else 'Ost' end);
+  return license_state() || jsonb_build_object('bought', t.id, 'until', nu, 'ext', cur > now());
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5198,7 +5327,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

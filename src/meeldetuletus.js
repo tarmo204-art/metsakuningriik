@@ -92,7 +92,7 @@ function remTodo() {
   if (typeof kumaOn === 'function' && kumaOn()) add({ c: '#ff9a5a', hot: true, t: 'Õhtukuma: topelt kogemus', s: `Kuni kella 22-ni, veel ${kumaLeft()}${k && k.active ? ' · koos Kalatunniga' : ''}` });
   if (k && k.active) add({ c: C.gold, hot: true, t: 'Kalatund käib praegu', s: `Iga kala annab punkte ja teeb bossikalale kahju · lõpeb ${remIn(new Date(k.end) - remNow())}`, tab: 'kalatund', b: 'Ava' });
   if (k && k.unclaimed > 0) add({ c: C.gold, claim: true, t: 'Kalatunni auhind ootab', tab: 'kalatund', b: 'Võta' });
-  if (FV.comps && ['big', 'rare', 'most'].some(x => { const c = FV.comps[x]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) })) add({ c: C.gold, claim: true, t: 'Võistluse auhind ootab', tab: 'voistlus', b: 'Võta' });
+  if (FV.comps && ['big', 'rare', 'most', 'royal'].some(x => { const c = FV.comps[x]; return c && !c.claimed && (c.last || []).some(r => r.me && r.place <= 3) })) add({ c: C.gold, claim: true, t: 'Võistluse auhind ootab', tab: 'voistlus', b: 'Võta' });
   if (FS.rod_broken) add({ c: C.warn, hot: true, t: 'Õng on katki', s: 'Paranda see allpool või vali poes teine õng', tab: 'puuk' });
   if (FV.quests) {
     const all = [...(FV.quests.daily || [])], ready = [...all, ...(FV.quests.weekly || [])].filter(q => !q.done && +q.progress >= +q.target).length, dn = all.filter(q => q.done).length;

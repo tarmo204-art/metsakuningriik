@@ -66,7 +66,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 /* ---------- abi ---------- */
 function evNow() { return Date.now() + EV.skew }
 function evLeft(ms) { const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return d ? `${d} p ${h} h` : h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m}:${String(x).padStart(2, '0')}` }
-function evSpOk(id) { const p = FD.spot[id]; return p && p.min_level <= FS.level && (!p.boat || (FS.boats || []).includes(p.boat)) }
+function evSpOk(id) { const p = FD.spot[id]; return p && p.min_level <= FS.level && (!p.boat || (FS.boats || []).includes(p.boat)) && !(typeof licMiss === 'function' && licMiss(id)) }
 function evBestSpot(k) { const list = k === 'hai' ? ['sugavik', 'avameri', 'saarestik', 'meri'] : ['kuninglik', 'jogi']; return list.find(evSpOk) || null }
 async function evLoad() {
   if (EV.loading || !CL.user) return; EV.loading = true;

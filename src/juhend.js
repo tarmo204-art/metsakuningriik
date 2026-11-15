@@ -52,7 +52,7 @@ questRow = function (q, per) {
 
 /* ---------- abi ---------- */
 function qgOwned(id) { const b = FD.bait[id]; if (!b) return false; return b.price === 0 || id === FS.bait || (b.consumable ? ((FS.baits || {})[id] || 0) > 0 : (FS.baits || {})[id] !== undefined) }
-function qgSpotOk(id) { const p = FD.spot[id]; return p && p.min_level <= FS.level && (!p.boat || (FS.boats || []).includes(p.boat)) }
+function qgSpotOk(id) { const p = FD.spot[id]; return p && p.min_level <= FS.level && (!p.boat || (FS.boats || []).includes(p.boat)) && !(typeof licMiss === 'function' && licMiss(id)) }
 function qgSpots() { return FD.spots.filter(p => qgSpotOk(p.id)) }
 function qgTopSpot() { return qgSpots().sort((a, b) => b.min_level - a.min_level)[0] }
 function qgSpName(id) { return FD.spot[id] ? FD.spot[id].name : id }

@@ -79,7 +79,7 @@ function bdStone(c, x, yb, w2, h2, col) { c.fillStyle = col; c.beginPath(); c.mo
 
 const BD_SKY = {
   metsajarv: ['#6fb2dc', '#d8ecf2'], jogi: ['#78b8de', '#e2f0f2'], kuninglik: ['#86b4e0', '#f2dcc0'], meri: ['#5aa8dc', '#dcf0f6'], jaa: ['#a8c8dc', '#eef4f6'],
-  salajane: ['#3a2a6a', '#c898c0'], saarestik: ['#6aaedc', '#e8eef0'], avameri: ['#4a9ad6', '#d6eaf2'], sugavik: ['#1a2440', '#5a5a78']
+  salajane: ['#3a2a6a', '#c898c0'], saarestik: ['#6aaedc', '#e8eef0'], avameri: ['#4a9ad6', '#d6eaf2'], sugavik: ['#1a2440', '#5a5a78'], kuningatiik: ['#7aa8dc', '#fadcb4']
 };
 function bdPaint(c, w, h, spot, night) {
   const wl = h * .32, [s0, s1] = BD_SKY[spot] || BD_SKY.metsajarv;
@@ -118,6 +118,17 @@ function bdPaint(c, w, h, spot, night) {
   } else if (spot === 'saarestik') {
     for (let i = 0; i < 4; i++) { const r = bdR(i + 80), x = w * (.06 + i * .27), iw = w * (.1 + r() * .08), ih = h * (.04 + r() * .04); c.fillStyle = N('#a8948a'); c.beginPath(); c.moveTo(x - iw / 2, wl + 1); c.quadraticCurveTo(x - iw * .3, wl - ih, x, wl - ih); c.quadraticCurveTo(x + iw * .35, wl - ih * .95, x + iw / 2, wl + 1); c.fill(); c.save(); c.translate(x - iw * .3, 0); bdForest(c, iw * .6, wl - ih * .7, h * .04, h * .07, N('#2e4e36'), 81 + i, .9, 'pine'); c.restore() }
     bdLighthouse(c, w * .93, wl + 1, h * .06, night);
+  } else if (spot === 'kuningatiik') {
+    bdHills(c, w, wl - h * .015, h * .08, N('#9ab0a0'), 101); fog(.3, wl);
+    bdCastle(c, w * .5, wl - h * .01, h * .24, night);
+    // pügatud hekid ja koonusekujulised põõsad lossiaia ääres
+    for (let i = 0; i < 9; i++) { const x = w * (i / 8), hh = h * (.03 + (i % 2) * .012); c.fillStyle = N('#2e5a32'); c.beginPath(); c.roundRect ? c.roundRect(x - w * .06, wl - hh, w * .12, hh + 2, hh * .5) : c.rect(x - w * .06, wl - hh, w * .12, hh + 2); c.fill() }
+    for (const fx of [.2, .34, .66, .8]) { const x = w * fx, hh = h * .085; c.fillStyle = N('#24502c'); c.beginPath(); c.moveTo(x - w * .014, wl); c.quadraticCurveTo(x - w * .012, wl - hh * .6, x, wl - hh); c.quadraticCurveTo(x + w * .012, wl - hh * .6, x + w * .014, wl); c.fill() }
+    // kivist ääris kuldsete postidega
+    c.fillStyle = N('#d8ccb0'); c.fillRect(0, wl - h * .012, w, h * .014);
+    for (let x = w * .02; x < w; x += w * .06) { c.fillStyle = N('#c8bc9c'); c.fillRect(x, wl - h * .032, w * .008, h * .022); c.fillStyle = night ? '#a88a3a' : '#e8c050'; c.beginPath(); c.arc(x + w * .004, wl - h * .034, Math.max(2, w * .0035), 0, 6.283); c.fill() }
+    // kuldsed vimplid lossitornides
+    for (const fx of [.42, .58]) { const x = w * fx, y = wl - h * .3; c.strokeStyle = N('#5a4a3a'); c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - h * .05); c.stroke(); c.fillStyle = night ? '#b08a30' : '#f2c040'; c.beginPath(); c.moveTo(x, y - h * .05); c.lineTo(x + w * .03, y - h * .042); c.lineTo(x, y - h * .034); c.fill() }
   } else if (spot === 'avameri') {
     c.fillStyle = N('#7a90a8'); c.fillRect(0, wl - 1.5, w, 2);
   } else if (spot === 'sugavik') {
@@ -128,6 +139,13 @@ function bdPaint(c, w, h, spot, night) {
 function bdFg(c, w, h, spot, night) {
   const N = col => night ? bdMix(col, '#0a1428', .6) : col, r = bdR(spot.length * 7);
   if (spot === 'metsajarv' || spot === 'kuninglik' || spot === 'salajane') { for (let i = 0; i < 6; i++) bdLily(c, w * (.72 + r() * .26), h * (.62 + r() * .34), w * (.018 + r() * .016), r); bdReeds(c, w * .9, w, h, h * .32, 9, N('#4a6a2a')) }
+  if (spot === 'kuningatiik') {
+    for (let i = 0; i < 5; i++) bdLily(c, w * (.74 + r() * .24), h * (.64 + r() * .3), w * (.018 + r() * .014), r);
+    // kuldne purskkaev tiigi keskel
+    const fx = w * .3, fy = h * .5; c.fillStyle = N('#c8b890'); c.beginPath(); c.ellipse(fx, fy, w * .07, h * .025, 0, 0, 6.283); c.fill(); c.fillStyle = night ? '#a8883a' : '#e8c050'; c.fillRect(fx - w * .006, fy - h * .09, w * .012, h * .09); c.beginPath(); c.ellipse(fx, fy - h * .09, w * .03, h * .01, 0, 0, 6.283); c.fill();
+    c.strokeStyle = night ? 'rgba(180,210,255,.5)' : 'rgba(220,245,255,.85)'; c.lineWidth = 2;
+    for (const d of [-1, 1]) for (let k = 0; k < 3; k++) { c.beginPath(); c.moveTo(fx, fy - h * .1); c.quadraticCurveTo(fx + d * w * (.02 + k * .012), fy - h * (.17 - k * .02), fx + d * w * (.035 + k * .015), fy - h * .005); c.stroke() }
+  }
   if (spot === 'jogi') { bdRock(c, w * .82, h * .66, w * .05, N('#7a7a72')); bdRock(c, w * .93, h * .8, w * .07, N('#6a6a64')); bdRock(c, w * .28, h * .5, w * .03, N('#7a7a72')) }
   if (spot === 'meri' || spot === 'saarestik') { bdRock(c, w * .95, h * .92, w * .08, N('#8a7a70')); bdRock(c, w * .86, h * .98, w * .05, N('#7a6a62')) }
 }
