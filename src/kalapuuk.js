@@ -213,7 +213,7 @@ async function openFishView(tab) {
   }
   FV.open = true; if (tab) FV.tab = tab;
   $('#fishView').hidden = false; document.body.style.overflow = 'hidden';
-  $('#fvIn').innerHTML = '<div class="fv-card"><p class="lead">Laadin kalapüüki…</p></div>';
+  if (FS && FD.loaded) renderFV(true); else $('#fvIn').innerHTML = '<div class="fv-card"><p class="lead">Laadin kalapüüki…</p></div>'; // teist korda avades näed kohe vana pilti, värske tuleb taustal
   try { await loadFD(); await refreshFS(); await loadOdds(); FV.market = await rpc('fish_market').catch(() => null); FV.comps = null; FV.orders = null; loadSide() } catch (e) { $('#fvIn').innerHTML = `<div class="fv-card"><h2>Kalapüüki ei saanud avada</h2><p class="lead">${esc(e.message)}</p><div><button class="btn" type="button" data-fa="close">Tagasi kuningriiki</button></div></div>`; return }
   renderFV(true);
   requestAnimationFrame(sceneLoop);
