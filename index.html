@@ -8314,7 +8314,8 @@ function kitShow(r) {
 }
 {
   const baseLandK = fxLand;
-  fxLand = function (r) { baseLandK(r); if (r && r.kind === 'fish' && r.ok !== false) { clearTimeout(KIT.t2); KIT.t2 = setTimeout(() => { try { kitShow(r) } catch (e) { } }, 950) } };
+  // kiitusekast püügistseeni kohal on välja lülitatud – see segas püüki (kala kaal, pikkus ja vanus on näha tulemuse kaardil)
+  fxLand = function (r) { baseLandK(r) };
   const baseCloseK = closeFishView;
   closeFishView = function () { kitHide(); return baseCloseK.apply(this, arguments) };
 }
