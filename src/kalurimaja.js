@@ -1,7 +1,7 @@
 /* =====================================================================
-   Kalurimaja ja Udulaht: vana kaluri Kustase maja udusel lahel. Taastad tuba-toa haaval
+   Kalurimaja ja Udulaht: vana kaluri Villemi maja udusel lahel. Taastad tuba-toa haaval
    (kuld kalurikassast, puit ja kivi kuningriigi laost), iga tuba annab kindla boonuse ja
-   ühe lehe Kustase päevikust. Maja ümbruses saab puid raiuda, kive korjata ja marju noppida –
+   ühe lehe Villemi päevikust. Maja ümbruses saab puid raiuda, kive korjata ja marju noppida –
    saak läheb otse kuningriigi lattu (kuningriik ja kalapüük on üks majapidamine).
    Server: cabin_state, cabin_build, cabin_rush (schema 2v, 6u).
    ===================================================================== */
@@ -97,14 +97,14 @@ function cbTab() {
   let h = `<div class="fv-card" style="padding:12px"><div class="cb-scene"><canvas id="cbCv" aria-label="Kalurimaja Udulahe kaldal. Puuduta puid, kive ja põõsaid, et korjata."></canvas>
     <div class="cap"><b>Udulaht</b><small>Kalurimaja · taastatud ${nDone}/${rooms.length}</small></div><div class="cb-res" id="cbRes">${cbChipsHtml()}</div>
     <div class="cb-hint">🪓 Puuduta puid, kive ja põõsaid – saak läheb kuningriigi lattu</div></div>
-    <p class="lead" style="margin:10px 4px 0">Siin elas kunagi vana kalur Kustas. Taasta tema maja tuba-toa haaval: kuld tuleb kalurikassast, puit ja kivi sinu kuningriigi laost. Iga taastatud tuba annab püügile kindla boonuse ja ühe lehe Kustase päevikust.
+    <p class="lead" style="margin:10px 4px 0">Siin elas kunagi vana kalur Villem. Taasta tema maja tuba-toa haaval: kuld tuleb kalurikassast, puit ja kivi sinu kuningriigi laost. Iga taastatud tuba annab püügile kindla boonuse ja ühe lehe Villemi päevikust.
     ${cbDone('sild') ? ` <button class="btn sm" type="button" data-cb="go">🎣 Püüa Udulahes</button>` : ''}</p></div>`;
   h += `<div class="fv-card"><h2>Maja taastamine</h2><div class="cb-rooms">${rooms.map((r, i) => cbRoomHtml(r, i, rooms, work)).join('')}</div></div>`;
   // legend
   const leg = FD.sp.hallhaug, open = cbDone('poonung');
   h += `<div class="fv-card"><h2>Udulahe legend</h2><div class="cb-legend">${open && leg ? `<canvas data-fl="hallhaug" data-r="5"></canvas>` : '<div class="q">?</div>'}
     <div>${open ? `<b>${esc(leg ? leg.name : 'Hallhaug')}</b><p class="lead" style="margin:4px 0">${esc(leg ? leg.descr : '')}</p><p class="lead" style="margin:0">${d.legend ? `🏆 Oled teda püüdnud <b>${d.legend}</b> korda!` : 'Püüa Udulahes udu ajal või öösel – siis on lootust kõige rohkem.'}</p>`
-      : '<p class="lead" style="margin:0">Kustase päevikus on juttu millestki suurest, mis elab lahe põhjas… Taasta maja, et rohkem teada saada.</p>'}</div></div></div>`;
+      : '<p class="lead" style="margin:0">Villemi päevikus on juttu millestki suurest, mis elab lahe põhjas… Taasta maja, et rohkem teada saada.</p>'}</div></div></div>`;
   return h;
 }
 function cbRoomHtml(r, i, rooms, work) {
@@ -126,7 +126,7 @@ function cbLeft(ms) { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.
 async function cbAct(a, arg) {
   if (a === 'go') { FV.tab = 'puuk'; FV.spot = 'udulaht'; FV.oddsKey = ''; renderFV(true); try { await loadOdds() } catch (e) { } renderFV(true); return }
   if (a === 'page') { const r = CB.d.rooms.find(x => x.id === arg); if (!r || !r.page) return; cbMarkSeen(arg); const n = CB.d.rooms.indexOf(r) + 1;
-    showModal(() => `<h2>📜 Kustase päevik · ${n}. leht</h2><div class="cb-page"><p>${esc(r.page)}</p><small>— leitud: ${esc(r.name.toLowerCase())}</small></div><div class="mbtns"><button class="btn" type="button" data-act="closeModal">Sulge</button></div>`); renderFV(true); return }
+    showModal(() => `<h2>📜 Villemi päevik · ${n}. leht</h2><div class="cb-page"><p>${esc(r.page)}</p><small>— leitud: ${esc(r.name.toLowerCase())}</small></div><div class="mbtns"><button class="btn" type="button" data-act="closeModal">Sulge</button></div>`); renderFV(true); return }
   if (CB.busy) return; CB.busy = true; renderFV(true);
   try {
     if (a === 'build') {

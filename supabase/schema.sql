@@ -1329,18 +1329,18 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
--- 2v. Kalurimaja ja Udulaht: vana kaluri Kustase maja, mida taastatakse tuba-toa haaval (kulla, kuningriigi puidu ja kiviga)
+-- 2v. Kalurimaja ja Udulaht: vana kaluri Villemi maja, mida taastatakse tuba-toa haaval (kulla, kuningriigi puidu ja kiviga)
 insert into public.fish_spots (id,name,descr,min_level,difficulty,bonus,sort) values
- ('udulaht','Udulaht','Udune roostikuline laht, mille kaldal seisab vana kaluri Kustase maja. Siin saab püüda, kui maja paadisild on korda tehtud.',10,3,0.07,3)
+ ('udulaht','Udulaht','Udune roostikuline laht, mille kaldal seisab vana kaluri Villemi maja. Siin saab püüda, kui maja paadisild on korda tehtud.',10,3,0.07,3)
 on conflict (id) do update set name = excluded.name, descr = excluded.descr, min_level = excluded.min_level, difficulty = excluded.difficulty, bonus = excluded.bonus, sort = excluded.sort;
 update public.fish_species set spots = spots || '{udulaht}'::text[]
   where id in ('ahven','sarg','kiisk','latikas','roosarg','nurg','linask','koger','haug','vingerjas','mudamaim','koha','angerjas','uduhobe','kuldahven') and not ('udulaht' = any(spots));
--- legend: Kustase hallhaug (püütav ainult Udulahes, kui maja pööning on korras; udus ja öösel sagedamini)
+-- legend: Villemi hallhaug (püütav ainult Udulahes, kui maja pööning on korras; udus ja öösel sagedamini)
 insert into public.fish_species
 select (jsonb_populate_record(null::public.fish_species, to_jsonb(h) || jsonb_build_object(
-  'id', 'hallhaug', 'name', 'Kustase hallhaug', 'rarity', 5, 'min_w', 12, 'max_w', 24, 'price', 900, 'xp', 420, 'spots', '{udulaht}'::text[], 'min_level', 10,
+  'id', 'hallhaug', 'name', 'Villemi hallhaug', 'rarity', 5, 'min_w', 12, 'max_w', 24, 'price', 900, 'xp', 420, 'spots', '{udulaht}'::text[], 'min_level', 10,
   'difficulty', 9, 'look', '{"c":["#9aa4a8","#4a5458","#e2e6e6","#7a8488"],"s":"l","sp":1,"g":"#d8e4ea"}'::jsonb, 'sort', 120, 'event', 'kustas', 'real', false,
-  'max_len', 140, 'weather', null, 'descr', 'Vana kaluri Kustase legend: hiiglaslik hall haug, kes on Udulahes elanud kauem, kui keegi mäletab. Võtab udus või öösel ja ainult sellelt, kes on lahe maja korda teinud.'))).*
+  'max_len', 140, 'weather', null, 'descr', 'Vana kaluri Villemi legend: hiiglaslik hall haug, kes on Udulahes elanud kauem, kui keegi mäletab. Võtab udus või öösel ja ainult sellelt, kes on lahe maja korda teinud.'))).*
 from public.fish_species h where h.id = 'haug'
 on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, min_w = excluded.min_w, max_w = excluded.max_w, price = excluded.price, xp = excluded.xp,
   spots = excluded.spots, difficulty = excluded.difficulty, look = excluded.look, event = excluded.event, real = excluded.real, max_len = excluded.max_len, descr = excluded.descr;
@@ -1357,8 +1357,8 @@ insert into public.fish_cabin_rooms (id, sort, icon, name, descr, bonus, gold, w
   'Võrgud on paigas. Hommikul olid kaks võrku keskelt läbi rebitud, nagu oleks keegi neist lihtsalt läbi ujunud. Palk ei rebi võrku.'),
  ('laternatuba', 4, '🏮', 'Laternatuba', 'Tuba, mille aknast paistab latern üle lahe.', 'Öösel püütud kalad annavad 15% rohkem kogemust.', 3000, 200, 200, 4, 13,
   'Panin akna peale laterna. Öösel tuleb see vari valguse juurde. Hall nagu udu ise ja silmad nagu kaks vana hõbemünti. Haug. Kõige suurem haug, keda ma elus näinud olen.'),
- ('poonung', 5, '📜', 'Pööning', 'Tolmune pööning, kus on vana kirst.', 'Kustase päevik: Udulahes saab püüda legendaarset hallhaugi.', 4500, 350, 150, 5, 14,
-  'Kirjutan selle pööningule, et keegi kunagi leiaks: hallhaug võtab ainult udus või öösel ja ainult sellelt, kes on lahe maja korda teinud. Ta tunneb ära, kes siin elab. Mina olen liiga vana. Võib-olla sina. — Kustas'),
+ ('poonung', 5, '📜', 'Pööning', 'Tolmune pööning, kus on vana kirst.', 'Villemi päevik: Udulahes saab püüda legendaarset hallhaugi.', 4500, 350, 150, 5, 14,
+  'Kirjutan selle pööningule, et keegi kunagi leiaks: hallhaug võtab ainult udus või öösel ja ainult sellelt, kes on lahe maja korda teinud. Ta tunneb ära, kes siin elab. Mina olen liiga vana. Võib-olla sina. — Villem'),
  ('majakas', 6, '🗼', 'Majakas', 'Väike kivimajakas kaljunukil.', 'Udulahes on haruldasi kalu rohkem (+6% õnne).', 7000, 300, 400, 8, 16,
   'Majakas põleb. Nüüd leiavad ka teised kalurid tee Udulahte. Kui näed udus halli varju – ära kiirusta. Ta on oodanud kaua.')
 on conflict (id) do update set sort = excluded.sort, icon = excluded.icon, name = excluded.name, descr = excluded.descr, bonus = excluded.bonus, gold = excluded.gold,
