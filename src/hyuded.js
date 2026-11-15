@@ -93,10 +93,11 @@ function shDraw(c, w, h, dt) {
   const now = performance.now();
   // aegunud järjekorra liikmed (nt kui püügivaadet ei näidatud) ära
   SH.q = SH.q.filter(x => now - x.added < 30000);
-  if (!SH.cur && SH.q.length) {
-    SH.cur = SH.q.shift(); SH.cur.t0 = now; SH.cur.fast = SH.q.length >= 2 ? .72 : 1; const st = SH.cur.st, low = shLow();
+  // väike vaheaeg hüüete vahel, et need ei hüppaks üksteise otsa
+  if (!SH.cur && SH.q.length && now - (SH.endAt || 0) > 140) {
+    SH.cur = SH.q.shift(); SH.cur.t0 = now; SH.cur.fast = SH.q.length >= 3 ? .8 : SH.q.length >= 1 ? .9 : 1; const st = SH.cur.st, low = shLow();
     shSfx(st.sfx);
-    if ((st.shake || st.fx === 'shake') && !low) FX.shake = Math.max(FX.shake, st.fx === 'shake' ? .25 : .35);
+    if ((st.shake || st.fx === 'shake') && !low) FX.shake = Math.max(FX.shake, st.fx === 'shake' ? .14 : .2);
     shSpawn(SH.cur, w, h, low);
   }
   // osakesed
@@ -109,14 +110,17 @@ function shDraw(c, w, h, dt) {
     c.restore();
   }
   const S = SH.cur; if (!S) return;
-  const st = S.st, low = shLow(), dur = st.dur * (low ? .8 : 1) * (S.fast || 1), a = (now - S.t0) / 1000;
-  if (a > dur) { SH.cur = null; return }
+  const st = S.st, low = shLow(), dur = (st.dur * 1.2 + .35) * (low ? .85 : 1) * (S.fast || 1), a = (now - S.t0) / 1000;
+  if (a > dur) { SH.cur = null; SH.endAt = now; return }
   const cx = w / 2, cy = h * .42, k = a / dur;
   // taustaefekt
   shBg(c, w, h, cx, cy, a, st, low);
-  // tekst: kiire ilmumine, hetkeks suurem, sujuv kadumine
-  const pop = a < .14 ? .35 + a / .14 * .95 : a < .26 ? 1.3 - (a - .14) / .12 * .3 : 1;
-  const fade = k > .78 ? 1 - (k - .78) / .22 : 1, rise = k > .78 ? (k - .78) / .22 * h * .06 : 0;
+  // tekst: pehme sisseujumine (kerge üleminekuga), rahulik püsimine ja sujuv hääbumine ülespoole
+  const IN = .42, OUT = Math.min(.55, dur * .3), ein = Math.min(1, a / IN), eout = Math.max(0, (a - (dur - OUT)) / OUT);
+  const back = t => { const c1 = 1.2, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2) };
+  const smooth = t => t * t * (3 - 2 * t);
+  const pop = (.78 + .22 * back(ein)) * (1 + .03 * Math.sin(Math.min(a, dur - OUT) * 2.2) * (ein >= 1 ? 1 : 0)) * (1 - .06 * smooth(eout));
+  const fade = Math.min(smooth(Math.min(1, a / .28)), 1 - smooth(eout)), rise = (1 - smooth(ein)) * -h * .025 + smooth(eout) * h * .05;
   const fs = Math.min(w * .095, h * .19) * st.size;
   c.save(); c.globalAlpha = Math.max(0, fade); c.translate(cx, cy - rise); c.scale(pop, pop);
   c.font = `900 ${fs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -127,8 +131,8 @@ function shDraw(c, w, h, dt) {
   c.lineJoin = 'round'; c.lineWidth = fs * .13; c.strokeStyle = 'rgba(8,16,24,.9)'; c.strokeText(S.txt, 0, 0);
   c.shadowColor = st.col; c.shadowBlur = low ? fs * .15 : fs * .4; c.fillText(S.txt, 0, 0); c.shadowBlur = 0;
   c.restore();
-  if (S.sub) { const sfs = Math.max(12, Math.min(w * .032, h * .07)); c.save(); c.globalAlpha = Math.max(0, fade) * Math.min(1, a / .2); c.font = `800 ${sfs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    const sw = c.measureText(S.sub).width, sy = cy - rise + fs * .78; c.translate(cx, sy); if (sw > w * .92) c.scale(w * .92 / sw, w * .92 / sw);
+  if (S.sub) { const sfs = Math.max(12, Math.min(w * .032, h * .07)); c.save(); c.globalAlpha = Math.max(0, fade) * smooth(Math.max(0, Math.min(1, (a - .18) / .35))); c.font = `800 ${sfs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const sw = c.measureText(S.sub).width, sy = cy - rise + fs * .78 + (1 - smooth(Math.max(0, Math.min(1, (a - .18) / .35)))) * 8; c.translate(cx, sy); if (sw > w * .92) c.scale(w * .92 / sw, w * .92 / sw);
     c.lineJoin = 'round'; c.lineWidth = sfs * .28; c.strokeStyle = 'rgba(8,16,24,.85)'; c.strokeText(S.sub, 0, 0); c.fillStyle = st.hi; c.fillText(S.sub, 0, 0); c.restore() }
 }
 function shDark(hex) { const n = parseInt(hex.slice(1), 16), r = (n >> 16) * .55, g = (n >> 8 & 255) * .55, b = (n & 255) * .55; return `rgb(${r | 0},${g | 0},${b | 0})` }
@@ -147,21 +151,21 @@ function shBg(c, w, h, cx, cy, a, st, low) {
   const rgb = shRgb(st.col), lim = low ? .45 : 1;
   c.save();
   if (st.fx === 'flash' || st.fx === 'shake' || st.fx === 'boss' || st.fx === 'sparkle' || st.fx === 'trophy') {
-    const k = Math.max(0, 1 - a / .7); if (k > 0) { c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(cx, cy, 0, cx, cy, w * .55); g.addColorStop(0, `rgba(${rgb},${.45 * k * lim})`); g.addColorStop(1, `rgba(${rgb},0)`); c.fillStyle = g; c.fillRect(0, 0, w, h) }
-    if (st.fx === 'boss') { const p = .25 * Math.max(0, Math.sin(a * 9)) * lim; const vg = c.createRadialGradient(cx, cy, h * .2, cx, cy, w * .7); vg.addColorStop(0, 'rgba(255,40,20,0)'); vg.addColorStop(1, `rgba(255,40,20,${p})`); c.fillStyle = vg; c.globalCompositeOperation = 'source-over'; c.fillRect(0, 0, w, h) }
+    const t0 = Math.min(1, a / .18), k = Math.max(0, 1 - a / 1.1) * t0; if (k > 0) { c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(cx, cy, 0, cx, cy, w * .55); g.addColorStop(0, `rgba(${rgb},${.3 * k * k * lim})`); g.addColorStop(1, `rgba(${rgb},0)`); c.fillStyle = g; c.fillRect(0, 0, w, h) }
+    if (st.fx === 'boss') { const p = .16 * (.5 + .5 * Math.sin(a * 4 - 1.57)) * Math.max(0, 1 - a / st.dur) * lim; const vg = c.createRadialGradient(cx, cy, h * .2, cx, cy, w * .7); vg.addColorStop(0, 'rgba(255,40,20,0)'); vg.addColorStop(1, `rgba(255,40,20,${p})`); c.fillStyle = vg; c.globalCompositeOperation = 'source-over'; c.fillRect(0, 0, w, h) }
   }
   if (st.fx === 'burst' || st.fx === 'gold') {
-    c.globalCompositeOperation = 'lighter'; const k = Math.max(0, 1 - a / st.dur);
-    c.save(); c.translate(cx, cy); c.rotate(a * .5);
+    c.globalCompositeOperation = 'lighter'; const k = Math.max(0, 1 - a / (st.dur * 1.2)) * Math.min(1, a / .25);
+    c.save(); c.translate(cx, cy); c.rotate(a * .22);
     for (let i = 0; i < 14; i++) { c.rotate(Math.PI * 2 / 14); const g = c.createLinearGradient(0, 0, w * .7, 0); g.addColorStop(0, `rgba(${rgb},${(st.fx === 'gold' ? .45 : .35) * k * lim})`); g.addColorStop(1, `rgba(${rgb},0)`); c.fillStyle = g; c.beginPath(); c.moveTo(0, 0); c.lineTo(w * .7, -16); c.lineTo(w * .7, 16); c.fill() }
     c.restore();
     if (st.fx === 'burst') { const rr = a * w * .9; c.strokeStyle = `rgba(${rgb},${Math.max(0, .7 - a) * lim})`; c.lineWidth = 6; c.beginPath(); c.arc(cx, cy, rr, 0, 6.283); c.stroke() }
-    if (st.fx === 'gold') { const k2 = Math.max(0, 1 - a / 1.2); c.fillStyle = `rgba(255,220,120,${.28 * k2 * lim})`; c.fillRect(0, 0, w, h) }
+    if (st.fx === 'gold') { const k2 = Math.max(0, 1 - a / 1.4) * Math.min(1, a / .2); c.fillStyle = `rgba(255,220,120,${.18 * k2 * lim})`; c.fillRect(0, 0, w, h) }
   }
   if (st.fx === 'magic') {
     c.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 4; i++) { const ph = (a * .8 + i * .25) % 1, rr = ph * w * .7; c.strokeStyle = `hsla(${(i * 90 + a * 160) % 360},95%,70%,${(1 - ph) * .55 * lim})`; c.lineWidth = 5 * (1 - ph) + 1; c.beginPath(); c.ellipse(cx, cy, rr, rr * .45, 0, 0, 6.283); c.stroke() }
-    const k = Math.max(0, 1 - a / 1.4); const g = c.createRadialGradient(cx, cy, 0, cx, cy, w * .6); g.addColorStop(0, `rgba(255,180,255,${.35 * k * lim})`); g.addColorStop(1, 'rgba(160,120,255,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+    const k = Math.max(0, 1 - a / 1.6) * Math.min(1, a / .25); const g = c.createRadialGradient(cx, cy, 0, cx, cy, w * .6); g.addColorStop(0, `rgba(255,180,255,${.28 * k * lim})`); g.addColorStop(1, 'rgba(160,120,255,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h);
   }
   if (st.fx === 'book' && a < 1.6) {
     // raamat avaneb teksti kohal
