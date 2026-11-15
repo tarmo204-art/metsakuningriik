@@ -1099,7 +1099,7 @@ insert into public.fish_gear (id, kind, tier, name, descr, price, min_level, val
  ('ammber2','ammber',2,'Õhupumbaga söödaämber','2. tase: pump hoiab vee hapnikurikka – 40% võimalus sööta mitte kulutada.',1200,9,0.40,0,11),
  ('ammber3','ammber',3,'Jahutusega söödaämber','3. tase: jahe vesi hoiab sööda kaua värske – 60% võimalus sööta mitte kulutada.',3000,15,0.60,0,24),
  ('ammber4','ammber',4,'Meistri söödaämber','4. tase: kahe kambriga ämber pumba ja jahutusega – 80% võimalus sööta mitte kulutada.',7000,22,0.80,0,25),
- ('ammber5','ammber',5,'Kuninglik söödaämber','5. tase: elussööt ei kulu enam kunagi.',15000,30,1.00,0,26),
+ ('ammber5','ammber',5,'Kuninglik söödaämber','5. tase: elussööt ei kulu enam kunagi.',25000,30,1.00,0,26),
  ('vork1','vork',1,'Nakkevõrk 30 m','Pane järve või merre. 2 tunni pärast on võrgus kuni 5 kala. Vajab kalastuskaarti.',800,6,2,5,12),
  ('vork2','vork',2,'Nakkevõrk 60 m','Kaks korda pikem võrk: 1,5 tunniga kuni 8 kala. Vajab kalastuskaarti.',3000,15,1.5,8,13),
  ('mord1','mord',1,'Mõrd','Rõngastel võrkpüünis haugile, latikale, linaskile ja angerjale. 4 tunniga kuni 4 kala.',1200,8,4,4,14),
