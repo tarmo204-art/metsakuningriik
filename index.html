@@ -12635,7 +12635,7 @@ const SH_STYLE = {
   uusliik: { col: '#7ef0a0', hi: '#effff4', fx: 'book', dur: 2.0, size: .82, sfx: 'uusliik' },
   rekord: { col: '#ffc24a', hi: '#fff4d0', fx: 'sparkle', dur: 1.6, size: .9, sfx: 'rekord' },
   suurim: { col: '#ffd24a', hi: '#ffffff', fx: 'trophy', dur: 2.0, size: .9, sfx: 'rekord' },
-  xp: { col: '#6ad0ff', hi: '#ffffff', fx: 'flash', dur: 1.5, size: 1, sfx: 'xp' },
+  xp: { col: '#6ad0ff', hi: '#ffffff', fx: 'flash', dur: 1.5, size: 1, sfx: 'xp', quick: true },
   kuld: { col: '#ffcc3a', hi: '#fff6d0', fx: 'coins', dur: 1.5, size: 1, sfx: 'kuld' },
   punkt: { col: '#ff9a4a', hi: '#fff0e0', fx: 'flash', dur: 1.3, size: .9, sfx: 'hea' },
   ese: { col: '#c88aff', hi: '#f6eaff', fx: 'sparkle', dur: 1.6, size: .82, sfx: 'r3' },
@@ -12712,7 +12712,7 @@ function shDraw(c, w, h, dt) {
     c.restore();
   }
   const S = SH.cur; if (!S) return;
-  const st = S.st, low = shLow(), dur = (st.dur * 1.2 + .35) * (low ? .85 : 1) * (S.fast || 1), a = (now - S.t0) / 1000;
+  const st = S.st, low = shLow(), dur = st.quick ? st.dur * (low ? .8 : 1) * (SH.q.length >= 2 ? .72 : 1) : (st.dur * 1.2 + .35) * (low ? .85 : 1) * (S.fast || 1), a = (now - S.t0) / 1000;
   if (a > dur) { SH.cur = null; SH.endAt = now; return }
   const cx = w / 2, cy = h * .42, k = a / dur;
   // taustaefekt
@@ -12721,8 +12721,12 @@ function shDraw(c, w, h, dt) {
   const IN = .42, OUT = Math.min(.55, dur * .3), ein = Math.min(1, a / IN), eout = Math.max(0, (a - (dur - OUT)) / OUT);
   const back = t => { const c1 = 1.2, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2) };
   const smooth = t => t * t * (3 - 2 * t);
-  const pop = (.78 + .22 * back(ein)) * (1 + .03 * Math.sin(Math.min(a, dur - OUT) * 2.2) * (ein >= 1 ? 1 : 0)) * (1 - .06 * smooth(eout));
-  const fade = Math.min(smooth(Math.min(1, a / .28)), 1 - smooth(eout)), rise = (1 - smooth(ein)) * -h * .025 + smooth(eout) * h * .05;
+  let pop = (.78 + .22 * back(ein)) * (1 + .03 * Math.sin(Math.min(a, dur - OUT) * 2.2) * (ein >= 1 ? 1 : 0)) * (1 - .06 * smooth(eout));
+  let fade = Math.min(smooth(Math.min(1, a / .28)), 1 - smooth(eout)), rise = (1 - smooth(ein)) * -h * .025 + smooth(eout) * h * .05;
+  if (st.quick) { // kogemuspunktid jooksevad nagu varem: kiire hüpe ette ja kiire kadumine üles
+    pop = a < .14 ? .35 + a / .14 * .95 : a < .26 ? 1.3 - (a - .14) / .12 * .3 : 1;
+    fade = k > .78 ? 1 - (k - .78) / .22 : 1; rise = k > .78 ? (k - .78) / .22 * h * .06 : 0;
+  }
   const fs = Math.min(w * .095, h * .19) * st.size;
   c.save(); c.globalAlpha = Math.max(0, fade); c.translate(cx, cy - rise); c.scale(pop, pop);
   c.font = `900 ${fs}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
