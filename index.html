@@ -5726,17 +5726,17 @@ function tabMaja() {
   h += `<div class="fv-card"><h2>Teiste mängijate akvaariumid</h2><p class="lead">Külasta teisi kalureid ja imetle nende akvaariumi. Iga imetlus toob omanikule 15 kulda (üks kord päevas iga akvaariumi kohta).</p>`;
   if (!AQ.list) { h += '<p class="lead">Laadin…</p>'; loadAqList() }
   else if (!AQ.list.filter(a => !a.me).length) h += '<p class="lead">Teistel mängijatel pole veel akvaariumi. Ole esimene!</p>';
-  else h += lbHtml({ who: 'Kalur', cols: ['Ilu'], act: true, actW: '92px', rows: AQ.list.map((a, i) => ({ place: i + 1, name: a.name, sub: `${houseRow(a.house) ? houseRow(a.house).name : ''} · ${a.n} kala · ${a.likes} imetlust`, me: a.me, vals: [a.score], act: a.me ? '' : `<button class="btn sm ghost" type="button" data-fa="aqvisit" data-arg="${a.id}">Külasta</button>` })) });
+  else h += lbHtml({ who: 'Kalur', cols: ['Ilu'], act: true, actW: '92px', rows: AQ.list.map((a, i) => ({ place: a.bot ? '🎣' : (a._pl || i + 1), name: a.name, sub: `${a.bot ? a.emoji + ' Järve kalur · ' + esc(a.house_name || '') : houseRow(a.house) ? houseRow(a.house).name : ''} · ${a.n} kala · ${a.likes} imetlust`, me: a.me, vals: [a.score], act: a.me ? '' : `<button class="btn sm ghost" type="button" data-fa="aqvisit" data-arg="${a.id}">Külasta</button>` })) });
   return h + '</div>';
 }
 function visitHtml() {
   const v = AQ.visit; AQ.fish = v.fish;
-  return `<div class="fv-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn ghost sm" type="button" data-fa="aqback">← Tagasi</button><h2 style="margin:0">Akvaarium: ${esc(v.name)}</h2></div>
+  return `<div class="fv-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn ghost sm" type="button" data-fa="aqback">← Tagasi</button><h2 style="margin:0">Akvaarium: ${v.bot ? v.emoji + ' ' : ''}${esc(v.name)}${v.bot ? ' ' + duBotTag() : ''}</h2></div>
     <p class="lead">${v.title ? esc(v.title) + ' · ' : ''}kalapüügi tase ${v.level} · ${esc(v.house_name || '')} · ilu ${v.score} · ${v.likes} imetlust</p>
     <canvas data-house="${v.house}" class="housecv"></canvas>
     <div id="fvAqSlot"></div>
     ${v.fish.length ? `<div class="inv">${v.fish.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${f.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+f.weight)}</small></div>` }).join('')}</div>` : '<p class="lead">Akvaarium on veel tühi.</p>'}
-    <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
+    <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : v.bot ? '❤ Imetle' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
 }
 async function loadAqList() { if (AQ.loading) return; AQ.loading = true; try { AQ.list = await rpc('fish_aquariums') } catch (e) { AQ.list = [] } AQ.loading = false; if (FV.open && FV.tab === 'maja') renderFV() }
 async function aqCall(fn, args, okMsg) {
@@ -5860,7 +5860,7 @@ document.addEventListener('click', async e => {
     case 'aqcollect': await aqCall('fish_aquarium_collect', {}, r => `Akvaariumi külastajad tõid ${fmt(r.gold)} kulda!`); renderFV(true); break;
     case 'aqvisit': if (FV.busy) return; FV.busy = true; try { AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); $('#fishView').scrollTop = 0; break;
     case 'aqback': AQ.visit = null; renderFV(true); break;
-    case 'aqlike': if (FV.busy) return; FV.busy = true; try { await rpc('fish_aquarium_like', { p_user: arg }); toast('Imetlesid akvaariumi! Omanik sai 15 kulda.', 'good', 'fish'); AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }); AQ.list = null } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'aqlike': if (FV.busy) return; FV.busy = true; try { await rpc('fish_aquarium_like', { p_user: arg }); toast(String(arg).startsWith('bot:') ? 'Imetlesid akvaariumi! Järve kalur oli väga rõõmus.' : 'Imetlesid akvaariumi! Omanik sai 15 kulda.', 'good', 'fish'); AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }); AQ.list = null } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'qclaim': { if (FV.busy) return; FV.busy = true; const [per, idx] = arg.split(':'); try { const r = await rpc('fish_quest_claim', { p_period: per, p_idx: +idx }); toast(`Ülesanne täidetud! +${fmt(r.gold)} kulda, +${fmt(r.xp)} kogemust${itemsTxt(r.items, false).replace(' ning kotti:', ', kotti:')}`, 'gold', 'fish'); await refreshFS(); FV.quests = await rpc('fish_quests'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
     case 'isell': { if (FV.busy) return; FV.busy = true; const [it, q] = arg.split(':'); try { const r = await rpc('fish_item_sell', { p_item: it, p_qty: +q }); toast(`Müüsid ${itemName(it)} × ${r.qty} ja said ${fmt(r.gold)} kulda.`, 'good', 'gold'); await refreshFS() } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
   }
@@ -5923,7 +5923,7 @@ async function loadMarket(silent) {
       rpc('fish_market_mine')]);
     // teata uutest müükidest
     const sold = (mine.history || []).filter(x => x.side === 'sold' && x.status === 'sold' && new Date(x.at).getTime() > FMK.seenSold);
-    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fKg(+x.weight)}) müüdi ${fmt(x.price)} kulla eest! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
+    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fKg(+x.weight)}) müüdi ${fmt(x.price)} kulla eest${x.bot_buyer ? ' – ostis Järve kalur ' + x.bot_buyer : ''}! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
     FMK.newSold = FV.tab === 'turg' && FV.open ? 0 : sold.length;
     FMK.list = list; FMK.mine = mine; FMK.at = Date.now();
   } catch (e) { if (!silent) toast(e.message, 'bad') }
@@ -5934,7 +5934,7 @@ function mkLeft(at) { const ms = new Date(at).getTime() + 72 * 3600e3 - Date.now
 function mkPct(price, base) { const p = Math.round(price / Math.max(1, base) * 100); return `<i class="${p <= 100 ? 'good' : p <= 180 ? 'mid' : 'hi'}" title="Hind võrreldes kala tavahinnaga">${p}% tavahinnast</i>` }
 function mkCard(m) {
   const sp = FD.sp[m.species] || { name: m.species }, [rn, rc] = RAR2[m.rarity], conf = FMK.confirm === m.id, poor = FS.gold < m.price;
-  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+m.weight)} · müüja ${esc(m.seller)}</small>
+  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+m.weight)} · müüja ${m.bot ? (m.bot_emoji || '') + ' ' : ''}${esc(m.seller)}${m.bot ? ' 🎣' : ''}</small>
     <div class="pr">${fmt(m.price)}<small>kulda</small></div><div class="pr" style="font-size:12px">${mkPct(m.price, m.base)}</div><small>Aega jäänud: ${mkLeft(m.at)}</small>
     ${m.mine ? `<button class="btn sm ghost" type="button" data-fa="mkCancel" data-arg="${m.id}">Võta turult maha</button>` : `<button class="btn sm ${conf ? '' : 'ghost'}" type="button" data-fa="mkBuy" data-arg="${m.id}" ${poor ? 'disabled' : ''}>${poor ? 'Kulda ei jätku' : conf ? `Kinnita ost: ${fmt(m.price)} kulda` : 'Osta'}</button>`}</div>`;
 }
@@ -5950,7 +5950,7 @@ function tabTurg() {
     h += `<div class="fv-card"><h2>Müügil <small class="lead">${mine.open.length} / 10</small></h2>${mine.open.length ? `<div class="mkg">${mine.open.map(m => mkCard(Object.assign({ mine: true, seller: 'sina' }, m))).join('')}</div>` : '<p class="lead">Sul pole praegu ühtki kala müügil. Vali saagist kala ja vajuta „Pane turule“.</p>'}
       <div><button class="btn sm" type="button" data-fa="tab" data-arg="saak">Mine saagi juurde</button></div></div>`;
     const H = mine.history || [];
-    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fKg(+x.weight)}</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
+    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fKg(+x.weight)}${x.bot_buyer ? ` · ostis 🎣 ${esc(x.bot_buyer)}` : ''}</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
     return h;
   }
   const spOpts = Object.values(FD.sp).filter(s => (FS.book || {})[s.id]).sort((a, b) => a.name.localeCompare(b.name, 'et'));
@@ -6036,7 +6036,7 @@ function tabKalatund() {
       <div class="kt-hp"><span><span>${b && b.killed_at ? `Viimase löögi andis ${esc(b.killer || '?')}` : 'Bossi elu'}</span><span>${fmt(hp)} / ${fmt(mx)}</span></span><div class="bar"><i style="width:${pct}%"></i></div></div></div>
       <p class="lead" style="font-size:13px">Bossi elud sõltuvad sellest, mitu kalurit viimasel nädalal püüdis. Üksi on teda raske alistada, koos sõpradega palju lihtsam. ${d.players ? `Täna on osalenud ${d.players} kalurit.` : ''}</p></div>`;
   }
-  h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: !d.active || d.top.length >= 3, rows: d.top.map(r => ({ place: r.place, name: r.name, sub: r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
+  h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: (!d.active || d.top.length >= 3) && !d.top.slice(0, 3).some(r => r.bot), rows: d.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
     ${d.yesterday && d.yesterday.top.length ? `<p class="lead" style="font-size:12.5px">Eile: ${d.yesterday.top.map(r => `${r.place}. ${esc(r.name)} (${fmt(r.pts)})`).join(', ')}${d.yesterday.boss ? (d.yesterday.boss.killed ? ` · boss alistati, viimase löögi andis ${esc(d.yesterday.boss.killer || '?')}` : ' · boss pääses minema') : ''}</p>` : ''}</div>`;
   h += `<div class="fv-card"><h3>Punktid ja auhinnad</h3><div class="kt-pts">${[1, 2, 3, 4, 5, 6].map(r => `<span style="color:${RAR2[r][1]}">${RAR2[r][0]}: ${[5, 10, 25, 60, 150, 400][r - 1]} p</span>`).join('')}</div>
     <p class="lead" style="font-size:13px">Suurem kala annab rohkem punkte (kuni 2× tavalisest) ja rekordsuurus veel 1,5× juurde. Turult ostetud kalad ei loe.</p>
@@ -6753,7 +6753,7 @@ function renderLbWeb() {
   if (CL.lbErr) h += `<div class="card"><p class="lead">Edetabelit ei saanud laadida: ${esc(CL.lbErr)}</p></div>`;
   else if (!CL.lb) h += `<div class="card"><p class="lead">Laadin edetabelit…</p></div>`;
   else if (!CL.lb.length) h += `<div class="card"><p class="lead">Edetabel on veel tühi. Sinu kuningriik ilmub siia peagi.</p></div>`;
-  else h += lbHtml({ who: 'Kuningriik', cols: ['Tase', 'Kuulsus', 'Alad', 'Aardeid'], main: 1, hideM: [2, 3], podium: true, rows: CL.lb.map((r, i) => ({ place: i + 1, name: r.kingdom, sub: 'Valitseja ' + r.name, me: r.me, vals: [r.level, fmt(r.fame), r.regions, r.treasures] })) });
+  else h += lbHtml({ who: 'Kuningriik', cols: ['Tase', 'Kuulsus', 'Alad', 'Aardeid'], main: 1, hideM: [2, 3], podium: !CL.lb.slice(0, 3).some(r => r.bot), rows: CL.lb.map((r, i) => ({ place: r.bot ? '🎣' : (r._pl || i + 1), name: r.kingdom, sub: r.bot ? `${r.emoji} ${r.name} · Järve kalur` : 'Valitseja ' + r.name, me: r.me, vals: [r.level, fmt(r.fame), r.regions, r.treasures] })) });
   if (typeof newsHtml === 'function') { if (!NEWS.list || Date.now() - NEWS.at > 60000) { NEWS.at = Date.now(); loadNews() } h += `<div class="sec-h">Kuningriigi uudised <small>kalapüügi erakordsed hetked</small></div><div class="card fvnews">${newsHtml(8)}</div>` }
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm ghost" type="button" data-act="lbHide">${S.lbHidden ? 'Näita mind edetabelis' : 'Peida mind edetabelist'}</button><span class="lead" style="font-size:12.5px">${S.lbHidden ? 'Sinu kuningriik on edetabelist peidetud.' : 'Teised näevad sinu kuningriigi ja valitseja nime.'}</span></div>`;
   return h;
@@ -6835,12 +6835,12 @@ function renderCoopTab() {
       <canvas class="moncv" data-mon="${M.done}:${frac.toFixed(3)}"></canvas>
       <p class="lead">Valmis etappe: <b>${M.done}</b>. Kui etapp valmib, saavad kõik panustajad kulda, kuulsust ja kogemust. Mida rohkem panustad, seda suurem on preemia. Sinu panus selles etapis: <b>${fmt(M.mine)}</b>. Iga ressurssi saad anda kuni ${fmt(M.cap)} päevas.</p>
       ${needK.map(k => { const n = +M.need[k], hv = Math.min(n, +(M.have[k] || 0)), left = n - hv, capLeft = M.cap - (+((M.today || {})[k] || 0)), can = Math.max(0, Math.min(Math.floor(S.res[k]), left, capLeft)), why = hv >= n ? '' : capLeft <= 0 ? 'Tänane piir täis' : S.res[k] < 1 ? 'Sul pole ' + RES[k].g : ''; return `<div class="monrow"><div class="monres">${ic(k)}<b>${MON_RES[k]}</b><small class="num">${fmt(hv)} / ${fmt(n)}${why ? ` · <span style="color:var(--bad)">${why}</span>` : ` · täna veel ${fmt(Math.max(0, capLeft))}`}</small></div><div class="bar ${hv >= n ? 'green' : ''}"><i style="width:${(hv / n * 100).toFixed(1)}%"></i></div><div class="monbtn">${hv >= n ? '<span class="pill ok">Valmis</span>' : [100, 500].map(a => `<button class="btn sm ghost" type="button" data-act="monGive" data-arg="${k}:${a}" ${can >= a && !CO.busy ? '' : 'disabled'}>+${a}</button>`).join('') + `<button class="btn sm" type="button" data-act="monGive" data-arg="${k}:${can}" ${can > 0 && !CO.busy ? '' : 'disabled'}>Anna ${fmt(can)}</button>`}</div></div>` }).join('')}
-      ${M.top.length ? `<div class="sec-h">Suurimad panustajad <small>${M.contributors} kuningriiki</small></div><ol class="montop">${M.top.map(x => `<li class="${x.me ? 'me' : ''}"><span>${esc(x.kingdom)}</span><b class="num">${fmt(x.total)}</b></li>`).join('')}</ol>` : '<p class="lead">Ole esimene, kes selle etapi heaks midagi annab!</p>'}</div>`;
+      ${M.top.length ? `<div class="sec-h">Suurimad panustajad <small>${M.contributors} kuningriiki</small></div><ol class="montop">${M.top.map(x => `<li class="${x.me ? 'me' : ''}"><span>${x.bot ? x.emoji + ' ' : ''}${esc(x.kingdom)}${x.bot ? ' ' + duBotTag() : ''}</span><b class="num">${fmt(x.total)}</b></li>`).join('')}</ol>` : '<p class="lead">Ole esimene, kes selle etapi heaks midagi annab!</p>'}</div>`;
   }
   const gifts = giftsToday();
   h += `<div class="card"><div class="sec-h" style="margin:0">Kuningriigid <small>kinke täna ${gifts.length}/3</small></div><p class="lead">Külasta teisi kuningriike ja vaata, kuidas nad elavad. Sõprusekink annab saajale kulda, marju, toitu ja kuulsust ning sulle kuulsust ja kogemust. Päevas saad saata 3 kinki.</p>`;
   if (!CO.list) h += '<p class="lead">Laadin…</p>';
-  else { const others = CO.list.filter(x => !x.me); h += others.length ? `<div class="klist">${others.map(x => `<div class="krow"><div><b>${esc(x.kingdom)}</b><small class="lead">${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust</small></div><div class="kbtn"><button class="btn sm ghost" type="button" data-act="visitK" data-arg="${x.id}">Külasta</button><button class="btn sm" type="button" data-act="giftK" data-arg="${x.id}" ${gifts.includes(x.id) || gifts.length >= 3 || CO.busy ? 'disabled' : ''}>${gifts.includes(x.id) ? 'Kingitud ✓' : '🎁 Kingi'}</button></div></div>`).join('')}</div>` : '<p class="lead">Teisi kuningriike veel pole. Kutsu sõbrad mängima!</p>' }
+  else { const others = CO.list.filter(x => !x.me); h += others.length ? `<div class="klist">${others.map(x => `<div class="krow"><div><b>${esc(x.kingdom)}</b>${x.bot ? ' ' + duBotTag() : ''}<small class="lead">${x.bot ? x.emoji + ' ' : ''}${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust</small></div><div class="kbtn"><button class="btn sm ghost" type="button" data-act="visitK" data-arg="${x.id}">Külasta</button><button class="btn sm" type="button" data-act="giftK" data-arg="${x.id}" ${gifts.includes(x.id) || gifts.length >= 3 || CO.busy ? 'disabled' : ''}>${gifts.includes(x.id) ? 'Kingitud ✓' : '🎁 Kingi'}</button></div></div>`).join('')}</div>` : '<p class="lead">Teisi kuningriike veel pole. Kutsu sõbrad mängima!</p>' }
   return h + '</div>';
 }
 async function monGive(arg) {
@@ -6858,7 +6858,7 @@ async function monGive(arg) {
 }
 async function giftK(id) {
   if (CO.busy) return; CO.busy = true; renderPanel(true);
-  try { const r = await rpc('kingdom_gift_send', { p_user: id }); markGift(id); toast('Sõprusekink on teele saadetud! Said ise ka kuulsust.', 'good', 'fame'); setTimeout(() => claimInbox(), 1200) }
+  try { const r = await rpc('kingdom_gift_send', { p_user: id }); markGift(id); toast('Sõprusekink on teele saadetud! Said ise ka kuulsust.', 'good', 'fame'); if (r && r.thanks) setTimeout(() => toast(`${r.thanks} rõõmustas ja saatis sulle vastukingi! 🎁`, 'gold', 'gold'), 900); setTimeout(() => claimInbox(), 1200) }
   catch (e) { toast(e.message, 'bad'); if (/juba/.test(e.message)) markGift(id) }
   CO.busy = false; renderPanel(true); if (UI.modalView) renderModal(true);
 }
@@ -6867,7 +6867,7 @@ async function visitK(id) {
   CO.visit = v;
   showModal(() => { const x = CO.visit; if (!x) return null; const gifted = giftsToday().includes(x.user) || x.gifted;
     const tamed = Object.entries(x.tamed || {}).filter(([, n]) => n > 0).map(([k, n]) => `${ANIMALS[k] ? ANIMALS[k].n : k} ×${n}`).join(', ');
-    return `<h2>${esc(x.kingdom)}</h2><p class="lead">${typeof rankEmblem === 'function' ? rankEmblem(x.rank) + ' ' + RANKS[x.rank].n + ' · ' : ''}valitseja ${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust · ${x.regions} piirkonda</p>
+    return `<h2>${esc(x.kingdom)}${x.bot ? ' ' + duBotTag() : ''}</h2><p class="lead">${typeof rankEmblem === 'function' ? rankEmblem(x.rank) + ' ' + RANKS[x.rank].n + ' · ' : ''}valitseja ${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust · ${x.regions} piirkonda</p>
       <canvas class="visitcv" data-visit="1"></canvas>
       <dl class="stats"><dt>Hooneid Kodumetsas</dt><dd>${x.buildings.length}</dd><dt>Aardeid varakambris</dt><dd>${x.relics}</dd><dt>Loomasõbrad</dt><dd>${tamed || '—'}</dd></dl>
       <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Tagasi koju</button>${x.me ? '' : `<button class="btn" type="button" data-act="giftK" data-arg="${x.user}" ${gifted || giftsToday().length >= 3 ? 'disabled' : ''}>${gifted ? 'Kingitud ✓' : '🎁 Saada sõprusekink'}</button>`}</div>` }, 'wide');
@@ -10565,7 +10565,7 @@ function tabSundmused() {
     h += `<div class="fv-card"><h2>🗺️ Kalastusretk <small class="lead">uus retk ${evLeft(Date.parse(j.ends) - now)} pärast · läbitud kokku ${j.done_total}</small></h2>
       <div class="jr-map">${evCv({ draw: jrMapDraw })}</div><div class="jr-legs">${j.legs.map((l, i) => { const st = i < j.leg || j.finished ? 'done' : i === j.leg ? 'cur' : '', s = FD.sp[l.species];
         return `<div class="jr-leg ${st}"><span class="n">${st === 'done' ? '✓' : i + 1}</span><div><b>${esc(FD.spot[l.spot] ? FD.spot[l.spot].name : l.spot)}</b>: püüa ${l.n} × ${esc(s ? s.name.toLowerCase() : l.species)}<br><small>${st === 'cur' ? `Tehtud ${j.progress}/${l.n} · ` : ''}Preemia ${l.gold} kulda, ${l.xp} kogemust</small></div>
-          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button>`) : ''}</div>` }).join('')}</div>
+          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button>`) : ''}</div>` }).join('')}</div>${bwJourneyLine()}
       ${j.finished ? '<p class="lead" style="margin-top:8px">🎉 Retk on läbitud! Uus retk algab esmaspäeval.</p>' : `<p class="lead" style="margin-top:8px">Lõpus ootab aardekirst: 2000 kulda, 600 kogemust ja 2 eset.</p>`}</div>`;
   }
   h += duSection();
@@ -11005,6 +11005,128 @@ document.addEventListener('click', e => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) onPing() });
 (function onLoop() { onPing(); setTimeout(onLoop, 30000) })();
 setInterval(() => { const c = ON.el; if (!c) return; if (onVisible() && !ON.d && !ON.busy) { ON.busy = true; onPing().finally(() => ON.busy = false) } else if ((!onVisible()) !== c.hidden) onChip(); onPlace() }, 1500);
+
+/* =====================================================================
+   Järve kalurid igal pool: neil on oma kuningriik (edetabel, külastus, sõprusekingid),
+   akvaarium (imetlemine), nädala retk; kalatund, kalaturg, geenilabori turg ja monument
+   tulevad otse serverist. Server: bots_world, bot_gift_send, bot_aquarium_like (schema 6t).
+   Tegelased on alati märgistatud ega võta päris mängijatelt preemiaid.
+   ===================================================================== */
+const BW = { d: null, at: 0, p: null, base: null };
+document.head.insertAdjacentHTML('beforeend', `<style>
+.jr-bots{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12.5px}
+.jr-bots > small{opacity:.8;margin-right:2px}
+.jr-bots span{padding:4px 9px;border-radius:999px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);white-space:nowrap}
+.jr-bots span.fin{border-color:rgba(255,210,122,.55);background:rgba(255,210,122,.12)}
+</style>`);
+
+async function bwLoad(force) {
+  if (!CL.user || !BW.base) return BW.d;
+  if (!force && BW.d && Date.now() - BW.at < 60000) return BW.d;
+  if (BW.p) return BW.p;
+  BW.p = (async () => { try { BW.d = await BW.base('bots_world'); BW.at = Date.now() } catch (e) { } BW.p = null; return BW.d })();
+  return BW.p;
+}
+function bwIsBot(v) { return typeof v === 'string' && v.startsWith('bot:') }
+function bwBot(id) { const k = String(id).replace(/^bot:/, ''); return (BW.d || []).find(b => b.bot === k) }
+
+// tegelase kuningriik: sama metsamaa nagu mängijatel, hooned vastavalt tasemele (alati ühesugune, et külastus oleks tuttav)
+function bwKingdom(b) {
+  const seed = hashStr('bot:' + b.bot), rand = mulberry32(seed ^ 0x5bd1e995), lvl = b.k_level || 1;
+  const tiles = genRegion('kodu', seed).tiles;
+  const types = Object.keys(BUILD).filter(k => BUILD[k].lvl <= lvl);
+  const n = Math.min(16, 3 + Math.floor(lvl * 0.7)), used = {}, buildings = [];
+  const spots = [];
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const t = tiles[y * W + x]; if (t.t === 'grass' || t.t === 'bush' || t.t === 'tree') spots.push([x, y, Math.hypot(x - 7.5, (y - 5) * 1.3) + rand() * 2.5 + (t.t === 'grass' ? 0 : 1.5)]) }
+  spots.sort((a, c) => a[2] - c[2]);
+  for (const [x, y] of spots) {
+    if (buildings.length >= n) break;
+    if (buildings.some(o => Math.abs(o.x - x) + Math.abs(o.y - y) < 2 && rand() < .55)) continue;
+    const pool = types.filter(k => (used[k] || 0) < (BUILD[k].max || 99)); if (!pool.length) break;
+    const type = buildings.length === 0 && pool.includes('loss') ? 'loss' : pool[Math.floor(rand() * pool.length)];
+    used[type] = (used[type] || 0) + 1;
+    buildings.push({ type, x, y, lvl: Math.max(1, Math.min(MAX_LVL, 1 + Math.floor(lvl / 5) - (rand() < .4 ? 1 : 0))) });
+    tiles[y * W + x] = { t: 'b' };
+  }
+  const rk = typeof RANKS !== 'undefined' ? Math.min(RANKS.length - 1, Math.floor(lvl / 8)) : 0;
+  return { user: 'bot:' + b.bot, bot: true, emoji: b.emoji, name: b.name, kingdom: b.kingdom, level: lvl, fame: b.k_fame, regions: b.k_regions, rank: rk,
+    tiles, buildings, tamed: { janes: 1 + lvl % 3, lind: 2, hirv: lvl >= 8 ? 1 : 0, rebane: lvl >= 14 ? 1 : 0 }, relics: b.k_treasures, gifted: b.gifted, me: false };
+}
+function bwAquarium(b) {
+  return { user: 'bot:' + b.bot, bot: true, emoji: b.emoji, name: b.name, kingdom: b.kingdom, title: 'Järve kalur', level: b.level, house: b.house, house_name: b.house_name,
+    slots: b.slots, score: b.aq_score, likes: b.aq_likes, liked: b.liked, me: false, fish: b.aq || [] };
+}
+function bwMergeK(rows, bots) {
+  rows.forEach((r, i) => r._pl = i + 1);
+  if (!bots) return rows;
+  const add = bots.map(b => ({ id: 'bot:' + b.bot, bot: true, emoji: b.emoji, name: b.name, kingdom: b.kingdom, level: b.k_level, fame: b.k_fame, regions: b.k_regions, treasures: b.k_treasures, me: false }));
+  return rows.concat(add).sort((a, c) => c.level - a.level || c.fame - a.fame);
+}
+function bwMergeAq(rows, bots) {
+  rows.forEach((r, i) => r._pl = i + 1);
+  if (!bots) return rows;
+  const add = bots.filter(b => (b.aq || []).length).map(b => ({ id: 'bot:' + b.bot, bot: true, emoji: b.emoji, name: b.name, kingdom: b.kingdom, title: 'Järve kalur', house: b.house, house_name: b.house_name, likes: b.aq_likes, score: b.aq_score, n: b.aq.length, me: false }));
+  return rows.concat(add).sort((a, c) => c.score - a.score || c.likes - a.likes);
+}
+// kõik päringud, mis puudutavad tegelasi, suunatakse siit õigesse kohta (ülejäänud mäng ei pea teadma, kas tegu on tegelasega)
+function bwInstall() {
+  const base = rpc; BW.base = base;
+  rpc = async function (fn, args) {
+    args = args || {};
+    const id = args.p_user;
+    if (bwIsBot(id)) {
+      if (fn === 'kingdom_visit') { await bwLoad(true); const b = bwBot(id); if (!b) throw new Error('Seda kuningriiki ei leitud'); return bwKingdom(b) }
+      if (fn === 'fish_aquarium_view') { await bwLoad(true); const b = bwBot(id); if (!b) throw new Error('Seda akvaariumi ei leitud'); return bwAquarium(b) }
+      if (fn === 'kingdom_gift_send') { const r = await base('bot_gift_send', { p_bot: id.slice(4) }); BW.at = 0; return r }
+      if (fn === 'fish_aquarium_like') { const r = await base('bot_aquarium_like', { p_bot: id.slice(4) }); BW.at = 0; return r }
+    }
+    const r = await base(fn, args);
+    if (fn === 'kingdom_leaderboard' && Array.isArray(r)) return bwMergeK(r, await bwLoad());
+    if (fn === 'fish_aquariums' && Array.isArray(r)) return bwMergeAq(r, await bwLoad());
+    return r;
+  };
+}
+bwInstall();
+
+// nädala retk: kus teised retkelised on
+function bwJourneyLine() {
+  if (!BW.d) { bwLoad().then(d => { if (d && FV.open && FV.tab === 'sundmused') renderFV(true) }); return '' }
+  const bots = BW.d.filter(b => b.journey);
+  if (!bots.length) return '';
+  return `<div class="jr-bots"><small>Teised retkel ${duBotTag()}</small>${bots.map(b => { const j = b.journey, fin = j.done >= j.of;
+    return `<span class="${fin ? 'fin' : ''}" title="${esc(b.name)}: ${j.done} peatust ${j.of}-st">${b.emoji} ${esc(b.name)} <b>${fin ? '🏁' : j.done + '/' + j.of}</b></span>` }).join('')}</div>`;
+}
+{
+  const _jr = jrMapDraw;
+  jrMapDraw = function (c, w, h, t) {
+    _jr(c, w, h, t);
+    const j = EV.d && EV.d.journey; if (!j || !BW.d) return;
+    const n = j.legs.length, P = j.legs.map((l, i) => [w * (.08 + .84 * i / Math.max(1, n - 1)), h * (.55 + .22 * Math.sin(i * 1.7))]);
+    const at = {};
+    BW.d.forEach(b => { if (!b.journey) return; const k = Math.min(n - 1, Math.round(b.journey.done / b.journey.of * (n - 1))); (at[k] = at[k] || []).push(b) });
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const k in at) {
+      const [x, y] = P[k], list = at[k];
+      const cols = 4, sx = Math.min(x + w * .045, w - 12 - (Math.min(cols, list.length) - 1) * 17);
+      list.forEach((b, i) => {
+        const bx = sx + (i % cols) * 17, by = y + 6 + Math.floor(i / cols) * 18 + Math.sin(t * 1.6 + i) * 1.2;
+        c.fillStyle = 'rgba(255,248,230,.95)'; c.beginPath(); c.arc(bx, by, 8.5, 0, 6.283); c.fill();
+        c.strokeStyle = 'rgba(90,60,30,.55)'; c.lineWidth = 1; c.stroke();
+        c.font = '11px system-ui'; c.fillText(b.emoji, bx, by + .5);
+      });
+    }
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  };
+}
+// kui tegelane saatis kingi, korja see kohe ära ja anna teada
+{
+  const _op = onPing;
+  onPing = async function () {
+    await _op();
+    const g = ON.d && ON.d.gift;
+    if (g && ON.giftShown !== g + (ON.d.now || '')) { ON.giftShown = g + (ON.d.now || ''); toast(`${g} saatis sulle sõprusekingi! 🎁`, 'gold', 'gold'); if (typeof claimInbox === 'function') setTimeout(() => claimInbox(), 600) }
+  };
+}
 
 </script>
 </body></html>

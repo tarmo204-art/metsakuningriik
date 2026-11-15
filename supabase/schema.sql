@@ -1298,6 +1298,37 @@ alter table public.profiles add column if not exists last_seen timestamptz;
 alter table public.profiles add column if not exists last_where text;
 create index if not exists profiles_last_seen_idx on public.profiles(last_seen);
 
+-- 2u. Järve kalurid igal pool: oma kuningriik, akvaarium, turg, kalatund, monument, retk ja kingid
+alter table public.fish_bots add column if not exists kname text;
+alter table public.fish_bots add column if not exists k_level int;
+alter table public.fish_bots add column if not exists k_fame numeric not null default 0;
+alter table public.fish_bots add column if not exists k_at timestamptz;
+alter table public.fish_bots add column if not exists aq_likes int not null default 0;
+update public.fish_bots b set kname = v.kn, k_level = v.kl, k_fame = 12 * v.kl * v.kl, k_at = now()
+  from (values ('ants','Haugiranna kuningriik',18), ('kaia','Kiirevoolu kuningriik',9), ('toomas','Tormilahe kuningriik',14), ('mariliis','Kuldjärve kuningriik',12),
+               ('peeter','Avamere kuningriik',22), ('jaan','Jääkülma kuningriik',11), ('liisu','Päikesesaare kuningriik',4), ('heino','Saarte kuningriik',16)) v(id, kn, kl)
+  where b.id = v.id and b.kname is null;
+update public.fish_bots set kname = name || ' kuningriik', k_level = greatest(1, base_level / 2), k_fame = 12 * power(greatest(1, base_level / 2), 2), k_at = now() where kname is null;
+create table if not exists public.bot_gifts (sender uuid not null references auth.users(id) on delete cascade, bot text not null, day date not null, primary key (sender, bot, day));
+create table if not exists public.bot_gift_in (user_id uuid not null references auth.users(id) on delete cascade, day date not null, bot text not null, primary key (user_id, day));
+create table if not exists public.bot_aq_likes (visitor uuid not null references auth.users(id) on delete cascade, bot text not null, day date not null, primary key (visitor, bot, day));
+create table if not exists public.kingdom_monument_bot (stage int not null, bot text not null, total int not null default 0, primary key (stage, bot));
+create table if not exists public.kalatund_bot_score (day date not null, bot text not null, pts int not null default 0, fish int not null default 0, dmg int not null default 0, primary key (day, bot));
+alter table public.kalatund_boss add column if not exists killer_bot text;
+alter table public.fish_market alter column seller drop not null;
+alter table public.fish_market alter column catch_id drop not null;
+alter table public.fish_market add column if not exists bot text;
+alter table public.fish_market add column if not exists buyer_bot text;
+alter table public.fish_market add column if not exists bot_catch bigint;
+alter table public.fish_market add column if not exists spot text;
+alter table public.lab_market add column if not exists buyer_bot text;
+do $$ declare t text; begin
+  foreach t in array array['bot_gifts','bot_gift_in','bot_aq_likes','kingdom_monument_bot','kalatund_bot_score'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -2666,6 +2697,18 @@ begin
   select * into l from fish_market where id = p_id for update;
   if l.id is null or l.status <> 'open' then raise exception 'See kala on juba müüdud või turult eemaldatud'; end if;
   if l.seller = u then raise exception 'Oma kala ei saa osta'; end if;
+  if l.bot is not null then
+    -- Järve kaluri kala: raha läheb järvele tagasi, kala tuleb sulle
+    perform 1 from fishers where user_id = u for update;
+    select gold into bg from fishers where user_id = u;
+    if bg < l.price then raise exception 'Kalurikassas pole piisavalt kulda (vaja %)', l.price; end if;
+    update fishers set gold = gold - l.price where user_id = u;
+    insert into fish_catches(user_id, species, rarity, weight, spot, giant, night, weather, status, bought)
+    values (u, l.species, l.rarity, l.weight, coalesce(l.spot, 'metsajarv'), l.giant, false, null, 'kept', true) returning id into nid;
+    update fish_market set status = 'sold', buyer = u, closed_at = now(), new_catch = nid where id = l.id;
+    select name into nm from fish_species where id = l.species;
+    return jsonb_build_object('ok', true, 'catch_id', nid, 'species', l.species, 'name', nm, 'price', l.price);
+  end if;
   -- lukusta mõlema mängija read alati samas järjekorras
   perform 1 from fishers where user_id in (u, l.seller) order by user_id for update;
   select gold into bg from fishers where user_id = u;
@@ -2690,9 +2733,10 @@ declare u uuid := fx_uid(); res jsonb;
 begin
   perform fx_market_expire();
   select coalesce(jsonb_agg(x), '[]') into res from (
-    select m.id, m.species, m.rarity, m.weight, m.giant, m.price, m.base, m.created_at as at, m.seller = u as mine,
-      case when p.hidden and m.seller <> u then 'Salapärane kalur' else coalesce(p.name, 'Kalur') end as seller
-    from fish_market m left join profiles p on p.id = m.seller
+    select m.id, m.species, m.rarity, m.weight, m.giant, m.price, m.base, m.created_at as at, coalesce(m.seller = u, false) as mine,
+      case when m.bot is not null then bb.name when p.hidden and m.seller <> u then 'Salapärane kalur' else coalesce(p.name, 'Kalur') end as seller,
+      m.bot, bb.emoji as bot_emoji
+    from fish_market m left join profiles p on p.id = m.seller left join fish_bots bb on bb.id = m.bot
     where m.status = 'open' and (p_rarity is null or m.rarity = p_rarity) and (p_species is null or m.species = p_species)
     order by case when p_sort = 'cheap' then m.price end asc nulls last,
              case when p_sort = 'value' then m.price::numeric / greatest(1, m.base) end asc nulls last,
@@ -2710,7 +2754,7 @@ begin
     'open', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'giant', giant, 'price', price, 'base', base, 'at', created_at) order by id desc)
        from fish_market where seller = u and status = 'open'), '[]'),
     'history', coalesce((select jsonb_agg(x order by x.at desc) from (
-       select m.id, m.species, m.rarity, m.weight, m.price, m.fee, m.status, m.closed_at as at, case when m.seller = u then 'sold' else 'bought' end as side
+       select m.id, m.species, m.rarity, m.weight, m.price, m.fee, m.status, m.closed_at as at, case when m.seller = u then 'sold' else 'bought' end as side, (select name from fish_bots where id = m.buyer_bot) as bot_buyer
        from fish_market m where (m.seller = u or m.buyer = u) and m.status in ('sold','expired') order by m.closed_at desc limit 25) x), '[]'));
 end $$;
 
@@ -2743,6 +2787,7 @@ begin
   if p.id is null or p.hidden or not exists (select 1 from saves where user_id = p_user) then raise exception 'Seda kuningriiki ei leitud'; end if;
   perform 1 from profiles where id = u for update;
   select count(*) into n from kingdom_gifts where sender = u and day = fx_today();
+  n := n + (select count(*) from bot_gifts where sender = u and day = fx_today());
   if n >= 3 then raise exception 'Täna oled juba 3 kinki saatnud. Homme saad jälle!'; end if;
   insert into kingdom_gifts(sender, receiver, day) values (u, p_user, fx_today()) on conflict do nothing;
   if not found then raise exception 'Sellele kuningriigile oled täna juba kingi saatnud'; end if;
@@ -2779,11 +2824,14 @@ declare u uuid := fx_uid(); m kingdom_monument;
 begin
   m := fx_mon_current();
   return jsonb_build_object('stage', m.stage, 'need', m.need, 'have', m.have, 'done', (select count(*) from kingdom_monument where done_at is not null),
-    'top', coalesce((select jsonb_agg(x) from (select case when p.hidden and c.user_id <> u then 'Salapärane valitseja' else p.kingdom end as kingdom, c.total, c.user_id = u as me
-        from kingdom_monument_contrib c join profiles p on p.id = c.user_id where c.stage = m.stage order by c.total desc limit 10) x), '[]'),
+    'top', coalesce((select jsonb_agg(x order by x.total desc) from (
+        (select case when p.hidden and c.user_id <> u then 'Salapärane valitseja' else p.kingdom end as kingdom, c.total, c.user_id = u as me, null::text as bot, null::text as emoji
+         from kingdom_monument_contrib c join profiles p on p.id = c.user_id where c.stage = m.stage order by c.total desc limit 10)
+        union all
+        (select bb.kname, k.total, false, bb.id, bb.emoji from kingdom_monument_bot k join fish_bots bb on bb.id = k.bot where k.stage = m.stage order by k.total desc limit 5)) x), '[]'),
     'mine', coalesce((select total from kingdom_monument_contrib where stage = m.stage and user_id = u), 0),
     'today', coalesce((select jsonb_object_agg(res, amount) from kingdom_contrib_resday where user_id = u and day = fx_today()), '{}'), 'cap', 2000,
-    'contributors', (select count(*) from kingdom_monument_contrib where stage = m.stage));
+    'contributors', (select count(*) from kingdom_monument_contrib where stage = m.stage) + (select count(*) from kingdom_monument_bot where stage = m.stage));
 end $$;
 
 -- Panus võetakse serveris hoitud salvestusest, nii et lisada saab ainult seda, mis kuningriigil päriselt on
@@ -2849,7 +2897,8 @@ begin
   select * into b from kalatund_boss where day = d;
   if b.day is null then
     select count(distinct user_id) into n from fish_catches where caught_at > now() - interval '7 days' and not bought;
-    insert into kalatund_boss(day, hp, max_hp) values (d, 1000 + 600 * greatest(1, n), 1000 + 600 * greatest(1, n)) on conflict (day) do nothing;
+    n := 1000 + 600 * greatest(1, n) + 250 * (select count(*) from fish_bots);
+    insert into kalatund_boss(day, hp, max_hp) values (d, n, n) on conflict (day) do nothing;
     select * into b from kalatund_boss where day = d;
   end if;
   return b;
@@ -2879,10 +2928,14 @@ begin
 end $$;
 
 create or replace function public.fx_kt_top(d date, u uuid, lim int) returns jsonb language sql stable as $$
-  select coalesce(jsonb_agg(jsonb_build_object('place', x.place, 'name', x.name, 'title', x.title, 'pts', x.pts, 'fish', x.fish, 'dmg', x.dmg, 'me', x.user_id = u) order by x.place), '[]')
-  from (select k.user_id, p.name, f.title, k.pts, k.fish, k.dmg, (row_number() over (order by k.pts desc, k.fish desc, k.user_id))::int as place
-        from kalatund_score k join profiles p on p.id = k.user_id left join fishers f on f.user_id = k.user_id where k.day = d) x
-  where x.place <= lim or x.user_id = u
+  select coalesce(jsonb_agg(q.j order by (q.j ->> 'pts')::int desc, q.j ->> 'name'), '[]') from (
+    select jsonb_build_object('place', x.place, 'name', x.name, 'title', x.title, 'pts', x.pts, 'fish', x.fish, 'dmg', x.dmg, 'me', x.user_id = u) as j
+    from (select k.user_id, p.name, f.title, k.pts, k.fish, k.dmg, (row_number() over (order by k.pts desc, k.fish desc, k.user_id))::int as place
+          from kalatund_score k join profiles p on p.id = k.user_id left join fishers f on f.user_id = k.user_id where k.day = d) x
+    where x.place <= lim or x.user_id = u
+    union all
+    select jsonb_build_object('place', null, 'bot', b.id, 'emoji', b.emoji, 'name', b.name, 'title', 'Järve kalur', 'pts', k.pts, 'fish', k.fish, 'dmg', k.dmg, 'me', false)
+    from kalatund_bot_score k join fish_bots b on b.id = k.bot where k.day = d and k.pts > 0) q
 $$;
 
 create or replace function public.fish_kalatund() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -2899,11 +2952,11 @@ begin
   select count(*) into unclaimed from kalatund_score k where k.user_id = u and k.day >= d - 7
     and (k.day < d or now() >= w.p_to) and not exists (select 1 from kalatund_prize z where z.user_id = u and z.day = k.day);
   return jsonb_build_object('now', now(), 'active', act, 'start', w.p_from, 'end', w.p_to, 'next', nxt, 'hour', fx_kt_hour(),
-    'top', fx_kt_top(d, u, 10), 'mine', mine, 'players', part, 'unclaimed', unclaimed,
+    'top', fx_kt_top(d, u, 10), 'mine', mine, 'players', part + (select count(*) from kalatund_bot_score where day = d), 'unclaimed', unclaimed,
     'boss', case when b.day is null then null else jsonb_build_object('hp', b.hp, 'max_hp', b.max_hp, 'killed_at', b.killed_at,
-       'killer', (select name from profiles where id = b.killer)) end,
+       'killer', coalesce((select name from profiles where id = b.killer), (select name from fish_bots where id = b.killer_bot))) end,
     'yesterday', jsonb_build_object('top', (select coalesce(jsonb_agg(e) filter (where (e->>'place')::int <= 3), '[]') from jsonb_array_elements(fx_kt_top(d - 1, u, 3)) e),
-       'boss', case when yb.day is null then null else jsonb_build_object('killed', yb.killed_at is not null, 'killer', (select name from profiles where id = yb.killer)) end));
+       'boss', case when yb.day is null then null else jsonb_build_object('killed', yb.killed_at is not null, 'killer', coalesce((select name from profiles where id = yb.killer), (select name from fish_bots where id = yb.killer_bot))) end));
 end $$;
 
 create or replace function public.fish_kt_claim() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -4661,6 +4714,7 @@ begin
         if p is not null then
           insert into public.fish_bot_catches(bot, species, rarity, weight, spot, caught_at) values (b.id, p ->> 'species', (p ->> 'rarity')::int, (p ->> 'weight')::numeric, public.fx_bot_spot(b, at2), at2);
           perform public.fx_bot_xp(b.id, p ->> 'species', public.fx_bot_spot(b, at2), at2);
+          perform public.fx_bot_kt(b.id, p ->> 'species', (p ->> 'rarity')::int, (p ->> 'weight')::numeric, at2);
           if ((p ->> 'rarity')::int >= 4 or ((p ->> 'rarity')::int >= 3 and (p ->> 'weight')::numeric >= (p ->> 'max_w')::numeric * 0.8))
              and not exists (select 1 from public.fish_news where bot = b.id and kind = 'bot_catch' and at > now() - interval '3 hours') then
             insert into public.fish_news(at, user_id, bot, kind, data) values (at2, null, b.id, 'bot_catch', jsonb_build_object('species', p ->> 'species', 'weight', p ->> 'weight', 'spot', public.fx_bot_spot(b, at2)));
@@ -4670,6 +4724,7 @@ begin
     end loop;
     t := t + interval '3 minutes';
   end loop;
+  perform public.fx_bots_life();
   delete from public.fish_bot_catches where caught_at < now() - interval '21 days';
   insert into public.fish_bot_meta(k, v) values ('tick', now()) on conflict (k) do update set v = excluded.v;
 end $$;
@@ -4711,13 +4766,25 @@ end $$;
 -- ---------------------------------------------------------------------
 -- 6s. Kes on mängus: mängija annab märku, et ta on mängus, ja saab nimekirja teistest
 create or replace function public.presence_ping(p_where text default 'kuningriik') returns jsonb language plpgsql security definer set search_path = public as $$
-declare u uuid := fx_uid(); w text := case when p_where ~ '^[a-z]{1,12}$' then p_where else 'kuningriik' end;
+declare u uuid := fx_uid(); w text := case when p_where ~ '^[a-z]{1,12}$' then p_where else 'kuningriik' end; vb fish_bots; gift text; lvl int;
 begin
   if u is null then raise exception 'Logi sisse'; end if;
   update profiles set last_seen = now(), last_where = w where id = u;
   if w <> 'kuningriik' then update fishers set last_seen = now() where user_id = u; end if;
   perform fx_bots_tick();
-  return jsonb_build_object('now', now(),
+  -- vahel saadab mõni Järve kalur sõprusekingi (kõige rohkem 1 päevas)
+  if random() < 0.05 and exists (select 1 from saves where user_id = u) and not exists (select 1 from bot_gift_in where user_id = u and day = fx_today()) then
+    select bb.* into vb from fish_bots bb where fx_bot_online(bb, now()) order by random() limit 1;
+    if vb.id is not null then
+      insert into bot_gift_in(user_id, day, bot) values (u, fx_today(), vb.id) on conflict do nothing;
+      if found then
+        select level into lvl from saves where user_id = u;
+        perform fx_inbox(u, jsonb_build_object('gold', 30 + least(60, coalesce(lvl, 1)) * 3, 'berries', 20, 'food', 20, 'fame', 3), 'sõprusekink: ' || vb.name);
+        gift := vb.emoji || ' ' || vb.name;
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object('now', now(), 'gift', gift,
     'players', (select coalesce(jsonb_agg(x order by (x ->> 'ago')::int, x ->> 'name'), '[]') from (
       select jsonb_build_object('id', p.id, 'name', p.name, 'kingdom', p.kingdom, 'level', coalesce(sv.level, 1),
         'flevel', f.level, 'title', f.title, 'where', p.last_where,
@@ -4727,6 +4794,139 @@ begin
       from profiles p left join saves sv on sv.user_id = p.id left join fishers f on f.user_id = p.id
       where p.id <> u and not p.hidden and p.last_seen > now() - interval '75 seconds') q),
     'bots', fx_bots_online());
+end $$;
+
+-- 6t. Järve kalurid igal pool: kalatund, turg, labor, monument, kuningriik, akvaarium, retk, kingid
+-- kalatunni punktid tegelasele (samad punktid mis mängijal, preemiaid nad ei võta)
+create or replace function public.fx_bot_kt(p_bot text, p_species text, p_rarity int, p_w numeric, at2 timestamptz) returns void language plpgsql as $$
+declare d date := (at2 at time zone 'Europe/Tallinn')::date; w record; avgw numeric; v_pts int; b public.kalatund_boss; v_dmg int;
+begin
+  select * into w from public.fx_kt_win(d);
+  if w.p_from is null or at2 < w.p_from or at2 >= w.p_to or now() < w.p_from then return; end if;
+  select (min_w + max_w) / 2 into avgw from public.fish_species where id = p_species;
+  v_pts := greatest(1, round((array[5,10,25,60,150,400])[least(6, greatest(1, p_rarity))] * (0.6 + 0.4 * least(3, p_w / greatest(coalesce(avgw, 1), 0.01)))));
+  b := public.fx_kt_boss(d);
+  v_dmg := case when b.killed_at is null then least(b.hp, v_pts) else 0 end;
+  if v_dmg > 0 then
+    update public.kalatund_boss set hp = hp - v_dmg where day = d returning * into b;
+    if b.hp <= 0 then update public.kalatund_boss set killed_at = now(), killer = null, killer_bot = p_bot where day = d; end if;
+  end if;
+  insert into public.kalatund_bot_score(day, bot, pts, fish, dmg) values (d, p_bot, v_pts, 1, v_dmg)
+  on conflict (day, bot) do update set pts = kalatund_bot_score.pts + v_pts, fish = kalatund_bot_score.fish + 1, dmg = kalatund_bot_score.dmg + v_dmg;
+end $$;
+-- tegelaste elu väljaspool vett (kord tiksu kohta): kuningriigid kasvavad, turul müüakse ja ostetakse, monumenti ehitatakse
+create or replace function public.fx_bots_life() returns void language plpgsql as $$
+declare b public.fish_bots; hrs numeric; l record; lm record; bc record; v_mon public.kingdom_monument; r text; amt int; lft numeric; v_base int; v_fee int;
+begin
+  for b in select * from public.fish_bots loop
+    hrs := least(72, extract(epoch from now() - coalesce(b.k_at, now())) / 3600);
+    if hrs >= 0.05 then
+      b.k_fame := b.k_fame + hrs * (4 + coalesce(b.k_level, 1) * 0.9) * (0.7 + b.skill * 0.3);
+      while b.k_level < 60 and b.k_fame >= 12 * power(b.k_level + 1, 2) loop b.k_level := b.k_level + 1; end loop;
+      update public.fish_bots set k_fame = b.k_fame, k_level = b.k_level, k_at = now() where id = b.id;
+    end if;
+  end loop;
+  -- turg: tegelased panevad oma kalu müüki (kuni 3 päeva, nagu mängijadki)
+  update public.fish_market set status = 'expired', closed_at = now() where status = 'open' and bot is not null and created_at < now() - interval '72 hours';
+  if random() < 0.3 and (select count(*) from public.fish_market where status = 'open' and bot is not null) < 12 then
+    select c.* into bc from public.fish_bot_catches c where c.caught_at > now() - interval '8 hours' and c.caught_at <= now() and c.rarity >= 2
+      and not exists (select 1 from public.fish_market m where m.bot_catch = c.id) order by random() limit 1;
+    if bc.id is not null then
+      v_base := public.fx_base_value(bc.species, bc.weight);
+      insert into public.fish_market(seller, catch_id, species, rarity, weight, giant, price, base, bot, bot_catch, spot)
+      values (null, null, bc.species, bc.rarity, bc.weight, false, greatest(1, round(v_base * (0.85 + random() * 0.5))), v_base, bc.bot, bc.id, bc.spot);
+    end if;
+  end if;
+  -- turg: tegelane ostab mängija kala, kui hind on aus (kuni 130% tavahinnast)
+  if random() < 0.2 then
+    select m.* into l from public.fish_market m where m.status = 'open' and m.seller is not null and m.created_at < now() - interval '5 minutes'
+      and m.price <= m.base * 1.3 order by random() limit 1 for update skip locked;
+    if l.id is not null then
+      select bb.* into b from public.fish_bots bb order by public.fx_bot_online(bb, now()) desc, random() limit 1;
+      v_fee := ceil(l.price * 0.05);
+      update public.fishers set gold = gold + l.price - v_fee where user_id = l.seller;
+      update public.fish_catches set status = 'traded' where id = l.catch_id and status = 'market';
+      update public.fish_market set status = 'sold', buyer = null, buyer_bot = b.id, closed_at = now(), fee = v_fee where id = l.id;
+    end if;
+  end if;
+  -- geenilabori turg: tegelane ostab hübriidi, kui hind on aus (kuni 140% väärtusest)
+  if random() < 0.12 then
+    select m.id, m.fish_id, m.seller, m.price into lm from public.lab_market m join public.lab_fish h on h.id = m.fish_id
+      where m.status = 'open' and m.created_at < now() - interval '10 minutes' and m.price <= h.value * 1.4 order by random() limit 1 for update of m skip locked;
+    if lm.id is not null then
+      select bb.* into b from public.fish_bots bb order by public.fx_bot_online(bb, now()) desc, random() limit 1;
+      update public.fishers set gold = gold + round(lm.price * 0.95) where user_id = lm.seller;
+      update public.lab_fish set status = 'sold' where id = lm.fish_id;
+      update public.lab_market set status = 'sold', buyer = null, buyer_bot = b.id, closed_at = now() where id = lm.id;
+    end if;
+  end if;
+  -- sõpruse monument: tegelased toovad materjali (kuni 90% igast vajadusest – viimase osa toovad päris mängijad)
+  if random() < 0.15 and pg_try_advisory_xact_lock(hashtext('monument')) then
+    v_mon := public.fx_mon_current();
+    select n.key into r from jsonb_each_text(v_mon.need) n where coalesce((v_mon.have ->> n.key)::numeric, 0) < n.value::numeric * 0.9 order by random() limit 1;
+    if r is not null then
+      select bb.* into b from public.fish_bots bb where public.fx_bot_online(bb, now()) order by random() limit 1;
+      if b.id is not null then
+        lft := (v_mon.need ->> r)::numeric * 0.9 - coalesce((v_mon.have ->> r)::numeric, 0);
+        amt := least(floor(lft)::int, 40 + floor(random() * (60 + b.k_level * 8))::int);
+        if amt > 0 then
+          update public.kingdom_monument km set have = jsonb_set(km.have, array[r], to_jsonb(coalesce((km.have ->> r)::numeric, 0) + amt)) where stage = v_mon.stage;
+          insert into public.kingdom_monument_bot(stage, bot, total) values (v_mon.stage, b.id, amt) on conflict (stage, bot) do update set total = kingdom_monument_bot.total + amt;
+        end if;
+      end if;
+    end if;
+  end if;
+end $$;
+-- nädala retk: kui kaugele tegelane on jõudnud (5 peatust)
+create or replace function public.fx_bot_journey(b public.fish_bots) returns jsonb language sql stable as $$
+  select jsonb_build_object('done', least(5, floor(greatest(0, extract(epoch from now() - (date_trunc('week', now() at time zone 'Europe/Tallinn') at time zone 'Europe/Tallinn')) / 86400.0)
+    * (0.45 + b.skill * 0.35) + (abs(hashtext(b.id || date_trunc('week', now() at time zone 'Europe/Tallinn')::text)) % 100) / 100.0)::int), 'of', 5) $$;
+-- kõik tegelased koos nende kuningriigi, akvaariumi ja retkega
+create or replace function public.bots_world() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_bots_tick();
+  return (select coalesce(jsonb_agg(q.j order by q.srt), '[]') from (
+    select b.sort as srt, jsonb_build_object('bot', b.id, 'name', b.name, 'emoji', b.emoji, 'descr', b.descr, 'level', fx_bot_level(b),
+      'xp', b.xp, 'xp_need', case when fx_bot_level(b) >= 50 then 0 else fx_xp_need(fx_bot_level(b)) end,
+      'online', fx_bot_online(b, now()), 'spot', fx_bot_spot(b, now()),
+      'kingdom', b.kname, 'k_level', b.k_level, 'k_fame', floor(b.k_fame)::int, 'k_regions', least(6, 1 + b.k_level / 6), 'k_treasures', b.k_level / 4,
+      'house', coalesce(h.level, 0), 'house_name', h.name, 'slots', coalesce(h.slots, 3), 'aq_likes', b.aq_likes,
+      'aq', a.fish, 'aq_score', a.score,
+      'liked', exists (select 1 from bot_aq_likes z where z.bot = b.id and z.visitor = u and z.day = fx_today()),
+      'gifted', exists (select 1 from bot_gifts z where z.bot = b.id and z.sender = u and z.day = fx_today()),
+      'journey', fx_bot_journey(b)) as j
+    from fish_bots b
+    left join lateral (select * from fish_house_levels hl where hl.min_fish_level <= fx_bot_level(b) order by hl.level desc limit 1) h on true
+    left join lateral (select coalesce(jsonb_agg(jsonb_build_object('id', z.id, 'species', z.species, 'rarity', z.rarity, 'weight', z.weight, 'giant', false) order by z.rarity desc, z.weight desc), '[]') as fish,
+        coalesce(sum(z.rarity * z.rarity * 2), 0)::int as score
+      from (select * from (select distinct on (c.species) c.* from fish_bot_catches c where c.bot = b.id and c.caught_at <= now() order by c.species, c.rarity desc, c.weight desc) d
+            order by d.rarity desc, d.weight desc limit coalesce(h.slots, 3)) z) a on true) q);
+end $$;
+create or replace function public.bot_gift_send(p_bot text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); n int; vb fish_bots;
+begin
+  select * into vb from fish_bots where id = p_bot;
+  if vb.id is null then raise exception 'Seda kuningriiki ei leitud'; end if;
+  perform 1 from profiles where id = u for update;
+  n := (select count(*) from kingdom_gifts where sender = u and day = fx_today()) + (select count(*) from bot_gifts where sender = u and day = fx_today());
+  if n >= 3 then raise exception 'Täna oled juba 3 kinki saatnud. Homme saad jälle!'; end if;
+  insert into bot_gifts(sender, bot, day) values (u, p_bot, fx_today()) on conflict do nothing;
+  if not found then raise exception 'Sellele kuningriigile oled täna juba kingi saatnud'; end if;
+  update fish_bots set k_fame = k_fame + 5 where id = p_bot;
+  perform fx_inbox(u, jsonb_build_object('fame', 4, 'xp', 15), 'heategu');
+  perform fx_inbox(u, jsonb_build_object('gold', 20 + coalesce(vb.k_level, 1) * 2, 'berries', 15), 'vastukink: ' || vb.name);
+  return jsonb_build_object('ok', true, 'left', 2 - n, 'thanks', vb.name);
+end $$;
+create or replace function public.bot_aquarium_like(p_bot text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u);
+  if not exists (select 1 from fish_bots where id = p_bot) then raise exception 'Seda akvaariumi ei leitud'; end if;
+  insert into bot_aq_likes(visitor, bot, day) values (u, p_bot, fx_today()) on conflict do nothing;
+  if not found then raise exception 'Seda akvaariumi oled täna juba imetlenud'; end if;
+  update fish_bots set aq_likes = aq_likes + 1 where id = p_bot;
+  return jsonb_build_object('ok', true);
 end $$;
 
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
@@ -4749,7 +4949,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

@@ -52,12 +52,12 @@ function renderCoopTab() {
       <canvas class="moncv" data-mon="${M.done}:${frac.toFixed(3)}"></canvas>
       <p class="lead">Valmis etappe: <b>${M.done}</b>. Kui etapp valmib, saavad kõik panustajad kulda, kuulsust ja kogemust. Mida rohkem panustad, seda suurem on preemia. Sinu panus selles etapis: <b>${fmt(M.mine)}</b>. Iga ressurssi saad anda kuni ${fmt(M.cap)} päevas.</p>
       ${needK.map(k => { const n = +M.need[k], hv = Math.min(n, +(M.have[k] || 0)), left = n - hv, capLeft = M.cap - (+((M.today || {})[k] || 0)), can = Math.max(0, Math.min(Math.floor(S.res[k]), left, capLeft)), why = hv >= n ? '' : capLeft <= 0 ? 'Tänane piir täis' : S.res[k] < 1 ? 'Sul pole ' + RES[k].g : ''; return `<div class="monrow"><div class="monres">${ic(k)}<b>${MON_RES[k]}</b><small class="num">${fmt(hv)} / ${fmt(n)}${why ? ` · <span style="color:var(--bad)">${why}</span>` : ` · täna veel ${fmt(Math.max(0, capLeft))}`}</small></div><div class="bar ${hv >= n ? 'green' : ''}"><i style="width:${(hv / n * 100).toFixed(1)}%"></i></div><div class="monbtn">${hv >= n ? '<span class="pill ok">Valmis</span>' : [100, 500].map(a => `<button class="btn sm ghost" type="button" data-act="monGive" data-arg="${k}:${a}" ${can >= a && !CO.busy ? '' : 'disabled'}>+${a}</button>`).join('') + `<button class="btn sm" type="button" data-act="monGive" data-arg="${k}:${can}" ${can > 0 && !CO.busy ? '' : 'disabled'}>Anna ${fmt(can)}</button>`}</div></div>` }).join('')}
-      ${M.top.length ? `<div class="sec-h">Suurimad panustajad <small>${M.contributors} kuningriiki</small></div><ol class="montop">${M.top.map(x => `<li class="${x.me ? 'me' : ''}"><span>${esc(x.kingdom)}</span><b class="num">${fmt(x.total)}</b></li>`).join('')}</ol>` : '<p class="lead">Ole esimene, kes selle etapi heaks midagi annab!</p>'}</div>`;
+      ${M.top.length ? `<div class="sec-h">Suurimad panustajad <small>${M.contributors} kuningriiki</small></div><ol class="montop">${M.top.map(x => `<li class="${x.me ? 'me' : ''}"><span>${x.bot ? x.emoji + ' ' : ''}${esc(x.kingdom)}${x.bot ? ' ' + duBotTag() : ''}</span><b class="num">${fmt(x.total)}</b></li>`).join('')}</ol>` : '<p class="lead">Ole esimene, kes selle etapi heaks midagi annab!</p>'}</div>`;
   }
   const gifts = giftsToday();
   h += `<div class="card"><div class="sec-h" style="margin:0">Kuningriigid <small>kinke täna ${gifts.length}/3</small></div><p class="lead">Külasta teisi kuningriike ja vaata, kuidas nad elavad. Sõprusekink annab saajale kulda, marju, toitu ja kuulsust ning sulle kuulsust ja kogemust. Päevas saad saata 3 kinki.</p>`;
   if (!CO.list) h += '<p class="lead">Laadin…</p>';
-  else { const others = CO.list.filter(x => !x.me); h += others.length ? `<div class="klist">${others.map(x => `<div class="krow"><div><b>${esc(x.kingdom)}</b><small class="lead">${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust</small></div><div class="kbtn"><button class="btn sm ghost" type="button" data-act="visitK" data-arg="${x.id}">Külasta</button><button class="btn sm" type="button" data-act="giftK" data-arg="${x.id}" ${gifts.includes(x.id) || gifts.length >= 3 || CO.busy ? 'disabled' : ''}>${gifts.includes(x.id) ? 'Kingitud ✓' : '🎁 Kingi'}</button></div></div>`).join('')}</div>` : '<p class="lead">Teisi kuningriike veel pole. Kutsu sõbrad mängima!</p>' }
+  else { const others = CO.list.filter(x => !x.me); h += others.length ? `<div class="klist">${others.map(x => `<div class="krow"><div><b>${esc(x.kingdom)}</b>${x.bot ? ' ' + duBotTag() : ''}<small class="lead">${x.bot ? x.emoji + ' ' : ''}${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust</small></div><div class="kbtn"><button class="btn sm ghost" type="button" data-act="visitK" data-arg="${x.id}">Külasta</button><button class="btn sm" type="button" data-act="giftK" data-arg="${x.id}" ${gifts.includes(x.id) || gifts.length >= 3 || CO.busy ? 'disabled' : ''}>${gifts.includes(x.id) ? 'Kingitud ✓' : '🎁 Kingi'}</button></div></div>`).join('')}</div>` : '<p class="lead">Teisi kuningriike veel pole. Kutsu sõbrad mängima!</p>' }
   return h + '</div>';
 }
 async function monGive(arg) {
@@ -75,7 +75,7 @@ async function monGive(arg) {
 }
 async function giftK(id) {
   if (CO.busy) return; CO.busy = true; renderPanel(true);
-  try { const r = await rpc('kingdom_gift_send', { p_user: id }); markGift(id); toast('Sõprusekink on teele saadetud! Said ise ka kuulsust.', 'good', 'fame'); setTimeout(() => claimInbox(), 1200) }
+  try { const r = await rpc('kingdom_gift_send', { p_user: id }); markGift(id); toast('Sõprusekink on teele saadetud! Said ise ka kuulsust.', 'good', 'fame'); if (r && r.thanks) setTimeout(() => toast(`${r.thanks} rõõmustas ja saatis sulle vastukingi! 🎁`, 'gold', 'gold'), 900); setTimeout(() => claimInbox(), 1200) }
   catch (e) { toast(e.message, 'bad'); if (/juba/.test(e.message)) markGift(id) }
   CO.busy = false; renderPanel(true); if (UI.modalView) renderModal(true);
 }
@@ -84,7 +84,7 @@ async function visitK(id) {
   CO.visit = v;
   showModal(() => { const x = CO.visit; if (!x) return null; const gifted = giftsToday().includes(x.user) || x.gifted;
     const tamed = Object.entries(x.tamed || {}).filter(([, n]) => n > 0).map(([k, n]) => `${ANIMALS[k] ? ANIMALS[k].n : k} ×${n}`).join(', ');
-    return `<h2>${esc(x.kingdom)}</h2><p class="lead">${typeof rankEmblem === 'function' ? rankEmblem(x.rank) + ' ' + RANKS[x.rank].n + ' · ' : ''}valitseja ${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust · ${x.regions} piirkonda</p>
+    return `<h2>${esc(x.kingdom)}${x.bot ? ' ' + duBotTag() : ''}</h2><p class="lead">${typeof rankEmblem === 'function' ? rankEmblem(x.rank) + ' ' + RANKS[x.rank].n + ' · ' : ''}valitseja ${esc(x.name)} · tase ${x.level} · ${fmt(x.fame)} kuulsust · ${x.regions} piirkonda</p>
       <canvas class="visitcv" data-visit="1"></canvas>
       <dl class="stats"><dt>Hooneid Kodumetsas</dt><dd>${x.buildings.length}</dd><dt>Aardeid varakambris</dt><dd>${x.relics}</dd><dt>Loomasõbrad</dt><dd>${tamed || '—'}</dd></dl>
       <div class="mbtns"><button class="btn ghost" type="button" data-act="closeModal">Tagasi koju</button>${x.me ? '' : `<button class="btn" type="button" data-act="giftK" data-arg="${x.user}" ${gifted || giftsToday().length >= 3 ? 'disabled' : ''}>${gifted ? 'Kingitud ✓' : '🎁 Saada sõprusekink'}</button>`}</div>` }, 'wide');

@@ -189,7 +189,7 @@ function tabSundmused() {
     h += `<div class="fv-card"><h2>🗺️ Kalastusretk <small class="lead">uus retk ${evLeft(Date.parse(j.ends) - now)} pärast · läbitud kokku ${j.done_total}</small></h2>
       <div class="jr-map">${evCv({ draw: jrMapDraw })}</div><div class="jr-legs">${j.legs.map((l, i) => { const st = i < j.leg || j.finished ? 'done' : i === j.leg ? 'cur' : '', s = FD.sp[l.species];
         return `<div class="jr-leg ${st}"><span class="n">${st === 'done' ? '✓' : i + 1}</span><div><b>${esc(FD.spot[l.spot] ? FD.spot[l.spot].name : l.spot)}</b>: püüa ${l.n} × ${esc(s ? s.name.toLowerCase() : l.species)}<br><small>${st === 'cur' ? `Tehtud ${j.progress}/${l.n} · ` : ''}Preemia ${l.gold} kulda, ${l.xp} kogemust</small></div>
-          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button>`) : ''}</div>` }).join('')}</div>
+          ${st === 'cur' ? (ready ? `<button class="btn sm" type="button" data-ev="adv" ${EV.busy ? 'disabled' : ''}>${i === j.legs.length - 1 ? 'Ava aardekirst' : 'Liigu edasi'}</button>` : `<button class="btn sm ghost" type="button" data-ev="go" data-arg="${l.spot}">Mine</button>`) : ''}</div>` }).join('')}</div>${bwJourneyLine()}
       ${j.finished ? '<p class="lead" style="margin-top:8px">🎉 Retk on läbitud! Uus retk algab esmaspäeval.</p>' : `<p class="lead" style="margin-top:8px">Lõpus ootab aardekirst: 2000 kulda, 600 kogemust ja 2 eset.</p>`}</div>`;
   }
   h += duSection();

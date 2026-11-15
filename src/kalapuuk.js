@@ -1303,17 +1303,17 @@ function tabMaja() {
   h += `<div class="fv-card"><h2>Teiste mängijate akvaariumid</h2><p class="lead">Külasta teisi kalureid ja imetle nende akvaariumi. Iga imetlus toob omanikule 15 kulda (üks kord päevas iga akvaariumi kohta).</p>`;
   if (!AQ.list) { h += '<p class="lead">Laadin…</p>'; loadAqList() }
   else if (!AQ.list.filter(a => !a.me).length) h += '<p class="lead">Teistel mängijatel pole veel akvaariumi. Ole esimene!</p>';
-  else h += lbHtml({ who: 'Kalur', cols: ['Ilu'], act: true, actW: '92px', rows: AQ.list.map((a, i) => ({ place: i + 1, name: a.name, sub: `${houseRow(a.house) ? houseRow(a.house).name : ''} · ${a.n} kala · ${a.likes} imetlust`, me: a.me, vals: [a.score], act: a.me ? '' : `<button class="btn sm ghost" type="button" data-fa="aqvisit" data-arg="${a.id}">Külasta</button>` })) });
+  else h += lbHtml({ who: 'Kalur', cols: ['Ilu'], act: true, actW: '92px', rows: AQ.list.map((a, i) => ({ place: a.bot ? '🎣' : (a._pl || i + 1), name: a.name, sub: `${a.bot ? a.emoji + ' Järve kalur · ' + esc(a.house_name || '') : houseRow(a.house) ? houseRow(a.house).name : ''} · ${a.n} kala · ${a.likes} imetlust`, me: a.me, vals: [a.score], act: a.me ? '' : `<button class="btn sm ghost" type="button" data-fa="aqvisit" data-arg="${a.id}">Külasta</button>` })) });
   return h + '</div>';
 }
 function visitHtml() {
   const v = AQ.visit; AQ.fish = v.fish;
-  return `<div class="fv-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn ghost sm" type="button" data-fa="aqback">← Tagasi</button><h2 style="margin:0">Akvaarium: ${esc(v.name)}</h2></div>
+  return `<div class="fv-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn ghost sm" type="button" data-fa="aqback">← Tagasi</button><h2 style="margin:0">Akvaarium: ${v.bot ? v.emoji + ' ' : ''}${esc(v.name)}${v.bot ? ' ' + duBotTag() : ''}</h2></div>
     <p class="lead">${v.title ? esc(v.title) + ' · ' : ''}kalapüügi tase ${v.level} · ${esc(v.house_name || '')} · ilu ${v.score} · ${v.likes} imetlust</p>
     <canvas data-house="${v.house}" class="housecv"></canvas>
     <div id="fvAqSlot"></div>
     ${v.fish.length ? `<div class="inv">${v.fish.map(f => { const s = FD.sp[f.species] || { name: f.species }, [rn, rc] = RAR2[f.rarity]; return `<div class="fcell" style="border-color:${rc}44"><canvas data-fl="${f.species}" data-r="${f.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${f.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+f.weight)}</small></div>` }).join('')}</div>` : '<p class="lead">Akvaarium on veel tühi.</p>'}
-    <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
+    <div><button class="btn" type="button" data-fa="aqlike" data-arg="${v.user}" ${v.liked || v.me ? 'disabled' : ''}>${v.liked ? 'Imetlesid täna ✓' : v.bot ? '❤ Imetle' : '❤ Imetle (+15 kulda omanikule)'}</button></div></div>`;
 }
 async function loadAqList() { if (AQ.loading) return; AQ.loading = true; try { AQ.list = await rpc('fish_aquariums') } catch (e) { AQ.list = [] } AQ.loading = false; if (FV.open && FV.tab === 'maja') renderFV() }
 async function aqCall(fn, args, okMsg) {
@@ -1437,7 +1437,7 @@ document.addEventListener('click', async e => {
     case 'aqcollect': await aqCall('fish_aquarium_collect', {}, r => `Akvaariumi külastajad tõid ${fmt(r.gold)} kulda!`); renderFV(true); break;
     case 'aqvisit': if (FV.busy) return; FV.busy = true; try { AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); $('#fishView').scrollTop = 0; break;
     case 'aqback': AQ.visit = null; renderFV(true); break;
-    case 'aqlike': if (FV.busy) return; FV.busy = true; try { await rpc('fish_aquarium_like', { p_user: arg }); toast('Imetlesid akvaariumi! Omanik sai 15 kulda.', 'good', 'fish'); AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }); AQ.list = null } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
+    case 'aqlike': if (FV.busy) return; FV.busy = true; try { await rpc('fish_aquarium_like', { p_user: arg }); toast(String(arg).startsWith('bot:') ? 'Imetlesid akvaariumi! Järve kalur oli väga rõõmus.' : 'Imetlesid akvaariumi! Omanik sai 15 kulda.', 'good', 'fish'); AQ.visit = await rpc('fish_aquarium_view', { p_user: arg }); AQ.list = null } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'qclaim': { if (FV.busy) return; FV.busy = true; const [per, idx] = arg.split(':'); try { const r = await rpc('fish_quest_claim', { p_period: per, p_idx: +idx }); toast(`Ülesanne täidetud! +${fmt(r.gold)} kulda, +${fmt(r.xp)} kogemust${itemsTxt(r.items, false).replace(' ning kotti:', ', kotti:')}`, 'gold', 'fish'); await refreshFS(); FV.quests = await rpc('fish_quests'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
     case 'isell': { if (FV.busy) return; FV.busy = true; const [it, q] = arg.split(':'); try { const r = await rpc('fish_item_sell', { p_item: it, p_qty: +q }); toast(`Müüsid ${itemName(it)} × ${r.qty} ja said ${fmt(r.gold)} kulda.`, 'good', 'gold'); await refreshFS() } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
   }
@@ -1500,7 +1500,7 @@ async function loadMarket(silent) {
       rpc('fish_market_mine')]);
     // teata uutest müükidest
     const sold = (mine.history || []).filter(x => x.side === 'sold' && x.status === 'sold' && new Date(x.at).getTime() > FMK.seenSold);
-    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fKg(+x.weight)}) müüdi ${fmt(x.price)} kulla eest! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
+    if (FMK.mine) { const known = new Set((FMK.mine.history || []).map(x => x.id)); sold.filter(x => !known.has(x.id)).forEach(x => { const sp = FD.sp[x.species]; toast(`Kalaturg: sinu ${sp ? sp.name : 'kala'} (${fKg(+x.weight)}) müüdi ${fmt(x.price)} kulla eest${x.bot_buyer ? ' – ostis Järve kalur ' + x.bot_buyer : ''}! Kassasse tuli ${fmt(x.price - x.fee)} kulda.`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('coin') }); if (sold.some(x => !known.has(x.id))) refreshFS() }
     FMK.newSold = FV.tab === 'turg' && FV.open ? 0 : sold.length;
     FMK.list = list; FMK.mine = mine; FMK.at = Date.now();
   } catch (e) { if (!silent) toast(e.message, 'bad') }
@@ -1511,7 +1511,7 @@ function mkLeft(at) { const ms = new Date(at).getTime() + 72 * 3600e3 - Date.now
 function mkPct(price, base) { const p = Math.round(price / Math.max(1, base) * 100); return `<i class="${p <= 100 ? 'good' : p <= 180 ? 'mid' : 'hi'}" title="Hind võrreldes kala tavahinnaga">${p}% tavahinnast</i>` }
 function mkCard(m) {
   const sp = FD.sp[m.species] || { name: m.species }, [rn, rc] = RAR2[m.rarity], conf = FMK.confirm === m.id, poor = FS.gold < m.price;
-  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+m.weight)} · müüja ${esc(m.seller)}</small>
+  return `<div class="mkc" style="--rc:${rc}55">${m.mine ? '<span class="mine">Sinu</span>' : ''}<canvas data-fl="${m.species}" data-r="${m.rarity}"></canvas><b>${esc(sp.name)}</b><small style="color:${rc}">${rn}${m.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+m.weight)} · müüja ${m.bot ? (m.bot_emoji || '') + ' ' : ''}${esc(m.seller)}${m.bot ? ' 🎣' : ''}</small>
     <div class="pr">${fmt(m.price)}<small>kulda</small></div><div class="pr" style="font-size:12px">${mkPct(m.price, m.base)}</div><small>Aega jäänud: ${mkLeft(m.at)}</small>
     ${m.mine ? `<button class="btn sm ghost" type="button" data-fa="mkCancel" data-arg="${m.id}">Võta turult maha</button>` : `<button class="btn sm ${conf ? '' : 'ghost'}" type="button" data-fa="mkBuy" data-arg="${m.id}" ${poor ? 'disabled' : ''}>${poor ? 'Kulda ei jätku' : conf ? `Kinnita ost: ${fmt(m.price)} kulda` : 'Osta'}</button>`}</div>`;
 }
@@ -1527,7 +1527,7 @@ function tabTurg() {
     h += `<div class="fv-card"><h2>Müügil <small class="lead">${mine.open.length} / 10</small></h2>${mine.open.length ? `<div class="mkg">${mine.open.map(m => mkCard(Object.assign({ mine: true, seller: 'sina' }, m))).join('')}</div>` : '<p class="lead">Sul pole praegu ühtki kala müügil. Vali saagist kala ja vajuta „Pane turule“.</p>'}
       <div><button class="btn sm" type="button" data-fa="tab" data-arg="saak">Mine saagi juurde</button></div></div>`;
     const H = mine.history || [];
-    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fKg(+x.weight)}</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
+    h += `<div class="fv-card"><h2>Ajalugu</h2>${H.length ? `<div class="mkh">${H.map(x => { const sp = FD.sp[x.species] || { name: x.species }; return `<div><span>${x.status === 'expired' ? `<span class="e">Aegus</span>` : x.side === 'sold' ? '<span class="s">Müüdud</span>' : '<span class="b">Ostetud</span>'} · ${esc(sp.name)} ${fKg(+x.weight)}${x.bot_buyer ? ` · ostis 🎣 ${esc(x.bot_buyer)}` : ''}</span><span>${x.status === 'expired' ? 'tagasi saagis' : x.side === 'sold' ? `+${fmt(x.price - (x.fee || 0))} kulda` : `−${fmt(x.price)} kulda`}</span></div>` }).join('')}</div>` : '<p class="lead">Tehinguid pole veel tehtud.</p>'}</div>`;
     return h;
   }
   const spOpts = Object.values(FD.sp).filter(s => (FS.book || {})[s.id]).sort((a, b) => a.name.localeCompare(b.name, 'et'));
@@ -1613,7 +1613,7 @@ function tabKalatund() {
       <div class="kt-hp"><span><span>${b && b.killed_at ? `Viimase löögi andis ${esc(b.killer || '?')}` : 'Bossi elu'}</span><span>${fmt(hp)} / ${fmt(mx)}</span></span><div class="bar"><i style="width:${pct}%"></i></div></div></div>
       <p class="lead" style="font-size:13px">Bossi elud sõltuvad sellest, mitu kalurit viimasel nädalal püüdis. Üksi on teda raske alistada, koos sõpradega palju lihtsam. ${d.players ? `Täna on osalenud ${d.players} kalurit.` : ''}</p></div>`;
   }
-  h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: !d.active || d.top.length >= 3, rows: d.top.map(r => ({ place: r.place, name: r.name, sub: r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
+  h += `<div class="fv-card"><h3>${d.active ? 'Edetabel otse' : 'Tänane tulemus'}</h3>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: (!d.active || d.top.length >= 3) && !d.top.slice(0, 3).some(r => r.bot), rows: d.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : `<p class="lead">${d.active ? 'Keegi pole veel kala püüdnud. Ole esimene!' : 'Täna pole Kalatundi veel olnud.'}</p>`}
     ${d.yesterday && d.yesterday.top.length ? `<p class="lead" style="font-size:12.5px">Eile: ${d.yesterday.top.map(r => `${r.place}. ${esc(r.name)} (${fmt(r.pts)})`).join(', ')}${d.yesterday.boss ? (d.yesterday.boss.killed ? ` · boss alistati, viimase löögi andis ${esc(d.yesterday.boss.killer || '?')}` : ' · boss pääses minema') : ''}</p>` : ''}</div>`;
   h += `<div class="fv-card"><h3>Punktid ja auhinnad</h3><div class="kt-pts">${[1, 2, 3, 4, 5, 6].map(r => `<span style="color:${RAR2[r][1]}">${RAR2[r][0]}: ${[5, 10, 25, 60, 150, 400][r - 1]} p</span>`).join('')}</div>
     <p class="lead" style="font-size:13px">Suurem kala annab rohkem punkte (kuni 2× tavalisest) ja rekordsuurus veel 1,5× juurde. Turult ostetud kalad ei loe.</p>
