@@ -33,7 +33,7 @@ const SH_STYLE = {
   uusliik: { col: '#7ef0a0', hi: '#effff4', fx: 'book', dur: 2.0, size: .82, sfx: 'uusliik' },
   rekord: { col: '#ffc24a', hi: '#fff4d0', fx: 'sparkle', dur: 1.6, size: .9, sfx: 'rekord' },
   suurim: { col: '#ffd24a', hi: '#ffffff', fx: 'trophy', dur: 2.0, size: .9, sfx: 'rekord' },
-  xp: { col: '#6ad0ff', hi: '#ffffff', fx: 'flash', dur: 1.5, size: 1, sfx: 'xp', quick: true },
+  xp: { col: '#6ad0ff', hi: '#ffffff', fx: 'flash', dur: 2.75, size: 1, sfx: 'xp', oldxp: true },
   kuld: { col: '#ffcc3a', hi: '#fff6d0', fx: 'coins', dur: 1.5, size: 1, sfx: 'kuld' },
   punkt: { col: '#ff9a4a', hi: '#fff0e0', fx: 'flash', dur: 1.3, size: .9, sfx: 'hea' },
   ese: { col: '#c88aff', hi: '#f6eaff', fx: 'sparkle', dur: 1.6, size: .82, sfx: 'r3' },
@@ -55,10 +55,10 @@ const SH_STYLE = {
   boonus: { col: '#ffe84a', hi: '#fffde6', fx: 'burst', dur: 2.0, size: .7, sfx: 'tapne' },
   hiiglane: { col: '#ff4a3a', hi: '#ffe4e0', fx: 'boss', dur: 2.4, size: .7, sfx: 'boss', shake: true }
 };
-function shout(txt, kind, sub) {
+function shout(txt, kind, sub, val) {
   const st = SH_STYLE[kind] || SH_STYLE.hea;
   if (SH.q.length > 14) SH.q.pop();
-  SH.q.push({ txt, sub, st, kind, added: performance.now() });
+  SH.q.push({ txt, sub, st, kind, val, added: performance.now() });
 }
 
 /* ---------- helid ---------- */
@@ -98,7 +98,8 @@ function shDraw(c, w, h, dt) {
     SH.cur = SH.q.shift(); SH.cur.t0 = now; SH.cur.fast = SH.q.length >= 3 ? .8 : SH.q.length >= 1 ? .9 : 1; const st = SH.cur.st, low = shLow();
     shSfx(st.sfx);
     if ((st.shake || st.fx === 'shake') && !low) FX.shake = Math.max(FX.shake, st.fx === 'shake' ? .14 : .2);
-    shSpawn(SH.cur, w, h, low);
+    // kogemus jookseb vanas stiilis: suur number loeb end üles (kalastseen.js FX.xpShow)
+    if (st.oldxp) FX.xpShow = { t0: now, xp: +SH.cur.val || 0, rar: 1 }; else shSpawn(SH.cur, w, h, low);
   }
   // osakesed
   SH.parts = SH.parts.filter(p => (p.life -= dt) > 0);
@@ -110,6 +111,7 @@ function shDraw(c, w, h, dt) {
     c.restore();
   }
   const S = SH.cur; if (!S) return;
+  if (S.st.oldxp) { if ((now - S.t0) / 1000 > S.st.dur * (S.fast || 1) || !FX.xpShow) { SH.cur = null; SH.endAt = now } return }
   const st = S.st, low = shLow(), dur = st.quick ? st.dur * (low ? .8 : 1) * (SH.q.length >= 2 ? .72 : 1) : (st.dur * 1.2 + .35) * (low ? .85 : 1) * (S.fast || 1), a = (now - S.t0) / 1000;
   if (a > dur) { SH.cur = null; SH.endAt = now; return }
   const cx = w / 2, cy = h * .42, k = a / dur;
@@ -213,7 +215,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
       if (prevBig > 0 && +r.weight > prevBig) list.push(['SUURIM SAAGI KALA!', 'suurim', `Sinu kõigi aegade suurim: ${fKg(+r.weight)}`]);
       if (r.new_species) list.push(['UUS LIIK KALARAAMATUS!', 'uusliik', r.name]);
       else if (r.record) list.push(['ISIKLIK REKORD!', 'rekord', `${r.name}: ${fKg(+r.weight)}`]);
-      if (+r.xp > 0) list.push([`+${fmt(+r.xp)} XP KOGEMUST!`, 'xp', r.x2 ? 'Õhtukuma ×2' : '']);
+      if (+r.xp > 0) list.push([`+${fmt(+r.xp)} XP`, 'xp', '', +r.xp]);
       if (r.kt && typeof r.kt === 'object') {
         if (+r.kt.pts > 0) list.push([`+${fmt(+r.kt.pts)} KALA-PUNKTI!`, 'punkt', 'Kalatund']);
         if (+r.kt.dmg >= 150) list.push(['SUUR TABAMUS!', 'tabamus', `−${fmt(+r.kt.dmg)} elu`]);
@@ -228,7 +230,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
     for (const a of r.ach || []) { list.push(['UUS SAAVUTUS AVATUD!', 'saavutus', a.name]); if (a.title) list.push(['TIITEL SAADUD!', 'tiitel', `„${a.title}“`]) }
     // kala hüppab veest välja ~2,3 s – hüüdsõnad tulevad maandumise hetkel järjest
     const delay = r.kind === 'fish' ? (shLow() ? 1800 : 2250) : 300;
-    setTimeout(() => list.forEach(([t, k, s]) => shout(t, k, s)), delay);
+    setTimeout(() => list.forEach(([t, k, s, v]) => shout(t, k, s, v)), delay);
   };
   // Kalatunni auhindade võtmine: bossi eriauhind
   const _rpc = rpc;
