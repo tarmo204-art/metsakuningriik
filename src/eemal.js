@@ -17,6 +17,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .aw-row p{margin:0;line-height:1.45;font-size:14.5px}
 .aw-row small{display:block;color:#a9c4c8;font-size:12.5px;margin-top:2px;line-height:1.4}
 .aw-row .btn{margin-top:6px}
+.aw-row.bad{border-color:rgba(255,120,90,.45);background:linear-gradient(100deg,rgba(255,110,80,.14),rgba(255,255,255,.03) 60%)}
+.aw-row.wx{border-color:rgba(140,190,255,.35);background:linear-gradient(100deg,rgba(110,160,255,.12),rgba(255,255,255,.03) 60%)}
 .aw-row.gold{border-color:rgba(232,182,90,.4);background:linear-gradient(100deg,rgba(232,182,90,.14),rgba(255,255,255,.03) 60%)}
 @media (max-width:600px){.modal-card.awmodal{max-height:calc(100dvh - 110px);overflow-y:auto;margin-bottom:70px}}
 @keyframes awIn{from{opacity:0;transform:translateY(8px)}}
@@ -27,6 +29,18 @@ function awDur(ms) { const m = Math.round(ms / 60000), d = Math.floor(m / 1440),
 function awSp(id) { return FD.sp && FD.sp[id] ? FD.sp[id].name : id }
 function awRows(d) {
   const R = [], row = (i, html, cls) => R.push(`<div class="aw-row ${cls || ''}" style="animation-delay:${R.length * 70}ms"><span class="i">${i}</span><div>${html}</div></div>`);
+  const N = d.nature;
+  if (N) {
+    const parts = [], x = (n, one, many) => n ? `${n === 1 ? one : n + ' ' + many}` : '';
+    if (N.storm) parts.push(`möllas ${x(N.storm, 'üks torm', 'tormi')}`); if (N.rain) parts.push(`sadas ${x(N.rain, 'korra vihma', 'korda vihma')}`);
+    if (N.fog) parts.push(`${N.fog === 1 ? 'oli korra' : 'oli ' + N.fog + ' korda'} udu`); if (N.sun) parts.push(`${N.sun === 1 ? 'paistis korra' : 'paistis ' + N.sun + ' korda'} päike`);
+    if (parts.length) row(N.storm ? '🌪️' : N.rain ? '🌧️' : '🌤️', `<p>Sinu äraolekul ${parts.join(', ').replace(/, ([^,]*)$/, ' ja $1')}.</p>${N.storm_at ? `<small>Esimene torm algas ${new Date(N.storm_at).toLocaleString('et-EE', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}.</small>` : ''}`, 'wx');
+    (N.damage || []).forEach(g => row(g.icon || '🏚', `<p><b>Tormikahju: ${esc(g.name)}</b></p><small>${esc(g.what)}</small><small>Ruumi boonus ei tööta, kuni see on parandatud.</small><button class="btn sm" type="button" data-aw="kalurimaja">🔧 Paranda Kalurimajas</button>`, 'bad'));
+    const got = [];
+    if (N.wood) got.push(`🪵 ${N.wood} triivpuitu`); if (N.amber) got.push(`🟠 ${N.amber} merevaik${N.amber > 1 ? 'u' : ''}`); if (N.berries) got.push(`🫐 ${N.berries} marja`); if (N.worms) got.push(`🪱 ${N.worms} vihmaussi`);
+    if (got.length) row('🌊', `<p>Loodus tõi sulle midagi head: <b>${got.join(', ')}</b>.</p><small>${N.wood ? 'Torm uhtus kaldale puitu' + (N.amber ? ' ja merevaiku' : '') + '. ' : ''}${N.worms ? 'Pärast vihma roomasid vihmaussid maa peale – need on sinu söödakastis. ' : ''}Puit ja marjad lähevad kuningriigi varudesse.</small>`, 'gold');
+    (N.fog_item || []).forEach(it => row('🌫️', `<p>Udulahe udust leidsid kaldalt: <b>${esc((FD.item && FD.item[it.id] ? FD.item[it.id].name : it.id))}</b>!</p>`, 'gold'));
+  }
   const m = d.market || {};
   if (m.n) row('💰', `<p>Turul müüdi <b>${m.n}</b> sinu kala. Said kokku <b class="g">${fmt(m.gold)} kulda</b>!</p>${(m.list || []).map(x => `<small>${esc(x.who)} ostis: ${esc(awSp(x.species))} ${fKg(+x.weight)} – ${fmt(x.price)} kulda</small>`).join('')}`, 'gold');
   if (d.lab && d.lab.n) row('🧬', `<p>Geenilabori turul müüdi <b>${d.lab.n}</b> sinu hübriidi. Said <b class="g">${fmt(d.lab.gold)} kulda</b>.</p>`, 'gold');
@@ -52,7 +66,7 @@ async function awCheck() {
   if (UI.modalView) return; // ära sega teisi aknaid – proovime hiljem uuesti
   AW.tries++;
   let d; try { d = await rpc('away_digest') } catch (e) { if (AW.tries >= 4) AW.done = true; return }
-  if (d && d.show) { AW.done = true; awShow(d); return }
+  if (d && d.show) { AW.done = true; awShow(d); if (d.nature) { try { await refreshFS(); if (typeof claimInbox === 'function') claimInbox(); if (typeof CB !== 'undefined') CB.d = null } catch (e) { } } return }
   if (AW.tries >= 4) AW.done = true;
 }
 // esimene kontroll mõne sekundi pärast (siis on kohaloleku märge juba tehtud), siis veel paar korda
@@ -62,3 +76,8 @@ document.addEventListener('click', async e => {
   const tab = b.dataset.aw; closeModal();
   if (!FV.open) await openFishView(tab); else { FV.tab = tab; renderFV(true); const fv = document.getElementById('fishView'); if (fv) fv.scrollTop = 0 }
 });
+// Kalurimaja vahekaardil märk, kui torm on midagi lõhkunud
+{
+  const _b = fvBadges;
+  fvBadges = function () { const b = _b(); if (FS && FS.cabin_dmg > 0) b.kalurimaja = (b.kalurimaja || 0) + FS.cabin_dmg; return b };
+}

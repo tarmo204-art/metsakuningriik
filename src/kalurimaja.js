@@ -23,6 +23,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .cb-room.done{border-color:rgba(140,220,150,.45);background:linear-gradient(180deg,rgba(40,70,44,.4),rgba(18,30,22,.55))}
 .cb-room.work{border-color:rgba(255,200,110,.55);box-shadow:0 0 0 1px rgba(255,200,110,.15),0 0 18px rgba(255,180,80,.12)}
 .cb-room.lock{opacity:.62}
+.cb-room.dmg{border-color:rgba(255,120,90,.55);background:linear-gradient(180deg,rgba(80,36,28,.45),rgba(30,18,16,.6));box-shadow:0 0 16px rgba(255,100,70,.12)}
+.cb-dmg{padding:8px 10px;border-radius:10px;background:rgba(255,100,70,.12);color:#ffd8cc;font-size:13.5px;line-height:1.45}.cb-dmg small{color:#e8b8a8}
 .cb-room .hd{display:flex;gap:10px;align-items:center}
 .cb-room .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:24px;background:rgba(0,0,0,.28);flex:none}
 .cb-room h3{margin:0;font-size:16px}
@@ -50,7 +52,7 @@ async function cbLoad(force) {
   CB.loading = false; if (FV.open && FV.tab === 'kalurimaja') renderFV(true);
 }
 function cbNow() { return Date.now() - ((CB.d && CB.d._skew) || 0) }
-function cbDone(id) { return !!(CB.d && CB.d.rooms.find(r => r.id === id && r.done)) }
+function cbDone(id) { return !!(CB.d && CB.d.rooms.find(r => r.id === id && r.done && !r.damage)) }
 function cbWork() { return CB.d && CB.d.rooms.find(r => r.started_at && !r.done) }
 function cbSeen() { try { return JSON.parse(localStorage.getItem('mk.cbPages') || '[]') } catch (e) { return [] } }
 function cbMarkSeen(id) { const a = cbSeen(); if (!a.includes(id)) { a.push(id); try { localStorage.setItem('mk.cbPages', JSON.stringify(a)) } catch (e) { } } }
@@ -112,7 +114,11 @@ function cbRoomHtml(r, i, rooms, work) {
   const w = cbRes('wood'), s = cbRes('stone'), g = FS.gold;
   const cost = `<div class="cb-cost"><span class="${g < r.gold ? 'no' : ''}">🪙 ${fmt(r.gold)}</span><span class="${w < r.wood ? 'no' : ''}">🪵 ${fmt(r.wood)}</span><span class="${s < r.stone ? 'no' : ''}">🪨 ${fmt(r.stone)}</span><span>⏱ ${r.hours} h</span></div>`;
   let st = '', cls = '';
-  if (r.done) { cls = 'done'; st = `<div class="acts"><span class="pill ok">✓ Taastatud</span><button class="btn sm ghost" type="button" data-cb="page" data-arg="${r.id}">📜 Loe päevikut${cbSeen().includes(r.id) ? '' : ' •'}</button></div>` }
+  if (r.done && r.damage) { const D = r.damage, can = g >= D.gold && w >= D.wood && s >= D.stone;
+    cls = 'dmg'; st = `<div class="cb-dmg">🌪️ <b>Tormikahju!</b> ${esc(D.what)}<br><small>Ruumi boonus ei tööta, kuni see on parandatud.</small></div>
+      <div class="cb-cost"><span class="${g < D.gold ? 'no' : ''}">🪙 ${fmt(D.gold)}</span>${D.wood ? `<span class="${w < D.wood ? 'no' : ''}">🪵 ${fmt(D.wood)}</span>` : ''}${D.stone ? `<span class="${s < D.stone ? 'no' : ''}">🪨 ${fmt(D.stone)}</span>` : ''}</div>
+      <div class="acts"><button class="btn sm" type="button" data-cb="repair" data-arg="${r.id}" ${!can || CB.busy ? 'disabled' : ''}>🔧 Paranda</button>${!can ? '<span class="lead" style="font-size:12.5px">Korja puitu ja kivi maja ümbert</span>' : ''}</div>` }
+  else if (r.done) { cls = 'done'; st = `<div class="acts"><span class="pill ok">✓ Taastatud</span><button class="btn sm ghost" type="button" data-cb="page" data-arg="${r.id}">📜 Loe päevikut${cbSeen().includes(r.id) ? '' : ' •'}</button></div>` }
   else if (building) {
     cls = 'work'; const t0 = Date.parse(r.started_at), t1 = Date.parse(r.done_at), now = cbNow(), p = Math.min(1, (now - t0) / Math.max(1, t1 - t0)), left = Math.max(0, t1 - now), rush = Math.max(100, Math.ceil(left / 60000 * 40));
     st = `<div class="cb-bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div><div class="acts"><span class="lead" style="font-size:13px">🔨 Töö käib · valmis ${cbLeft(left)} pärast</span><button class="btn sm ghost" type="button" data-cb="rush" ${g < rush || CB.busy ? 'disabled' : ''}>⚡ Kiirusta (${fmt(rush)} kulda)</button></div>`;
@@ -136,6 +142,12 @@ async function cbAct(a, arg) {
       CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now);
       const rm = r.rooms.find(x => x.id === arg); toast(`🔨 ${rm ? rm.name : 'Töö'}: taastamine algas! Valmib ${rm ? rm.hours : ''} tunni pärast.`, 'good', 'gold');
       cbBurst('#ffd28a');
+    } else if (a === 'repair') {
+      if (typeof cloudSave === 'function') await cloudSave(true);
+      const r = await rpc('cabin_repair', { p_room: arg });
+      if (r.spent && S) { S.res.wood = Math.max(0, S.res.wood - r.spent.wood); S.res.stone = Math.max(0, S.res.stone - r.spent.stone); save(); if (typeof cloudSave === 'function') cloudSave(true) }
+      CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now);
+      const rm = r.rooms.find(x => x.id === arg); toast(`🔧 ${rm ? rm.name : 'Ruum'} on jälle korras! Boonus töötab uuesti.`, 'good', 'gold'); cbBurst('#a8f0b0');
     } else if (a === 'rush') {
       const r = await rpc('cabin_rush'); CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now); toast(`⚡ Töö sai valmis! (${fmt(r.rushed)} kulda)`, 'gold', 'gold'); cbBurst('#a8f0b0');
     }

@@ -1472,6 +1472,21 @@ alter table public.bot_aq_likes_in enable row level security;
 create index if not exists fish_market_seller_closed on public.fish_market(seller, closed_at);
 create index if not exists fish_news_at on public.fish_news(at);
 
+-- 2z2. Loodus mängija äraolekul: tormikahjud Kalurimajas (boonus kaob, kuni ruum on parandatud)
+alter table public.fisher_cabin add column if not exists damage boolean not null default false;
+alter table public.fisher_cabin add column if not exists dmg_at timestamptz;
+create table if not exists public.fish_cabin_damage (
+  room text primary key references public.fish_cabin_rooms(id), what text not null, gold int not null, wood int not null, stone int not null
+);
+insert into public.fish_cabin_damage (room, what, gold, wood, stone) values
+ ('sild', 'Tormilained lõhkusid paadisilla laudu – paadiga Udulahte ei pääse.', 120, 40, 0),
+ ('suitsukoda', 'Tuul lükkas suitsuahju korstna viltu – ahi ei tõmba.', 200, 20, 40),
+ ('aidake', 'Torm rebis võrguaida ukse hingedelt ja võrgud said märjaks.', 200, 50, 0),
+ ('laternatuba', 'Aknaklaas purunes ja latern kustus.', 300, 15, 10),
+ ('poonung', 'Katus hakkas lekkima – pööning ja Villemi päevik said märjaks.', 350, 60, 20),
+ ('majakas', 'Välk tabas majakat ja tuli kustus.', 500, 0, 60)
+on conflict (room) do update set what = excluded.what, gold = excluded.gold, wood = excluded.wood, stone = excluded.stone;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1811,7 +1826,7 @@ begin
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
     'market_open', (select count(*) from fish_market where seller = u and status = 'open'),
     'house', f.house_level, 'aquarium', fx_aq_fish(u), 'aq_score', fx_aq_score(u), 'aq_pending', fx_aq_pending(u), 'aq_likes', f.aq_likes)
-    || jsonb_build_object('cabin', (select coalesce(jsonb_agg(c.room), '[]') from fisher_cabin c where c.user_id = u and c.done_at <= now()))
+    || jsonb_build_object('cabin', (select coalesce(jsonb_agg(c.room), '[]') from fisher_cabin c where c.user_id = u and c.done_at <= now() and not c.damage), 'cabin_dmg', (select count(*) from fisher_cabin c where c.user_id = u and c.damage))
     || jsonb_build_object('lic', fx_lic_map(u))
     || jsonb_build_object('kuma', fx_kuma(), 'daypart', fx_daypart(), 'prestige', f.prestige, 'pxp', f.pxp, 'pxp_need', fx_star_need(f.prestige), 'star_bonus', fx_star_bonus(f.prestige), 'prestige_last', f.prestige_last);
 end $$;
@@ -5152,7 +5167,7 @@ end $$;
 
 -- 6u. Kalurimaja: taastamine ja toa boonused
 create or replace function public.fx_room(u uuid, r text) returns boolean language sql stable as $$
-  select exists (select 1 from public.fisher_cabin c where c.user_id = u and c.room = r and c.done_at <= now()) $$;
+  select exists (select 1 from public.fisher_cabin c where c.user_id = u and c.room = r and c.done_at <= now() and not c.damage) $$;
 create or replace function public.cabin_state() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; sv saves;
 begin
@@ -5163,8 +5178,9 @@ begin
     'legend', (select count(*) from fish_catches where user_id = u and species = 'hallhaug'),
     'rooms', (select jsonb_agg(jsonb_build_object('id', r.id, 'icon', r.icon, 'name', r.name, 'descr', r.descr, 'bonus', r.bonus, 'gold', r.gold, 'wood', r.wood, 'stone', r.stone,
         'hours', r.hours, 'min_level', r.min_level, 'started_at', c.started_at, 'done_at', c.done_at, 'done', c.done_at is not null and c.done_at <= now(),
-        'page', case when c.done_at is not null and c.done_at <= now() then r.page end) order by r.sort)
-      from fish_cabin_rooms r left join fisher_cabin c on c.user_id = u and c.room = r.id));
+        'page', case when c.done_at is not null and c.done_at <= now() then r.page end,
+        'damage', case when coalesce(c.damage, false) then jsonb_build_object('what', d.what, 'gold', d.gold, 'wood', d.wood, 'stone', d.stone, 'at', c.dmg_at) end) order by r.sort)
+      from fish_cabin_rooms r left join fisher_cabin c on c.user_id = u and c.room = r.id left join fish_cabin_damage d on d.room = r.id));
 end $$;
 -- taastamine: kuld kalurikassast, puit ja kivi serveris hoitud kuningriigi salvestusest (nagu monumendi puhul)
 create or replace function public.cabin_build(p_room text) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -5351,6 +5367,64 @@ begin
   return license_state() || jsonb_build_object('bought', t.id, 'until', nu, 'ext', cur > now());
 end $$;
 
+-- 6z2. Ilm mängija äraolekul. Ilm vahetub iga 3 tunni järel (fx_weather) ja on igaks ajaks kindlalt määratud,
+-- nii et siin vaadatakse, mis ilm päriselt oli, ja selle põhjal juhtub midagi.
+create or replace function public.fx_nature(u uuid, since timestamptz) returns jsonb language plpgsql as $$
+declare k bigint; k0 bigint; k1 bigint; w text; t timestamptz; nt int := 0; nv int := 0; nd int := 0; np int := 0; first_storm timestamptz;
+  dmg jsonb := '[]'; rm record; wood int := 0; amber int := 0; worms int := 0; berries int := 0; fog jsonb := '[]';
+begin
+  since := greatest(since, now() - interval '72 hours');
+  if now() - since < interval '2 hours' then return null; end if;
+  k0 := floor(extract(epoch from since) / 10800); k1 := floor(extract(epoch from now()) / 10800) - 1; -- ainult täielikult möödunud 3-tunnised ilmad
+  for k in k0 + 1 .. k1 loop
+    t := to_timestamp(k * 10800); w := public.fx_weather_at(t);
+    if w = 'torm' then nt := nt + 1; first_storm := coalesce(first_storm, t);
+      -- torm võib Kalurimajas midagi lõhkuda (kokku kõige rohkem 2 kahju korraga)
+      if jsonb_array_length(dmg) < 2 and random() < 0.5 then
+        select c.room, r.name, r.icon, d.what into rm from public.fisher_cabin c join public.fish_cabin_rooms r on r.id = c.room join public.fish_cabin_damage d on d.room = c.room
+          where c.user_id = u and c.done_at <= t and not c.damage order by random() limit 1;
+        if rm.room is not null then
+          update public.fisher_cabin set damage = true, dmg_at = t where user_id = u and room = rm.room;
+          dmg := dmg || jsonb_build_object('room', rm.room, 'name', rm.name, 'icon', rm.icon, 'what', rm.what, 'at', t);
+        end if;
+      end if;
+      wood := wood + 10 + floor(random() * 11)::int;
+      if random() < 0.3 then amber := amber + 1; end if;
+    elsif w = 'vihm' then nv := nv + 1; worms := worms + 5; berries := berries + 8;
+    elsif w = 'udu' then nd := nd + 1;
+      if jsonb_array_length(fog) = 0 and public.fx_room(u, 'sild') and random() < 0.35 then fog := public.fx_give_random(u, 3, 1); end if;
+    elsif w = 'paike' then np := np + 1; berries := berries + 5;
+    end if;
+  end loop;
+  wood := least(wood, 80); worms := least(worms, 30); berries := least(berries, 60);
+  if wood > 0 or berries > 0 then perform public.fx_inbox(u, jsonb_strip_nulls(jsonb_build_object('wood', nullif(wood, 0), 'berries', nullif(berries, 0))), 'ilm sinu äraolekul'); end if;
+  if amber > 0 then perform public.fx_give_item(u, 'merevaik', amber); end if;
+  if worms > 0 then update public.fishers set baits = jsonb_set(baits, '{uss}', to_jsonb(coalesce((baits ->> 'uss')::int, 0) + worms)) where user_id = u; end if;
+  if nt + nv + nd + np = 0 then return null; end if;
+  return jsonb_build_object('storm', nt, 'rain', nv, 'fog', nd, 'sun', np, 'storm_at', first_storm, 'damage', dmg,
+    'wood', wood, 'amber', amber, 'worms', worms, 'berries', berries, 'fog_item', fog);
+end $$;
+-- tormikahju parandamine: puit ja kivi kuningriigi salvestusest (nagu taastamisel) ning kuld kalurikassast
+create or replace function public.cabin_repair(p_room text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fish_cabin_damage; sv saves; w numeric; st numeric;
+begin
+  f := fx_fisher(u);
+  if not exists (select 1 from fisher_cabin where user_id = u and room = p_room and damage) then raise exception 'See ruum on terve'; end if;
+  select * into d from fish_cabin_damage where room = p_room;
+  perform 1 from fishers where user_id = u for update;
+  select gold into f.gold from fishers where user_id = u;
+  if f.gold < d.gold then raise exception 'Parandamiseks on vaja % kulda', d.gold; end if;
+  select * into sv from saves where user_id = u for update;
+  if sv.user_id is null then raise exception 'Kuningriik pole veel salvestatud – oota paar sekundit'; end if;
+  w := coalesce((sv.data -> 'res' ->> 'wood')::numeric, 0); st := coalesce((sv.data -> 'res' ->> 'stone')::numeric, 0);
+  if w < d.wood then raise exception 'Puitu on vaja % (sul on %). Raiu puid Kalurimaja juures.', d.wood, floor(w); end if;
+  if st < d.stone then raise exception 'Kivi on vaja % (sul on %). Korja kive Kalurimaja juures.', d.stone, floor(st); end if;
+  update saves set data = jsonb_set(jsonb_set(data, '{res,wood}', to_jsonb(w - d.wood)), '{res,stone}', to_jsonb(st - d.stone)) where user_id = u;
+  update fishers set gold = gold - d.gold where user_id = u;
+  update fisher_cabin set damage = false, dmg_at = null where user_id = u and room = p_room;
+  return cabin_state() || jsonb_build_object('spent', jsonb_build_object('gold', d.gold, 'wood', d.wood, 'stone', d.stone), 'repaired', p_room);
+end $$;
+
 -- 6z. Äraoleku kokkuvõte: mis juhtus päriselt sel ajal, kui mängija eemal oli
 create or replace function public.away_digest() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); since timestamptz; res jsonb;
@@ -5359,7 +5433,7 @@ begin
   select away_from into since from profiles where id = u;
   if since is null or since > now() - interval '30 minutes' then return jsonb_build_object('show', false); end if;
   update profiles set away_from = null where id = u;
-  res := jsonb_build_object('show', true, 'since', since, 'now', now(),
+  res := jsonb_build_object('show', true, 'since', since, 'now', now(), 'nature', fx_nature(u, since),
     'market', (select jsonb_build_object('n', count(*), 'gold', coalesce(sum(m.price - m.fee), 0),
         'list', coalesce((select jsonb_agg(x order by x.price desc) from (select m2.species, m2.weight, m2.rarity, m2.price - m2.fee as price,
           coalesce(bt.emoji || ' ' || bt.name, case when bp.hidden then 'Salapärane kalur' else bp.name end, 'Kalur') as who
@@ -5409,7 +5483,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
