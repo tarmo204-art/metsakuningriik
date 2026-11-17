@@ -1458,6 +1458,20 @@ on conflict (id) do update set name = excluded.name, rarity = excluded.rarity, m
   spots = excluded.spots, min_level = excluded.min_level, difficulty = excluded.difficulty, look = excluded.look, max_len = excluded.max_len, descr = excluded.descr,
   baits = excluded.baits, times = excluded.times, sort = excluded.sort;
 
+-- 2z. Äraoleku kokkuvõte ja Järve kalurite tegevused mängija heaks
+alter table public.profiles add column if not exists away_from timestamptz;
+alter table public.fish_aq_likes add column if not exists at timestamptz;
+alter table public.fish_aq_likes alter column at set default now();
+alter table public.bot_gift_in add column if not exists at timestamptz;
+alter table public.bot_gift_in alter column at set default now();
+create table if not exists public.bot_aq_likes_in (
+  owner uuid not null references auth.users(id) on delete cascade, bot text not null, day date not null, at timestamptz not null default now(),
+  primary key (owner, bot, day)
+);
+alter table public.bot_aq_likes_in enable row level security;
+create index if not exists fish_market_seller_closed on public.fish_market(seller, closed_at);
+create index if not exists fish_news_at on public.fish_news(at);
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -4927,6 +4941,8 @@ create or replace function public.presence_ping(p_where text default 'kuningriik
 declare u uuid := fx_uid(); w text := case when p_where ~ '^[a-z]{1,12}$' then p_where else 'kuningriik' end; vb fish_bots; gift text; lvl int;
 begin
   if u is null then raise exception 'Logi sisse'; end if;
+  -- kui mängija oli üle 30 minuti eemal, jäetakse äraoleku algus meelde (kokkuvõtte jaoks)
+  update profiles set away_from = coalesce(away_from, last_seen) where id = u and last_seen < now() - interval '30 minutes';
   update profiles set last_seen = now(), last_where = w where id = u;
   if w <> 'kuningriik' then update fishers set last_seen = now() where user_id = u; end if;
   perform fx_bots_tick();
@@ -4976,6 +4992,7 @@ end $$;
 -- tegelaste elu väljaspool vett (kord tiksu kohta): kuningriigid kasvavad, turul müüakse ja ostetakse, monumenti ehitatakse
 create or replace function public.fx_bots_life() returns void language plpgsql as $$
 declare b public.fish_bots; hrs numeric; l record; lm record; bc record; v_mon public.kingdom_monument; r text; amt int; lft numeric; v_base int; v_fee int;
+  v_last timestamptz; v_n int; v_i int; v_owner uuid;
 begin
   for b in select * from public.fish_bots loop
     hrs := least(72, extract(epoch from now() - coalesce(b.k_at, now())) / 3600);
@@ -4987,7 +5004,12 @@ begin
   end loop;
   -- turg: tegelased panevad oma kalu müüki (kuni 3 päeva, nagu mängijadki)
   update public.fish_market set status = 'expired', closed_at = now() where status = 'open' and bot is not null and created_at < now() - interval '72 hours';
-  if random() < 0.3 and (select count(*) from public.fish_market where status = 'open' and bot is not null) < 12 then
+  -- tegelased tegutsevad ka siis, kui keegi ei mängi: iga ~6 möödunud minuti kohta üks tegevusring (kuni 120)
+  select v into v_last from public.fish_bot_meta where k = 'life';
+  v_n := greatest(1, least(120, floor(extract(epoch from now() - coalesce(v_last, now() - interval '6 minutes')) / 360)::int));
+  insert into public.fish_bot_meta(k, v) values ('life', now()) on conflict (k) do update set v = excluded.v;
+  for v_i in 1..v_n loop
+  if random() < 0.35 and (select count(*) from public.fish_market where status = 'open' and bot is not null) < 20 then
     select c.* into bc from public.fish_bot_catches c where c.caught_at > now() - interval '8 hours' and c.caught_at <= now() and c.rarity >= 2
       and not exists (select 1 from public.fish_market m where m.bot_catch = c.id) order by random() limit 1;
     if bc.id is not null then
@@ -4997,7 +5019,7 @@ begin
     end if;
   end if;
   -- turg: tegelane ostab mängija kala, kui hind on aus (kuni 130% tavahinnast)
-  if random() < 0.2 then
+  if random() < 0.22 then
     select m.* into l from public.fish_market m where m.status = 'open' and m.seller is not null and m.created_at < now() - interval '5 minutes'
       and m.price <= m.base * 1.3 order by random() limit 1 for update skip locked;
     if l.id is not null then
@@ -5006,6 +5028,27 @@ begin
       update public.fishers set gold = gold + l.price - v_fee where user_id = l.seller;
       update public.fish_catches set status = 'traded' where id = l.catch_id and status = 'market';
       update public.fish_market set status = 'sold', buyer = null, buyer_bot = b.id, closed_at = now(), fee = v_fee where id = l.id;
+    end if;
+  end if;
+  -- turg elab: tegelased ostavad ka üksteise kalu
+  if random() < 0.15 then
+    select m.* into l from public.fish_market m where m.status = 'open' and m.bot is not null and m.created_at < now() - interval '2 hours' order by m.created_at limit 1 for update skip locked;
+    if l.id is not null then
+      select bb.* into b from public.fish_bots bb where bb.id <> l.bot order by public.fx_bot_online(bb, now()) desc, random() limit 1;
+      update public.fish_market set status = 'sold', buyer = null, buyer_bot = b.id, closed_at = now(), fee = ceil(l.price * 0.05) where id = l.id;
+    end if;
+  end if;
+  -- akvaariumid: tegelane käib mängija akvaariumi imetlemas (omanik saab 15 kulda, nagu päris mängijalt)
+  if random() < 0.07 then
+    select f.user_id into v_owner from public.fishers f join public.profiles p on p.id = f.user_id
+      where f.house_level > 0 and not coalesce(p.hidden, false) and p.last_seen > now() - interval '14 days' order by random() limit 1;
+    if v_owner is not null then
+      select bb.* into b from public.fish_bots bb where public.fx_bot_online(bb, now())
+        and not exists (select 1 from public.bot_aq_likes_in z where z.owner = v_owner and z.bot = bb.id and z.day = public.fx_today()) order by random() limit 1;
+      if b.id is not null then
+        insert into public.bot_aq_likes_in(owner, bot, day) values (v_owner, b.id, public.fx_today()) on conflict do nothing;
+        if found then update public.fishers set aq_likes = aq_likes + 1, gold = gold + 15 where user_id = v_owner; end if;
+      end if;
     end if;
   end if;
   -- geenilabori turg: tegelane ostab hübriidi, kui hind on aus (kuni 140% väärtusest)
@@ -5035,6 +5078,7 @@ begin
       end if;
     end if;
   end if;
+  end loop;
 end $$;
 -- nädala retk: kui kaugele tegelane on jõudnud (5 peatust)
 create or replace function public.fx_bot_journey(b public.fish_bots) returns jsonb language sql stable as $$
@@ -5307,6 +5351,44 @@ begin
   return license_state() || jsonb_build_object('bought', t.id, 'until', nu, 'ext', cur > now());
 end $$;
 
+-- 6z. Äraoleku kokkuvõte: mis juhtus päriselt sel ajal, kui mängija eemal oli
+create or replace function public.away_digest() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); since timestamptz; res jsonb;
+begin
+  if u is null then return jsonb_build_object('show', false); end if;
+  select away_from into since from profiles where id = u;
+  if since is null or since > now() - interval '30 minutes' then return jsonb_build_object('show', false); end if;
+  update profiles set away_from = null where id = u;
+  res := jsonb_build_object('show', true, 'since', since, 'now', now(),
+    'market', (select jsonb_build_object('n', count(*), 'gold', coalesce(sum(m.price - m.fee), 0),
+        'list', coalesce((select jsonb_agg(x order by x.price desc) from (select m2.species, m2.weight, m2.rarity, m2.price - m2.fee as price,
+          coalesce(bt.emoji || ' ' || bt.name, case when bp.hidden then 'Salapärane kalur' else bp.name end, 'Kalur') as who
+          from fish_market m2 left join fish_bots bt on bt.id = m2.buyer_bot left join profiles bp on bp.id = m2.buyer
+          where m2.seller = u and m2.status = 'sold' and m2.closed_at > since order by m2.price desc limit 5) x), '[]'))
+      from fish_market m where m.seller = u and m.status = 'sold' and m.closed_at > since),
+    'lab', (select jsonb_build_object('n', count(*), 'gold', coalesce(sum(round(price * 0.95)), 0)) from lab_market where seller = u and status = 'sold' and closed_at > since),
+    'likes', (select count(*) from fish_aq_likes where owner = u and at > since) + (select count(*) from bot_aq_likes_in where owner = u and at > since),
+    'likers', coalesce((select jsonb_agg(distinct q.n) from (select case when p.hidden then 'Salapärane kalur' else p.name end n from fish_aq_likes l join profiles p on p.id = l.visitor where l.owner = u and l.at > since
+        union all select b.emoji || ' ' || b.name from bot_aq_likes_in l join fish_bots b on b.id = l.bot where l.owner = u and l.at > since limit 6) q), '[]'),
+    'gift', (select b.emoji || ' ' || b.name from bot_gift_in g join fish_bots b on b.id = g.bot where g.user_id = u and g.at > since order by g.at desc limit 1),
+    'traps', (select count(*) from fish_traps where user_id = u and status = 'set' and ready_at <= now()),
+    'cabin', coalesce((select jsonb_agg(r.name) from fisher_cabin c join fish_cabin_rooms r on r.id = c.room where c.user_id = u and c.done_at > since and c.done_at <= now()), '[]'),
+    'duels', (select count(*) from fish_duels where b = u and created_at > since and status <> 'live' and status <> 'done'),
+    'boss', (select jsonb_build_object('killer', coalesce(bt.emoji || ' ' || bt.name, case when kp.hidden then 'Salapärane kalur' else kp.name end), 'me', k.killer = u)
+      from kalatund_boss k left join profiles kp on kp.id = k.killer left join fish_bots bt on bt.id = k.killer_bot where k.killed_at > since order by k.killed_at desc limit 1),
+    'bots', (select jsonb_build_object('n', count(*), 'best', (select jsonb_build_object('species', c2.species, 'weight', c2.weight, 'rarity', c2.rarity, 'who', b2.emoji || ' ' || b2.name)
+        from fish_bot_catches c2 join fish_bots b2 on b2.id = c2.bot where c2.caught_at > since and c2.caught_at <= now() order by c2.rarity desc, c2.weight desc limit 1))
+      from fish_bot_catches where caught_at > since and caught_at <= now()),
+    'news_n', (select count(*) from fish_news where at > since),
+    'news', coalesce((select jsonb_agg(to_jsonb(x) order by x.id desc) from (
+      select n.id, n.at, n.kind, n.data, coalesce(n.user_id = u, false) as me, n.bot,
+        case when n.bot is not null then bt.emoji || ' ' || bt.name when p.hidden and n.user_id <> u then 'Salapärane kalur' else coalesce(p.name, 'Kalur') end as name, null::text as title
+      from fish_news n left join profiles p on p.id = n.user_id left join fish_bots bt on bt.id = n.bot
+      where n.at > since and n.kind in ('first','catch','giant','grecord','pbig','chest','comp','boss_team','kalatund','bot_catch')
+      order by case n.kind when 'catch' then 1 when 'grecord' then 2 when 'first' then 3 when 'boss_team' then 4 else 5 end, n.id desc limit 3) x), '[]'));
+  return res;
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5327,7 +5409,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
