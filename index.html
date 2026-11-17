@@ -13415,8 +13415,12 @@ function uiTitle(root) {
 {
   const _r = renderFV;
   renderFV = function (force) {
+    // kerimisasend jäetakse meelde enne ümberjoonistamist ja taastatakse pärast kõiki paigutusmuudatusi,
+    // et leht ei hüppaks (nt kui püügi alguses või taustal uueneva info tõttu vaade uuesti joonistatakse)
+    const fv = document.getElementById('fishView'), st = fv ? fv.scrollTop : 0, tab0 = FV.tab;
     const r = _r.apply(this, arguments);
     try { const root = document.getElementById('fvIn'); if (root && FV.open) { uiDecorate(root); uiTitle(root); uiPuuk(root); uiShop(root) } } catch (e) { console.warn('kujundus', e) }
+    if (fv && FV.tab === tab0 && fv.scrollTop !== st) fv.scrollTop = st;
     return r;
   };
 }
