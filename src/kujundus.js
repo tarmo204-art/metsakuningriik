@@ -108,6 +108,24 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 #fvIn .ui-extra > summary .ux-ch{margin-left:auto;transition:transform .2s;color:var(--ui-muted)}
 #fvIn .ui-extra[open] > summary .ux-ch{transform:rotate(180deg)}
 #fvIn .ui-extra-in{display:grid;gap:12px;padding:4px 12px 14px}
+/* --- Pood: kategooriad ja filter --- */
+#fvIn .ui-shopbar{position:sticky;top:0;z-index:5;display:grid;gap:8px;padding:10px;border-radius:16px;background:linear-gradient(180deg,rgba(12,34,42,.97),rgba(9,26,26,.97));border:1px solid var(--ui-line);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+#fvIn .ui-shopcats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#fvIn .ui-shopcats button{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:6px 8px;border-radius:12px;border:1px solid var(--ui-line);background:rgba(255,255,255,.045);color:#e6efec;font:inherit;font-weight:800;font-size:14.5px;cursor:pointer;transition:background .18s,border-color .18s}
+#fvIn .ui-shopcats button:hover{background:rgba(255,255,255,.08)}
+#fvIn .ui-shopcats button svg{width:20px;height:20px;color:var(--ui-gold);flex:none}
+#fvIn .ui-shopcats button.on{background:linear-gradient(180deg,#2f9a96,#1d6a6c);border-color:rgba(130,245,230,.75);box-shadow:0 0 14px rgba(70,208,198,.3);color:#fff}
+#fvIn .ui-shopcats button.on svg{color:#fff6dc}
+#fvIn .ui-shopcats .n{position:absolute;top:-6px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#3aa86a;color:#fff;font-size:10.5px;line-height:18px;font-weight:800;box-shadow:0 0 0 2px #0d2228}
+#fvIn .ui-shoprow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#fvIn .ui-shopf{display:inline-flex;padding:3px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid var(--ui-line)}
+#fvIn .ui-shopf button{border:0;background:none;color:#b8d0d2;font:inherit;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;cursor:pointer}
+#fvIn .ui-shopf button.on{background:var(--ui-gold);color:#2a1a06}
+#fvIn .ui-shopgold{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-weight:800;color:#ffe0a0;font-size:14px}
+#fvIn .ui-shophide{display:none!important}
+#fvIn .ui-shopempty{padding:18px;text-align:center;color:var(--ui-muted);border-radius:14px;border:1px dashed var(--ui-line)}
+#fvIn .ui-shopcats button:focus-visible,#fvIn .ui-shopf button:focus-visible{outline:2px solid var(--ui-gold);outline-offset:2px}
+@media (max-width:600px){#fvIn .ui-shopcats{grid-template-columns:repeat(2,minmax(0,1fr))}#fvIn .ui-shopcats button{min-height:40px;font-size:13.5px}#fvIn .ui-shopgold{margin-left:0}}
 @media (prefers-reduced-motion:reduce){#fvIn .fv-tabs button,#fvIn .fv-stat{transition:none}#fvIn .fv-tabs .ui-prim button:hover{transform:none}}
 </style>`);
 
@@ -151,11 +169,59 @@ function uiPuuk(root) {
   if (fishing && fishing.nextSibling) body.insertBefore(d, fishing.nextSibling); else body.appendChild(d);
   d.addEventListener('toggle', () => { UIK_EXTRA = d.open; try { localStorage.setItem('mk.puukExtra', d.open ? '1' : '0') } catch (e) { } });
 }
+
+// Pood: neli kategooriat (üks korraga) ja filter „Kõik / Saan osta / Minu omad“
+const UI_SHOP = [
+  ['rod', 'Õngeridvad', /Õngeridvad/, '<path d="M4 20 18 6"/><path d="M18 6v8.5c0 1.6-1.2 2.6-2.6 2.6"/><circle cx="15.4" cy="17.6" r="1"/>'],
+  ['bait', 'Söödad', /Söödad/, '<path d="M13 3v9.5a4.5 4.5 0 1 1-4.5-4.5"/><path d="M13 3l-2.4 2.4"/>'],
+  ['gear', 'Varustus', /Kalamehe varustus/, '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V8M3 13h18"/>'],
+  ['trap', 'Püünised', /Püünised/, '<path d="M4 7h16l-2 12H6z"/><path d="M8 7l1 12M12 7v12M16 7l-1 12M5 12h14"/>']
+];
+const UIS = { cat: 'rod', f: 'all' };
+try { const v = JSON.parse(localStorage.getItem('mk.shop') || '{}'); if (v.cat) UIS.cat = v.cat; if (v.f) UIS.f = v.f } catch (e) { }
+function uiShopSave() { try { localStorage.setItem('mk.shop', JSON.stringify(UIS)) } catch (e) { } }
+function uiRowState(el) {
+  const btns = [...el.querySelectorAll('button')];
+  const mine = !!el.querySelector('.pill.ok') || el.classList.contains('own') || /Sinu oma|sul on [1-9]/.test(el.textContent) || btns.some(b => b.dataset.fa === 'baitUse');
+  const buy = btns.some(b => !b.disabled && (b.dataset.kv === 'buy' || b.dataset.fa === 'bait10' || b.dataset.fa === 'bait50' || b.dataset.fa === 'lure' || (b.dataset.fa === 'rod' && /Osta/.test(b.textContent))));
+  return { mine, buy };
+}
+function uiShop(root) {
+  if (FV.tab !== 'pood') return;
+  const body = root.querySelector('.fv-body'); if (!body || body.querySelector('.ui-shopbar')) return;
+  const cards = [...body.querySelectorAll(':scope > .fv-card')], map = {};
+  cards.forEach(c => { const h = c.querySelector('h2'); const t = h ? h.textContent : ''; const cat = UI_SHOP.find(x => x[2].test(t)); if (cat) { c.dataset.shop = cat[0]; (map[cat[0]] = map[cat[0]] || []).push(c) } });
+  if (!Object.keys(map).length) return;
+  if (!map[UIS.cat]) UIS.cat = UI_SHOP.find(x => map[x[0]])[0];
+  const rowsOf = c => [...c.querySelectorAll('.srow, .kv-item')];
+  const cnt = k => (map[k] || []).reduce((a, c) => a + rowsOf(c).filter(r => uiRowState(r).buy).length, 0);
+  const bar = document.createElement('div'); bar.className = 'ui-shopbar';
+  bar.innerHTML = `<div class="ui-shopcats" role="tablist" aria-label="Poe osakonnad">${UI_SHOP.filter(x => map[x[0]]).map(([k, n, , ic]) => { const c = cnt(k); return `<button type="button" role="tab" aria-selected="${UIS.cat === k}" class="${UIS.cat === k ? 'on' : ''}" data-shopcat="${k}">${uiSvg(ic)}${n}${c ? `<span class="n" title="Saad kohe osta">${c}</span>` : ''}</button>` }).join('')}</div>
+    <div class="ui-shoprow"><div class="ui-shopf">${[['all', 'Kõik'], ['buy', 'Saan osta'], ['mine', 'Minu omad']].map(([k, n]) => `<button type="button" class="${UIS.f === k ? 'on' : ''}" data-shopf="${k}">${n}</button>`).join('')}</div><span class="ui-shopgold">🪙 ${fmt(FS.gold)} kulda</span></div>`;
+  body.insertBefore(bar, body.firstChild);
+  // katkise õnge teade jääb alati üles
+  const broken = cards.find(c => !c.dataset.shop); if (broken) body.insertBefore(broken, bar);
+  for (const c of cards) {
+    if (!c.dataset.shop) continue;
+    if (c.dataset.shop !== UIS.cat) { c.classList.add('ui-shophide'); continue }
+    let shown = 0;
+    rowsOf(c).forEach(r => { const st = uiRowState(r), ok = UIS.f === 'all' || (UIS.f === 'buy' ? st.buy : st.mine); r.classList.toggle('ui-shophide', !ok); if (ok) shown++ });
+    c.querySelectorAll('.kv-grp').forEach(g => g.classList.toggle('ui-shophide', UIS.f !== 'all' && !g.querySelector('.kv-item:not(.ui-shophide)')));
+    if (!shown && rowsOf(c).length) c.insertAdjacentHTML('beforeend', `<p class="ui-shopempty">${UIS.f === 'buy' ? 'Siin pole praegu midagi, mida saaksid osta. Kogu kulda või tõuse tasemel!' : 'Sul pole veel ühtegi asja sellest osakonnast.'}</p>`);
+  }
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-shopcat]'), f = e.target.closest('[data-shopf]');
+  if (c) { UIS.cat = c.dataset.shopcat; uiShopSave(); renderFV(true); const fv = document.getElementById('fishView'), bar = document.querySelector('#fvIn .ui-shopbar'); if (fv && bar && bar.getBoundingClientRect().top < 0) bar.scrollIntoView({ block: 'start' }); return }
+  if (f) { UIS.f = f.dataset.shopf; uiShopSave(); renderFV(true); return }
+  // Püüniste vaatest „Osta poest“ avab kohe püüniste osakonna
+  if (e.target.closest('[data-kv="shop"]')) { UIS.cat = 'trap'; UIS.f = 'all'; uiShopSave() }
+}, true);
 {
   const _r = renderFV;
   renderFV = function (force) {
     const r = _r.apply(this, arguments);
-    try { const root = document.getElementById('fvIn'); if (root && FV.open) { uiDecorate(root); uiPuuk(root) } } catch (e) { console.warn('kujundus', e) }
+    try { const root = document.getElementById('fvIn'); if (root && FV.open) { uiDecorate(root); uiPuuk(root); uiShop(root) } } catch (e) { console.warn('kujundus', e) }
     return r;
   };
 }

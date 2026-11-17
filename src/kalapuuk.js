@@ -648,7 +648,7 @@ function paintGear(root) {
 }
 // töökoja suured pildid liiguvad
 const animGear = new Set();
-function animGearTick(t) { for (const cv2 of animGear) { if (!cv2.isConnected) { animGear.delete(cv2); continue } const w = cv2.clientWidth, h = cv2.clientHeight, d = cv2.width / Math.max(1, w), c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id, ...ex] = cv2.dataset.gear.split(':'); const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h); drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, t, kind === 'rod' ? [+ex[0] || 0, ex[1] || '', +ex[2] || 0] : null) } }
+function animGearTick(t) { for (const cv2 of animGear) { if (!cv2.isConnected) { animGear.delete(cv2); continue } const w = cv2.clientWidth, h = cv2.clientHeight; if (!w || !h) continue; const d = cv2.width / Math.max(1, w), c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id, ...ex] = cv2.dataset.gear.split(':'); const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h); drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, t, kind === 'rod' ? [+ex[0] || 0, ex[1] || '', +ex[2] || 0] : null) } }
 function gearCv(kind, id, cls = 'gearcv') { return `<canvas class="${cls}" data-gear="${kind}:${id}" aria-hidden="true"></canvas>` }
 function itemIcon(id) { return gearCv('item', id, 'gi') + ' ' + esc(FD.item[id] ? FD.item[id].name : id) }
 
