@@ -117,7 +117,7 @@ create table if not exists public.fish_catches (
   species text not null references public.fish_species(id),
   rarity int not null, weight numeric not null, spot text not null,
   giant boolean not null default false, night boolean not null default false,
-  status text not null default 'kept', -- kept|trophy|sold|cooked|released|exchanged|delivered
+  status text not null default 'kept', -- kept|trophy|sold|cooked|released|exchanged|delivered|cleaned
   caught_at timestamptz not null default now()
 );
 create index if not exists fish_catches_user on public.fish_catches(user_id, status);
@@ -1487,6 +1487,81 @@ insert into public.fish_cabin_damage (room, what, gold, wood, stone) values
  ('majakas', 'Välk tabas majakat ja tuli kustus.', 500, 0, 60)
 on conflict (room) do update set what = excluded.what, gold = excluded.gold, wood = excluded.wood, stone = excluded.stone;
 
+-- 2z3. Kalatöötlemine: kalapuhastus, materjalid, retseptid, töökoda, tööriistad, maine, tellimused ja värskus
+alter table public.fish_catches add column if not exists fresh_at timestamptz;
+alter table public.fish_catches alter column fresh_at set default now();
+update public.fish_catches set fresh_at = now() where fresh_at is null and status = 'kept';
+alter table public.fish_baits add column if not exists craft boolean not null default false;
+insert into public.fish_baits (id,name,price,min_level,wait_mult,rarity_bonus,consumable,descr,sort,craft) values
+ ('kalasoot','Kalasööt',2,1,0.80,0.05,true,'Isetehtud sööt kalajäätmetest. Valmistatakse Kalurimaja söödalaual.',11,true),
+ ('soomuslant','Soomuslant',5,1,0.78,0.08,true,'Kalasoomustest läikiv lant – röövkalad ei suuda vastu panna. Valmistatakse söödalaual.',12,true),
+ ('erisoot','Erisööt',12,1,0.70,0.13,true,'Meistri erisööt fileest ja marjadest – meelitab haruldasi kalu. Valmistatakse söödalaual.',13,true)
+on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, wait_mult=excluded.wait_mult,
+  rarity_bonus=excluded.rarity_bonus, consumable=excluded.consumable, descr=excluded.descr, sort=excluded.sort, craft=excluded.craft;
+create table if not exists public.fish_mats (
+  id text primary key, sort int not null, name text not null, descr text not null, rarity int not null default 1, price int not null, kind text not null default 'mat'
+);
+insert into public.fish_mats (id, sort, name, descr, rarity, price, kind) values
+ ('filee', 1, 'Kalafilee', 'Puhas valge filee. Sellest tehakse suitsukala, suppi ja erisööta – ja kõrts ostab seda alati.', 1, 6, 'mat'),
+ ('filee_hea', 2, 'Esmaklassiline filee', 'Meistri käega lõigatud laitmatu filee. Sellest tuleb kuldne suitsufilee.', 2, 11, 'mat'),
+ ('luu', 3, 'Kalaluud', 'Peened tugevad luud – neist meisterdatakse konkse, kaunistusi ja tööriistu.', 1, 2, 'mat'),
+ ('jaatmed', 4, 'Kalajäätmed', 'Sisikond ja jäägid. Söödalaual saab neist kalasööta ja väetist.', 1, 1, 'mat'),
+ ('soomus', 5, 'Kalasoomused', 'Läikivad soomused peibutiste, kaunistuste ja varustuse täiustamiseks.', 1, 3, 'mat'),
+ ('kuldsoomus', 6, 'Kuldne soomus', 'Haruldase kala kuldselt helkiv soomus. Väga hinnatud meisterdamismaterjal.', 3, 60, 'mat'),
+ ('iidneluu', 7, 'Iidne luu', 'Legendaarse kala luu, mis helendab vaikselt. Sellest sünnivad meistriteosed.', 5, 180, 'mat'),
+ ('luukonks', 10, 'Luukonks', 'Käsitsi lihvitud konks kalaluust. Kõrts ja kalurid ostavad neid hea meelega.', 1, 9, 'prod'),
+ ('suitsukala', 11, 'Suitsukala', 'Lepasuitsus kuldseks suitsutatud kala – ei rikne ja müüb kallilt.', 2, 30, 'prod'),
+ ('kalasupp', 12, 'Kalasupp', 'Soe kalasupp marjadega. Saada kuningriigi kööki või müü kõrtsile.', 1, 18, 'prod'),
+ ('kuldfilee', 13, 'Kuldne suitsufilee', 'Esmaklassilisest fileest pikalt suitsutatud delikatess.', 3, 55, 'prod'),
+ ('soomuskaunistus', 14, 'Soomuskaunistus', 'Kuldsete soomustega kaunistus – kuningriigi majade uhkus.', 3, 160, 'prod'),
+ ('kuningaamulett', 15, 'Kuninga amulett', 'Iidsest luust ja kuldsoomustest meistriteos. Kuninglik õukond maksab selle eest hästi.', 5, 900, 'prod')
+on conflict (id) do update set sort = excluded.sort, name = excluded.name, descr = excluded.descr, rarity = excluded.rarity, price = excluded.price, kind = excluded.kind;
+create table if not exists public.fish_recipes (
+  id text primary key, sort int not null, station text not null, name text not null, descr text not null,
+  out_kind text not null, out_id text not null, out_qty int not null, needs jsonb not null default '{}', res jsonb not null default '{}',
+  skill int not null default 1, rep_need int not null default 0, ws int not null default 1, clicks int not null, xp int not null, rep int not null
+);
+insert into public.fish_recipes (id, sort, station, name, descr, out_kind, out_id, out_qty, needs, res, skill, rep_need, ws, clicks, xp, rep) values
+ ('luukonks', 1, 'laud', 'Luukonks', 'Lihvi kolmest kalaluust tugev konks.', 'mat', 'luukonks', 1, '{"luu":3}', '{}', 1, 0, 1, 8, 6, 1),
+ ('soomuskaunistus', 2, 'laud', 'Soomuskaunistus', 'Lao soomustest kuldse südamega kaunistus.', 'mat', 'soomuskaunistus', 1, '{"soomus":6,"kuldsoomus":1}', '{}', 8, 0, 1, 20, 30, 8),
+ ('kuningaamulett', 3, 'laud', 'Kuninga amulett', 'Meistriteos iidsest luust, kuldsoomustest ja konksudest.', 'mat', 'kuningaamulett', 1, '{"iidneluu":1,"kuldsoomus":3,"luukonks":2}', '{}', 20, 1000, 1, 40, 150, 40),
+ ('suitsukala', 4, 'ahi', 'Suitsukala', 'Suitsuta kolm fileed lepapuu suitsus.', 'mat', 'suitsukala', 1, '{"filee":3}', '{"wood":2}', 1, 0, 3, 12, 10, 2),
+ ('kalasupp', 5, 'ahi', 'Kalasupp', 'Keeda fileest ja marjadest soe supp.', 'mat', 'kalasupp', 1, '{"filee":2}', '{"berries":1}', 3, 0, 3, 10, 8, 2),
+ ('kuldfilee', 6, 'ahi', 'Kuldne suitsufilee', 'Suitsuta esmaklassilist fileed aeglaselt ja hoolikalt.', 'mat', 'kuldfilee', 1, '{"filee_hea":3}', '{"wood":3}', 12, 400, 3, 18, 28, 6),
+ ('kalasoot', 7, 'soot', 'Kalasööt', 'Sega kalajäätmed toiduga – saad 4 kalasööta.', 'bait', 'kalasoot', 4, '{"jaatmed":2}', '{"food":1}', 1, 0, 4, 6, 5, 1),
+ ('soomuslant', 8, 'soot', 'Soomuslant', 'Seo soomustest ja luust läikiv lant – saad 3 tükki.', 'bait', 'soomuslant', 3, '{"soomus":3,"luu":1}', '{}', 6, 0, 4, 10, 10, 2),
+ ('erisoot', 9, 'soot', 'Erisööt', 'Meistri erisööt fileest ja marjadest – saad 3 tükki.', 'bait', 'erisoot', 3, '{"filee":2}', '{"berries":2}', 15, 100, 4, 14, 20, 4),
+ ('vaetis', 10, 'soot', 'Kalaväetis', 'Viis jäätmeämbrit väetiseks – kuningriigi marjapõõsad kasvavad lopsakalt (+25 marja).', 'inbox', 'berries', 25, '{"jaatmed":5}', '{}', 2, 0, 4, 8, 6, 1)
+on conflict (id) do update set sort = excluded.sort, station = excluded.station, name = excluded.name, descr = excluded.descr, out_kind = excluded.out_kind,
+  out_id = excluded.out_id, out_qty = excluded.out_qty, needs = excluded.needs, res = excluded.res, skill = excluded.skill, rep_need = excluded.rep_need,
+  ws = excluded.ws, clicks = excluded.clicks, xp = excluded.xp, rep = excluded.rep;
+create table if not exists public.fisher_mats (
+  user_id uuid not null references auth.users(id) on delete cascade, mat text not null references public.fish_mats(id), qty int not null default 0,
+  primary key (user_id, mat)
+);
+create table if not exists public.fisher_proc (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  xp int not null default 0, ws int not null default 1, knife int not null default 1, kit int not null default 0, rarekit boolean not null default false,
+  rep int not null default 0, stats jsonb not null default '{}'
+);
+create table if not exists public.fisher_proc_job (
+  user_id uuid primary key references auth.users(id) on delete cascade, kind text not null, payload jsonb not null, clicks int not null, started_at timestamptz not null default now()
+);
+create table if not exists public.fisher_proc_orders (
+  user_id uuid not null references auth.users(id) on delete cascade, day date not null, idx int not null,
+  mat text not null, qty int not null, gold int not null, rep int not null, xp int not null, done boolean not null default false,
+  primary key (user_id, day, idx)
+);
+create table if not exists public.fisher_proc_quests (
+  user_id uuid not null references auth.users(id) on delete cascade, q text not null, at timestamptz not null default now(), primary key (user_id, q)
+);
+do $$ declare t text; begin
+  foreach t in array array['fish_mats','fish_recipes','fisher_mats','fisher_proc','fisher_proc_job','fisher_proc_orders','fisher_proc_quests'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -1809,7 +1884,7 @@ begin
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
-           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap, 'fresh', round(fx_fresh(u, fish_catches), 2)) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
     into inv from fish_catches where user_id = u and status in ('kept','trophy');
   select count(*) into inbox from kingdom_inbox where user_id = u;
   select coalesce(jsonb_object_agg(item, qty), '{}') into v_items from fisher_items where user_id = u and qty > 0;
@@ -2133,7 +2208,7 @@ begin
   v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
        * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
             + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + case when fx_room(u, 'suitsukoda') then 0.08 else 0 end + fx_lab_aura(u, 'kuld') + case when c.bought then 0 else fx_kit_v(u, 'sump') end)
-       * (case when c.bought then 0.6 else 1 end);
+       * (case when c.bought then 0.6 else 1 end) * fx_fresh(u, c);
   insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return greatest(1, round(v));
@@ -2218,6 +2293,7 @@ begin
   elsif p_kind = 'bait' then
     select * into b from fish_baits where id = p_id;
     if b.id is null then raise exception 'Tundmatu sööt'; end if;
+    if b.craft then raise exception 'Seda sööta saab ainult ise valmistada Kalurimaja söödalaual'; end if;
     if f.level < b.min_level then raise exception 'See sööt avaneb % tasemel', b.min_level; end if;
     if not b.consumable then
       if b.price = 0 or f.baits ? b.id then update fishers set bait = b.id where user_id = u; return jsonb_build_object('equipped', b.id); end if;
@@ -5463,6 +5539,315 @@ begin
   return res;
 end $$;
 
+-- 6z3. Kalatöötlemine
+-- töötlemise tase kogemusest (tase 30 on maksimum)
+create or replace function public.fx_proc_lvl(x int) returns int language sql immutable as $$ select least(30, floor(sqrt(greatest(x, 0) / 40.0))::int + 1) $$;
+create or replace function public.fx_proc_need(l int) returns int language sql immutable as $$ select 40 * l * l $$;
+create or replace function public.fx_rep_tier(r int) returns int language sql immutable as $$
+  select case when r >= 2500 then 4 when r >= 1000 then 3 when r >= 400 then 2 when r >= 100 then 1 else 0 end $$;
+create or replace function public.fx_proc(u uuid) returns public.fisher_proc language plpgsql as $$
+declare p public.fisher_proc;
+begin
+  insert into public.fisher_proc(user_id) values (u) on conflict do nothing;
+  select * into p from public.fisher_proc where user_id = u;
+  return p;
+end $$;
+-- värskus: esimesed 24 tundi täiesti värske, siis −10% päevas (suure töökojaga −5%), mitte alla 50%
+create or replace function public.fx_fresh(u uuid, c public.fish_catches) returns numeric language sql stable as $$
+  select case when c.status <> 'kept' or c.fresh_at is null then 1 else
+    greatest(0.5, least(1, 1 - (case when coalesce((select ws from public.fisher_proc where user_id = u), 1) >= 6 then 0.05 else 0.10 end)
+      * greatest(0, extract(epoch from now() - c.fresh_at) / 3600 - 24) / 24)) end $$;
+create or replace function public.fx_mat_add(u uuid, m text, q int) returns void language sql as $$
+  insert into public.fisher_mats(user_id, mat, qty) values (u, m, q) on conflict (user_id, mat) do update set qty = public.fisher_mats.qty + q $$;
+create or replace function public.fx_proc_stat(u uuid, k text, n int) returns void language sql as $$
+  update public.fisher_proc set stats = jsonb_set(stats, array[k], to_jsonb(coalesce((stats ->> k)::int, 0) + n)) where user_id = u $$;
+-- puhastamiseks vajalikud klikid ühe kala kohta
+create or replace function public.fx_clean_clicks(w numeric, r int) returns int language sql immutable as $$
+  select least(45, greatest(4, round(5 + sqrt(w) * 2.2 + r * 1.5)))::int $$;
+create or replace function public.fx_click_mult(p public.fisher_proc) returns numeric language sql immutable as $$
+  select (1 - 0.12 * (p.knife - 1)) * case when public.fx_proc_lvl(p.xp) >= 5 then 0.85 else 1 end * case when p.ws >= 2 then 0.9 else 1 end $$;
+-- ülesanded (kasutavad töötlemise statistikat)
+create or replace function public.fx_proc_quests() returns jsonb language sql immutable as $$ select '[
+  {"id":"ahven","name":"Ahvenafileed","descr":"Valmista 10 ahvenafileed (puhasta ahvenaid).","stat":"filee_ahven","goal":10,"gold":300,"xp":60,"rep":10},
+  {"id":"rare","name":"Haruldane saak laual","descr":"Püüa haruldane kala ja töötle see.","stat":"rare","goal":1,"gold":800,"xp":120,"rep":20,"mats":{"kuldsoomus":1}},
+  {"id":"konks","name":"Konksumeister","descr":"Meisterda 10 luukonksu.","stat":"luukonks","goal":10,"gold":600,"xp":100,"rep":15},
+  {"id":"soot","name":"Söödakokk","descr":"Valmista 15 ühikut kalasööta.","stat":"kalasoot","goal":15,"gold":500,"xp":80,"rep":10},
+  {"id":"suits","name":"Suitsumeister","descr":"Valmista 20 suitsukala.","stat":"suitsukala","goal":20,"gold":1500,"xp":200,"rep":30,"mats":{"kuldsoomus":2}},
+  {"id":"korts","name":"Kõrtsi varustaja","descr":"Varusta kuningriigi kõrts 30 kalafileega (tellimuste kaudu).","stat":"order_filee","goal":30,"gold":2000,"xp":250,"rep":50},
+  {"id":"meister","name":"Meistri käsi","descr":"Puhasta kala vähemalt meisterliku kvaliteediga.","stat":"q4","goal":1,"gold":1500,"xp":200,"rep":40},
+  {"id":"sada","name":"Sada kala laual","descr":"Puhasta kokku 100 kala.","stat":"cleaned","goal":100,"gold":3000,"xp":400,"rep":60},
+  {"id":"tase10","name":"Kogenud töötleja","descr":"Jõua kalatöötlemise 10. tasemele.","stat":"_lvl","goal":10,"gold":2500,"xp":0,"rep":50}
+]'::jsonb $$;
+create or replace function public.fx_ws_cost(l int) returns jsonb language sql immutable as $$
+  select (array['{}','{"gold":800,"wood":60,"stone":20}','{"gold":2000,"wood":120,"stone":60}','{"gold":3500,"wood":150,"stone":100}','{"gold":6000,"wood":200,"stone":150}','{"gold":12000,"wood":300,"stone":300}']::jsonb[])[l] $$;
+create or replace function public.fx_tool_cost(t text, l int) returns jsonb language sql immutable as $$
+  select case t
+    when 'knife' then (array[null,'{"gold":300,"mats":{"luu":10}}','{"gold":1500,"mats":{"luukonks":5}}','{"gold":5000,"mats":{"luukonks":20,"kuldsoomus":5}}','{"gold":15000,"mats":{"iidneluu":3,"kuldsoomus":10}}']::jsonb[])[l]
+    when 'kit' then (array['{"gold":2000,"mats":{"soomus":20}}','{"gold":6000,"mats":{"kuldsoomus":10}}','{"gold":12000,"mats":{"kuldsoomus":15,"iidneluu":2}}']::jsonb[])[l]
+    when 'rarekit' then '{"gold":8000,"mats":{"kuldsoomus":5,"iidneluu":1}}'::jsonb end $$;
+
+create or replace function public.fx_proc_orders(u uuid, p public.fisher_proc) returns void language plpgsql as $$
+declare d date := public.fx_today(); n int; i int; pool text[]; m text; q int; pr int; tier int := public.fx_rep_tier(p.rep);
+begin
+  if p.ws < 5 or exists (select 1 from public.fisher_proc_orders where user_id = u and day = d) then return; end if;
+  n := 3 + case when tier >= 2 then 1 else 0 end + case when tier >= 4 then 1 else 0 end;
+  pool := array['filee','filee','luukonks','suitsukala','kalasupp'] || case when tier >= 2 then array['kuldfilee','soomuskaunistus'] else '{}'::text[] end;
+  for i in 1..n loop
+    m := pool[1 + floor(random() * array_length(pool, 1))::int];
+    q := case m when 'filee' then 10 + floor(random() * 21) when 'luukonks' then 3 + floor(random() * 6) when 'suitsukala' then 3 + floor(random() * 8)
+      when 'kalasupp' then 3 + floor(random() * 6) when 'kuldfilee' then 2 + floor(random() * 4) else 1 + floor(random() * 2) end;
+    select price into pr from public.fish_mats where id = m;
+    insert into public.fisher_proc_orders(user_id, day, idx, mat, qty, gold, rep, xp)
+      values (u, d, i, m, q, round(q * pr * 1.6 * (1 + 0.1 * tier)), ceil(q * pr / 20.0) + 3, ceil(q * pr / 10.0)) on conflict do nothing;
+  end loop;
+end $$;
+
+create or replace function public.proc_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; p fisher_proc; sv saves; lv int; j fisher_proc_job;
+begin
+  f := fx_fisher(u); p := fx_proc(u); lv := fx_proc_lvl(p.xp);
+  perform fx_proc_orders(u, p);
+  select * into sv from saves where user_id = u;
+  select * into j from fisher_proc_job where user_id = u;
+  return jsonb_build_object('now', now(), 'gold', f.gold, 'name', (select name from profiles where id = u),
+    'proc', jsonb_build_object('xp', p.xp, 'lvl', lv, 'cur', fx_proc_need(lv - 1), 'next', case when lv < 30 then fx_proc_need(lv) end, 'ws', p.ws, 'knife', p.knife, 'kit', p.kit,
+      'rarekit', p.rarekit, 'rep', p.rep, 'tier', fx_rep_tier(p.rep), 'stats', p.stats, 'cmult', fx_click_mult(p)),
+    'res', jsonb_build_object('wood', floor(coalesce((sv.data -> 'res' ->> 'wood')::numeric, 0)), 'stone', floor(coalesce((sv.data -> 'res' ->> 'stone')::numeric, 0)),
+      'berries', floor(coalesce((sv.data -> 'res' ->> 'berries')::numeric, 0)), 'food', floor(coalesce((sv.data -> 'res' ->> 'food')::numeric, 0)), 'kingdom', sv.user_id is not null),
+    'mats', (select coalesce(jsonb_object_agg(mat, qty), '{}') from fisher_mats where user_id = u and qty > 0),
+    'catalog', (select jsonb_agg(to_jsonb(m) order by m.sort) from fish_mats m),
+    'recipes', (select jsonb_agg(to_jsonb(r) order by r.sort) from fish_recipes r),
+    'fish', (select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'species', c.species, 'rarity', c.rarity, 'weight', c.weight, 'fresh', round(fx_fresh(u, c), 2),
+        'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought),
+    'orders', (select coalesce(jsonb_agg(to_jsonb(o) - 'user_id' order by o.idx), '[]') from fisher_proc_orders o where o.user_id = u and o.day = fx_today()),
+    'quests', (select jsonb_agg(qq || jsonb_build_object('have', case when qq ->> 'stat' = '_lvl' then lv else coalesce((p.stats ->> (qq ->> 'stat'))::int, 0) end,
+        'claimed', exists (select 1 from fisher_proc_quests z where z.user_id = u and z.q = qq ->> 'id'))) from jsonb_array_elements(fx_proc_quests()) qq),
+    'ws_cost', (select jsonb_agg(fx_ws_cost(l) order by l) from generate_series(1, 6) l),
+    'tools', jsonb_build_object('knife', case when p.knife < 5 then fx_tool_cost('knife', p.knife + 1) end, 'kit', case when p.kit < 3 then fx_tool_cost('kit', p.kit + 1) end,
+      'rarekit', case when not p.rarekit then fx_tool_cost('rarekit', 1) end),
+    'job', case when j.user_id is not null then jsonb_build_object('kind', j.kind, 'payload', j.payload, 'clicks', j.clicks) end);
+end $$;
+
+-- töö algus: server arvutab vajalikud klikid ja jätab alguse aja meelde
+create or replace function public.proc_start(p_kind text, p_ids bigint[] default null, p_recipe text default null, p_times int default 1) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p fisher_proc; lv int; n int := 0; cl numeric := 0; c fish_catches; r fish_recipes; k text; sv saves; have numeric;
+begin
+  perform fx_fisher(u); p := fx_proc(u); lv := fx_proc_lvl(p.xp);
+  if p_kind = 'clean' then
+    if coalesce(array_length(p_ids, 1), 0) = 0 or array_length(p_ids, 1) > 10 then raise exception 'Vali puhastamiseks 1–10 kala'; end if;
+    for c in select * from fish_catches where id = any(p_ids) and user_id = u and status = 'kept' and not bought loop
+      if c.rarity >= 5 and lv < 30 then raise exception 'Legendaarseid ja müütilisi kalu saab töödelda alles töötlemise 30. tasemel'; end if;
+      if c.rarity = 4 and lv < 15 then raise exception 'Eepilisi kalu saab töödelda alates töötlemise 15. tasemest'; end if;
+      n := n + 1; cl := cl + fx_clean_clicks(c.weight, c.rarity);
+    end loop;
+    if n <> array_length(p_ids, 1) then raise exception 'Mõnda valitud kala enam pole'; end if;
+    cl := greatest(3, round(cl * fx_click_mult(p)));
+    insert into fisher_proc_job(user_id, kind, payload, clicks, started_at) values (u, 'clean', jsonb_build_object('ids', to_jsonb(p_ids)), cl, now())
+      on conflict (user_id) do update set kind = excluded.kind, payload = excluded.payload, clicks = excluded.clicks, started_at = excluded.started_at;
+  elsif p_kind = 'craft' then
+    select * into r from fish_recipes where id = p_recipe;
+    if r.id is null then raise exception 'Tundmatu retsept'; end if;
+    p_times := greatest(1, least(10, coalesce(p_times, 1)));
+    if p.ws < r.ws then raise exception 'Selleks on vaja Kalurimaja töökoja % taset', r.ws; end if;
+    if lv < r.skill then raise exception 'Selleks on vaja kalatöötlemise % taset', r.skill; end if;
+    if p.rep < r.rep_need then raise exception 'Selleks on vaja % mainet', r.rep_need; end if;
+    for k in select jsonb_object_keys(r.needs) loop
+      if coalesce((select qty from fisher_mats where user_id = u and mat = k), 0) < (r.needs ->> k)::int * p_times then
+        raise exception 'Materjali „%“ jääb puudu', (select name from fish_mats where id = k); end if;
+    end loop;
+    if r.res <> '{}'::jsonb then
+      select * into sv from saves where user_id = u;
+      if sv.user_id is null then raise exception 'Kuningriik pole veel salvestatud – oota paar sekundit'; end if;
+      for k in select jsonb_object_keys(r.res) loop
+        have := coalesce((sv.data -> 'res' ->> k)::numeric, 0);
+        if have < (r.res ->> k)::int * p_times then raise exception 'Kuningriigi varudes jääb puudu: % (vaja %, sul on %)',
+          case k when 'wood' then 'puitu' when 'berries' then 'marju' when 'food' then 'toitu' else k end, (r.res ->> k)::int * p_times, floor(have); end if;
+      end loop;
+    end if;
+    cl := greatest(3, round(r.clicks * p_times * case when lv >= 5 then 0.85 else 1 end * case when p.ws >= 2 then 0.9 else 1 end));
+    insert into fisher_proc_job(user_id, kind, payload, clicks, started_at) values (u, 'craft', jsonb_build_object('recipe', r.id, 'times', p_times), cl, now())
+      on conflict (user_id) do update set kind = excluded.kind, payload = excluded.payload, clicks = excluded.clicks, started_at = excluded.started_at;
+  else raise exception 'Tundmatu töö'; end if;
+  return jsonb_build_object('clicks', cl, 'kind', p_kind);
+end $$;
+
+-- töö lõpp: server kontrollib, et klikke on piisavalt ja et need ei tulnud inimvõimetult kiiresti
+create or replace function public.proc_finish(p_clicks int, p_precise int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p fisher_proc; lv int; j fisher_proc_job; c fish_catches; s fish_species; r fish_recipes; acc numeric; fr numeric; v numeric;
+  sc numeric; qt int; mult numeric; fil int; hea int; luu int; jae int; soo int; ks int; il int; got jsonb := '{}'; qs int[] := '{}'; v_xp int := 0; v_rep int := 0;
+  k text; sv saves; have numeric; times int; levels int[]; lv2 int; nrare int := 0; nahv int := 0; best int := 0; outq int;
+begin
+  perform fx_fisher(u); p := fx_proc(u); lv := fx_proc_lvl(p.xp);
+  select * into j from fisher_proc_job where user_id = u for update;
+  if j.user_id is null then raise exception 'Pooleliolevat tööd pole'; end if;
+  if coalesce(p_clicks, 0) < j.clicks then raise exception 'Töö pole veel valmis'; end if;
+  if extract(epoch from now() - j.started_at) < j.clicks / 16.0 then raise exception 'Nii kiiresti ei jõua keegi klikkida – proovi uuesti'; end if;
+  acc := least(1, greatest(0, coalesce(p_precise, 0)::numeric / greatest(1, p_clicks)));
+  delete from fisher_proc_job where user_id = u;
+  if j.kind = 'clean' then
+    for c in select * from fish_catches where id in (select (jsonb_array_elements_text(j.payload -> 'ids'))::bigint) and user_id = u and status = 'kept' for update loop
+      select * into s from fish_species where id = c.species;
+      fr := fx_fresh(u, c);
+      v := s.price * least(2, 0.6 + 0.4 * c.weight / ((s.min_w + s.max_w) / 2)) * fr;
+      -- kvaliteet sõltub oskusest, tööriistadest, täpsusest ja värskusest (juhus on ainult väike osa)
+      sc := lv * 1.5 + p.knife * 6 + p.kit * 4 + acc * 30 + fr * 15 + random() * 10 + case when p.rarekit and c.rarity >= 4 then 10 else 0 end + case when lv >= 20 then 8 else 0 end;
+      qt := case when sc >= 80 then 5 when sc >= 65 then 4 when sc >= 50 then 3 when sc >= 35 then 2 else 1 end;
+      mult := (array[1, 1.1, 1.25, 1.4, 1.6])[qt] * case when lv >= 10 then 1.2 else 1 end * case when p.ws >= 6 then 1.15 else 1 end;
+      fil := greatest(1, floor(v * 0.55 / 6 * mult + random())::int);
+      luu := floor(v * 0.12 / 2 * mult + random())::int; jae := greatest(1, floor(v * 0.13 * mult + random())::int); soo := floor(v * 0.10 / 3 * mult + random())::int;
+      hea := case when qt >= 3 then floor(fil * (array[0, 0, 0.3, 0.5, 0.7])[qt])::int else 0 end; fil := fil - hea;
+      if random() < p.kit * 0.1 then soo := soo + greatest(1, soo / 2); end if;
+      ks := 0; il := 0;
+      if c.rarity >= 3 then ks := floor(0.25 * (c.rarity - 2) * case when lv >= 15 then 1.5 else 1 end + random())::int; end if;
+      if p.kit > 0 and c.rarity >= 3 and random() < p.kit * 0.1 then ks := ks + 1; end if;
+      if qt = 5 then ks := ks + 1; end if;
+      if c.rarity >= 5 then il := 1 + case when qt >= 4 then 1 else 0 end; end if;
+      perform fx_mat_add(u, 'filee', fil); if hea > 0 then perform fx_mat_add(u, 'filee_hea', hea); end if;
+      if luu > 0 then perform fx_mat_add(u, 'luu', luu); end if; perform fx_mat_add(u, 'jaatmed', jae); if soo > 0 then perform fx_mat_add(u, 'soomus', soo); end if;
+      if ks > 0 then perform fx_mat_add(u, 'kuldsoomus', ks); end if; if il > 0 then perform fx_mat_add(u, 'iidneluu', il); end if;
+      got := jsonb_build_object('filee', coalesce((got ->> 'filee')::int, 0) + fil, 'filee_hea', coalesce((got ->> 'filee_hea')::int, 0) + hea,
+        'luu', coalesce((got ->> 'luu')::int, 0) + luu, 'jaatmed', coalesce((got ->> 'jaatmed')::int, 0) + jae, 'soomus', coalesce((got ->> 'soomus')::int, 0) + soo,
+        'kuldsoomus', coalesce((got ->> 'kuldsoomus')::int, 0) + ks, 'iidneluu', coalesce((got ->> 'iidneluu')::int, 0) + il);
+      qs := qs || qt; best := greatest(best, qt);
+      v_xp := v_xp + 4 + c.rarity * 4 + round(sqrt(c.weight))::int; v_rep := v_rep + 1 + c.rarity;
+      if c.rarity >= 3 then nrare := nrare + 1; end if;
+      if c.species = 'ahven' then nahv := nahv + fil + hea; end if;
+      update fish_catches set status = 'cleaned' where id = c.id;
+    end loop;
+    if array_length(qs, 1) is null then raise exception 'Kalu enam pole – keegi on need juba ära kasutanud'; end if;
+    perform fx_proc_stat(u, 'cleaned', array_length(qs, 1));
+    if nrare > 0 then perform fx_proc_stat(u, 'rare', nrare); end if;
+    if nahv > 0 then perform fx_proc_stat(u, 'filee_ahven', nahv); end if;
+    if best >= 4 then perform fx_proc_stat(u, 'q4', 1); end if;
+  else
+    select * into r from fish_recipes where id = j.payload ->> 'recipe';
+    times := (j.payload ->> 'times')::int;
+    -- materjalid võetakse alles nüüd, kui töö on edukalt tehtud
+    for k in select jsonb_object_keys(r.needs) loop
+      update fisher_mats set qty = qty - (r.needs ->> k)::int * times where user_id = u and mat = k and qty >= (r.needs ->> k)::int * times;
+      if not found then raise exception 'Materjali „%“ jääb puudu', (select name from fish_mats where id = k); end if;
+    end loop;
+    if r.res <> '{}'::jsonb then
+      select * into sv from saves where user_id = u for update;
+      for k in select jsonb_object_keys(r.res) loop
+        have := coalesce((sv.data -> 'res' ->> k)::numeric, 0);
+        if have < (r.res ->> k)::int * times then raise exception 'Kuningriigi varudes jääb puudu'; end if;
+        sv.data := jsonb_set(sv.data, array['res', k], to_jsonb(have - (r.res ->> k)::int * times));
+      end loop;
+      update saves set data = sv.data where user_id = u;
+    end if;
+    outq := r.out_qty * times;
+    if r.out_kind = 'mat' then perform fx_mat_add(u, r.out_id, outq);
+    elsif r.out_kind = 'bait' then update fishers set baits = jsonb_set(baits, array[r.out_id], to_jsonb(coalesce((baits ->> r.out_id)::int, 0) + outq)) where user_id = u;
+    elsif r.out_kind = 'inbox' then perform fx_inbox(u, jsonb_build_object(r.out_id, outq), r.name);
+    end if;
+    got := jsonb_build_object(r.out_id, outq);
+    v_xp := r.xp * times; v_rep := r.rep * times;
+    perform fx_proc_stat(u, r.out_id, outq);
+  end if;
+  update fisher_proc set xp = fisher_proc.xp + v_xp, rep = fisher_proc.rep + v_rep where user_id = u;
+  lv2 := fx_proc_lvl(p.xp + v_xp);
+  return proc_state() || jsonb_build_object('result', jsonb_build_object('kind', j.kind, 'got', got, 'q', to_jsonb(qs), 'best', best, 'xp', v_xp, 'rep', v_rep, 'acc', round(acc, 2),
+    'lvlup', case when lv2 > lv then lv2 end, 'recipe', r.id, 'out_kind', r.out_kind, 'res', case when j.kind = 'craft' then r.res end, 'times', times));
+end $$;
+create or replace function public.proc_cancel() returns jsonb language plpgsql security definer set search_path = public as $$
+begin delete from fisher_proc_job where user_id = fx_uid(); return jsonb_build_object('ok', true); end $$;
+
+-- töökoja ja tööriistade täiustamine
+create or replace function public.proc_upgrade(p_what text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; p fisher_proc; cost jsonb; k text; sv saves; have numeric;
+begin
+  f := fx_fisher(u); p := fx_proc(u);
+  perform 1 from fisher_proc where user_id = u for update;
+  cost := case p_what when 'ws' then case when p.ws < 6 then fx_ws_cost(p.ws + 1) end when 'knife' then case when p.knife < 5 then fx_tool_cost('knife', p.knife + 1) end
+    when 'kit' then case when p.kit < 3 then fx_tool_cost('kit', p.kit + 1) end when 'rarekit' then case when not p.rarekit then fx_tool_cost('rarekit', 1) end end;
+  if cost is null then raise exception 'See on juba maksimumis'; end if;
+  if f.gold < coalesce((cost ->> 'gold')::int, 0) then raise exception 'Kulda jääb puudu (vaja %)', cost ->> 'gold'; end if;
+  for k in select jsonb_object_keys(coalesce(cost -> 'mats', '{}')) loop
+    if coalesce((select qty from fisher_mats where user_id = u and mat = k), 0) < (cost -> 'mats' ->> k)::int then
+      raise exception 'Materjali „%“ jääb puudu (vaja %)', (select name from fish_mats where id = k), cost -> 'mats' ->> k; end if;
+  end loop;
+  if cost ? 'wood' or cost ? 'stone' then
+    select * into sv from saves where user_id = u for update;
+    if sv.user_id is null then raise exception 'Kuningriik pole veel salvestatud – oota paar sekundit'; end if;
+    for k in select unnest(array['wood','stone']) loop
+      have := coalesce((sv.data -> 'res' ->> k)::numeric, 0);
+      if have < coalesce((cost ->> k)::int, 0) then raise exception '% on vaja % (sul on %). Korja seda Kalurimaja juures.', case k when 'wood' then 'Puitu' else 'Kivi' end, cost ->> k, floor(have); end if;
+      sv.data := jsonb_set(sv.data, array['res', k], to_jsonb(have - coalesce((cost ->> k)::int, 0)));
+    end loop;
+    update saves set data = sv.data where user_id = u;
+  end if;
+  for k in select jsonb_object_keys(coalesce(cost -> 'mats', '{}')) loop
+    update fisher_mats set qty = qty - (cost -> 'mats' ->> k)::int where user_id = u and mat = k;
+  end loop;
+  update fishers set gold = gold - coalesce((cost ->> 'gold')::int, 0) where user_id = u;
+  if p_what = 'ws' then update fisher_proc set ws = ws + 1 where user_id = u;
+  elsif p_what = 'knife' then update fisher_proc set knife = knife + 1 where user_id = u;
+  elsif p_what = 'kit' then update fisher_proc set kit = kit + 1 where user_id = u;
+  else update fisher_proc set rarekit = true where user_id = u; end if;
+  return proc_state() || jsonb_build_object('upgraded', p_what, 'spent', cost);
+end $$;
+
+-- kalalett: toodete ja materjalide müük (töökoja 5. tasemest)
+create or replace function public.proc_sell(p_mat text, p_qty int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p fisher_proc; m fish_mats; g int;
+begin
+  perform fx_fisher(u); p := fx_proc(u);
+  if p.ws < 5 then raise exception 'Kalalett avaneb Kalurimaja töökoja 5. tasemel'; end if;
+  select * into m from fish_mats where id = p_mat;
+  if m.id is null or coalesce(p_qty, 0) < 1 then raise exception 'Vali, mida müüa'; end if;
+  update fisher_mats set qty = qty - p_qty where user_id = u and mat = p_mat and qty >= p_qty;
+  if not found then raise exception 'Sul pole nii palju'; end if;
+  g := round(m.price * p_qty * (1 + 0.05 * fx_rep_tier(p.rep)));
+  update fishers set gold = gold + g where user_id = u;
+  update fisher_proc set rep = rep + g / 100 where user_id = u;
+  return proc_state() || jsonb_build_object('sold', jsonb_build_object('mat', p_mat, 'qty', p_qty, 'gold', g));
+end $$;
+-- kõrtsi tellimuse täitmine
+create or replace function public.proc_order(p_idx int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); o fisher_proc_orders;
+begin
+  perform fx_fisher(u); perform fx_proc(u);
+  select * into o from fisher_proc_orders where user_id = u and day = fx_today() and idx = p_idx for update;
+  if o.user_id is null or o.done then raise exception 'Tellimust pole või see on juba täidetud'; end if;
+  update fisher_mats set qty = qty - o.qty where user_id = u and mat = o.mat and qty >= o.qty;
+  if not found then raise exception 'Tellimuse jaoks jääb kaupa puudu'; end if;
+  update fisher_proc_orders set done = true where user_id = u and day = o.day and idx = o.idx;
+  update fishers set gold = gold + o.gold where user_id = u;
+  update fisher_proc set rep = rep + o.rep, xp = xp + o.xp where user_id = u;
+  perform fx_proc_stat(u, 'orders', 1);
+  if o.mat in ('filee', 'filee_hea') then perform fx_proc_stat(u, 'order_filee', o.qty); end if;
+  return proc_state() || jsonb_build_object('delivered', to_jsonb(o) - 'user_id');
+end $$;
+-- ülesande preemia
+create or replace function public.proc_quest(p_q text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p fisher_proc; q jsonb; have int; k text;
+begin
+  perform fx_fisher(u); p := fx_proc(u);
+  select x into q from jsonb_array_elements(fx_proc_quests()) x where x ->> 'id' = p_q;
+  if q is null then raise exception 'Tundmatu ülesanne'; end if;
+  have := case when q ->> 'stat' = '_lvl' then fx_proc_lvl(p.xp) else coalesce((p.stats ->> (q ->> 'stat'))::int, 0) end;
+  if have < (q ->> 'goal')::int then raise exception 'Ülesanne pole veel täidetud'; end if;
+  insert into fisher_proc_quests(user_id, q) values (u, p_q) on conflict do nothing;
+  if not found then raise exception 'Preemia on juba kätte saadud'; end if;
+  update fishers set gold = gold + (q ->> 'gold')::int where user_id = u;
+  update fisher_proc set xp = xp + (q ->> 'xp')::int, rep = rep + (q ->> 'rep')::int where user_id = u;
+  for k in select jsonb_object_keys(coalesce(q -> 'mats', '{}')) loop perform fx_mat_add(u, k, (q -> 'mats' ->> k)::int); end loop;
+  return proc_state() || jsonb_build_object('claimed', q);
+end $$;
+-- kalasupp kuningriigi kööki (toit)
+create or replace function public.proc_feed(p_qty int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid();
+begin
+  perform fx_fisher(u); perform fx_proc(u);
+  if coalesce(p_qty, 0) < 1 then raise exception 'Vali kogus'; end if;
+  update fisher_mats set qty = qty - p_qty where user_id = u and mat = 'kalasupp' and qty >= p_qty;
+  if not found then raise exception 'Kalasuppi pole nii palju'; end if;
+  perform fx_inbox(u, jsonb_build_object('food', p_qty * 20), 'Kalasupp kuningriigi köögile');
+  update fisher_proc set rep = rep + p_qty where user_id = u;
+  return proc_state() || jsonb_build_object('fed', p_qty * 20);
+end $$;
+
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -5483,7 +5868,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
