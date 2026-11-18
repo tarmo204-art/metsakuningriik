@@ -528,23 +528,23 @@ on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=e
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
 
 insert into public.fish_house_levels (level,name,descr,gold,min_fish_level,items,sell_bonus,xp_bonus,bait_save,slots) values
- (1,'Kaluri onn','Väike onn järve kaldal. Siia mahub esimene akvaarium.',300,3,'{}',0.02,0.03,0.04,3),
- (2,'Paadikuur','Kuur paadi ja võrkude jaoks.',800,6,'{"karp":5}',0.04,0.06,0.08,4),
- (3,'Kalurionn','Soe onn suitsuahjuga.',1800,9,'{"karp":10,"parl":2}',0.06,0.09,0.12,5),
- (4,'Kalamaja','Päris kalamaja oma sillaga.',3500,13,'{"parl":4,"merevaik":3}',0.08,0.12,0.16,6),
- (5,'Suur kalamaja','Kahekordne maja suure akvaariumiga.',6000,17,'{"merevaik":5,"ruun":2}',0.10,0.15,0.20,7),
- (6,'Kalurimõis','Mõis, kuhu tullakse kaugelt kalu vaatama.',10000,22,'{"ruun":3,"sormus":2}',0.12,0.18,0.24,8),
- (7,'Sadamamaja','Maja oma väikese sadamaga.',16000,27,'{"sormus":3,"mustparl":1}',0.14,0.21,0.28,9),
- (8,'Kuninglik kalamaja','Kuningas ise käib siin kala söömas.',25000,33,'{"mustparl":2,"kristall":1}',0.16,0.24,0.32,10),
- (9,'Järvede loss','Klaasseintega loss vee kohal.',40000,40,'{"kristall":2,"soomus":1}',0.18,0.27,0.36,11),
- (10,'Veekuninga palee','Legendaarne palee, mille akvaariumist räägib kogu kuningriik.',65000,46,'{"kristall":3,"soomus":2}',0.20,0.30,0.40,12)
+ (1,'Mahajäetud kalurihütt','Vana lagunenud hütt järve kaldal. Siia mahub esimene akvaarium.',300,3,'{}',0.02,0.03,0.04,3),
+ (2,'Taastatud kalurihütt','Paigatud katus, uus uks ja soe ahi – hütt on jälle elamiskõlblik.',800,6,'{"karp":5}',0.04,0.06,0.08,4),
+ (3,'Kalurimaja','Korralik palkmaja võrguriiuli ja suurema akvaariumiga.',1800,9,'{"karp":10,"parl":2}',0.06,0.09,0.12,5),
+ (4,'Täiustatud kalurimaja','Maja oma paadisilla, suitsuahju ja tööruumiga.',3500,13,'{"parl":4,"merevaik":3}',0.08,0.12,0.16,6),
+ (5,'Kaluritalu','Talu kõrvalhoonete, aia ja suure akvaariumiga.',6000,17,'{"merevaik":5,"ruun":2}',0.10,0.15,0.20,7),
+ (6,'Kalurikompleks','Mitu hoonet: maja, ait, suitsukoda ja kalade kasvatuskoht.',10000,22,'{"ruun":3,"sormus":2}',0.12,0.18,0.24,8),
+ (7,'Kalurimõis','Mõis, kuhu tullakse kaugelt kalu vaatama.',16000,27,'{"sormus":3,"mustparl":1}',0.14,0.21,0.28,9),
+ (8,'Kuninglik kalandusmõis','Kuningas ise käib siin kala söömas ja akvaariumi imetlemas.',25000,33,'{"mustparl":2,"kristall":1}',0.16,0.24,0.32,10),
+ (9,'Suur kalanduskeskus','Kuningriigi kalanduse süda – sadam, turuplats ja klaasseintega akvaariumid.',40000,40,'{"kristall":2,"soomus":1}',0.18,0.27,0.36,11),
+ (10,'Kuninglik kalandusimpeerium','Legendaarne impeerium, mille akvaariumist ja kaladest räägib kogu kuningriik.',65000,46,'{"kristall":3,"soomus":2}',0.20,0.30,0.40,12)
 on conflict (level) do update set name=excluded.name, descr=excluded.descr, gold=excluded.gold, min_fish_level=excluded.min_fish_level,
   items=excluded.items, sell_bonus=excluded.sell_bonus, xp_bonus=excluded.xp_bonus, bait_save=excluded.bait_save, slots=excluded.slots;
 
 insert into public.fish_achievements (id,name,descr,title,reward_gold,reward_xp,sort) values
  ('maja1','Oma nurk','Ehita kalamaja',null,200,100,29),
  ('maja5','Suur kalamaja','Täienda kalamaja 5. tasemele','Majaperemees',1500,800,30),
- ('maja10','Veekuninga palee','Täienda kalamaja 10. tasemele','Veekuningas',10000,5000,31),
+ ('maja10','Kalandusimpeerium','Täienda oma kodu 10. tasemele','Veekuningas',10000,5000,31),
  ('akvaarium','Akvaarist','Pane akvaariumi 5 kala',null,300,150,32)
 on conflict (id) do update set name=excluded.name, descr=excluded.descr, title=excluded.title,
   reward_gold=excluded.reward_gold, reward_xp=excluded.reward_xp, sort=excluded.sort;
