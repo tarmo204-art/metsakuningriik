@@ -5333,11 +5333,13 @@ function resultMsg(r) {
 function itemName(id) { return (ITEM_IC[id] || '✨') + ' ' + (FD.item[id] ? FD.item[id].name : id) }
 function itemsTxt(list, bare) { if (!list || !list.length) return ''; const t = list.map(x => itemName(x.id) + (x.qty > 1 ? ' ×' + x.qty : '')).join(', '); return bare ? t : ' ning kotti: ' + t }
 function itemsRow(list) { return list && list.length ? `<div class="itemrow">${list.map(x => { const it = FD.item[x.id]; return `<span class="itm" style="border-color:${RAR2[it ? it.rarity : 1][1]}88">${itemIcon(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>` }).join('')}</div>` : '' }
+// suurusekordaja nagu serveris (fx_size_mult): väikseim ×0,5, liigi suurim ×2,5, hiiglased rohkem
+function fSizeMult(s, w) { return .5 + 2 * Math.min(1.6, Math.max(0, Math.log(Math.max(w, s.min_w) / s.min_w) / Math.log(Math.max(1.01, s.max_w / s.min_w)))) }
 function estPrice(id) {
   const c = (FS.inventory || []).find(x => x.id === id); if (!c) return 0;
+  if (c.value != null) return +c.value; // serveri arvutatud täpne hind
   const s = FD.sp[c.species]; if (!s) return 0; const m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
-  const avg = (s.min_w + s.max_w) / 2;
-  return Math.max(1, Math.round(s.price * m.mult * Math.min(2, .6 + .4 * c.weight / avg) / (1 + m.sold / 15) * (c.fresh != null ? +c.fresh : 1)));
+  return Math.max(1, Math.round(s.price * m.mult * fSizeMult(s, +c.weight) / (1 + m.sold / 15) * (c.fresh != null ? +c.fresh : 1)));
 }
 function resultCard() {
   const r = FV.result;
@@ -5928,7 +5930,7 @@ QUESTS.push(
 /* ---------- Kalaturg (mängijate vaheline) ---------- */
 const FMK = { list: null, mine: null, rar: null, sp: null, sort: 'new', view: 'osta', confirm: null, loading: false, newSold: 0, seenSold: 0, at: 0 };
 try { FMK.seenSold = +localStorage.getItem('mk.mkSeen') || Date.now() } catch (e) { FMK.seenSold = Date.now() }
-function mkBase(species, w) { const s = FD.sp[species]; if (!s) return 1; const avg = (s.min_w + s.max_w) / 2; return Math.max(1, Math.round(s.price * Math.min(2, .6 + .4 * w / avg))) }
+function mkBase(species, w) { const s = FD.sp[species]; if (!s) return 1; return Math.max(1, Math.round(s.price * fSizeMult(s, +w))) }
 async function loadMarket(silent) {
   if (!CL.user || FMK.loading) return; FMK.loading = true;
   try {
@@ -14382,7 +14384,7 @@ function smView() {
     ${l < 10 ? `<p class="lead" style="margin:8px 0 4px">Järgmine: <b>${SM_LV[l]}</b>${nextUnl.length ? ` – avaneb ${nextUnl.join(', ')}` : ''}</p>${ktCost(nx)}<button class="btn sm" type="button" data-sm="lvl" ${SM.busy ? 'disabled' : ''}>🔨 Täienda ahju</button>` : '<p class="lead">🏆 Legendaarne suitsukoda – kõrgeim tase!</p>'}</div></div>`;
   if (B) {
     const pr = smProd(B.product), tot = Date.parse(B.ready_at) - Date.parse(B.started_at), done = Date.parse(B.ready_at) <= Date.now() + (SM.off || 0);
-    h += `<div class="fv-card sm-batch"><h2>🔥 Ahjus praegu</h2><div class="sm-brow">${smIc(pr.grp, pr.method, pr.special, 72)}<div><h3 style="margin:0">${B.qty} × ${esc(pr.name)}</h3>
+    h += `<div class="fv-card sm-batch"><h2>🔥 Ahjus praegu</h2><div class="sm-brow">${smIc(pr.grp, pr.method, pr.special, 72)}<div><h3 style="margin:0">${B.out_qty || B.qty} × ${esc(pr.name)}</h3>${B.out_qty && B.out_qty > B.qty ? `<small class="lead">${B.qty} kalast – suured kalad annavad rohkem tooteid</small>` : ''}
       <div class="kt-chips" style="margin-top:4px"><span class="kt-chip">${SM_ICON[B.wood]} ${SM_WNAME[B.wood]}</span>${(B.spices || []).map(x => `<span class="kt-chip">${SM_ICON[x]} ${SM_WNAME[x]}</span>`).join('')}</div></div></div>
       <div class="kt-prog" style="margin-top:10px"><i data-smp="${B.started_at}|${B.ready_at}" style="width:${Math.min(100, (Date.now() + (SM.off || 0) - Date.parse(B.started_at)) / tot * 100).toFixed(1)}%"></i></div>
       <div class="kt-act" style="justify-content:space-between;margin-top:6px"><span class="bz-time">⏳ <b data-smt="${B.ready_at}">${smLeft(B.ready_at)}</b></span>
@@ -14417,7 +14419,7 @@ function smBuilder() {
   const mins = ({ kuum: 15, maitse: 40, kulm: 120, kuiv: 180, premium: 240 }[pr.method]) * (1 + .04 * (SM.qty - 1)) * (1 - .05 * (D.lvl - 1)) * (smHas('kytte') ? .8 : 1);
   h += `<h3 class="sm-step" style="margin-top:12px"><b>${SM.special ? 3 : 4}</b> Kogus ja käivitamine</h3>
     <div class="sm-sum">${smIc(pr.grp, pr.method, pr.special, 64)}<div><b>${esc(pr.name)}</b><small>Hind ${fmt(pr.price)}–${fmt(Math.round(pr.price * 1.8))} kulda tk (sõltub kvaliteedist) · aega umbes ${mins >= 60 ? (mins / 60).toFixed(1).replace('.', ',') + ' h' : Math.round(mins) + ' min'}</small>
-      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap}</small></div></div></div>
+      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
     <button class="btn sm-go" type="button" data-sm="start" ${!have || SM.busy ? 'disabled' : ''}>🔥 Käivita suitsutamine</button></div>`;
   return h;
 }
@@ -14481,7 +14483,7 @@ async function smAct(a, arg, n) {
     if (a === 'start') {
       const { pid } = smSel(); if (SM.special && SM.special.includes('marjaforell') || (smProd(pid).spices || {}).berries) { if (typeof cloudSave === 'function') await cloudSave(true) }
       const d = await rpc('smoke_start', { p_product: pid, p_qty: SM.qty, p_wood: SM.wood, p_spices: SM.spices }); smSet(d); await refreshFS();
-      toast(`🔥 Ahi köeb! ${d.started.qty} × ${d.started.name} valmib umbes ${d.started.minutes >= 60 ? Math.round(d.started.minutes / 6) / 10 + ' tunniga' : d.started.minutes + ' minutiga'}.`, 'good'); if (typeof sfx === 'function') sfx('build');
+      toast(`🔥 Ahi köeb! ${d.started.out || d.started.qty} × ${d.started.name} valmib umbes ${d.started.minutes >= 60 ? Math.round(d.started.minutes / 6) / 10 + ' tunniga' : d.started.minutes + ' minutiga'}.`, 'good'); if (typeof sfx === 'function') sfx('build');
     } else if (a === 'buymiss') {
       const { pr } = smSel(); let d;
       for (const [k, q] of smMiss(pr).filter(([k]) => SM_PRICE[k])) d = await rpc('smoke_buy', { p_item: k, p_qty: q });
@@ -14751,6 +14753,11 @@ function kiQual(sp, w, giant) {
   const p = Math.log(Math.max(w, sp.min_w) / sp.min_w) / Math.log(Math.max(1.01, sp.max_w / sp.min_w));
   return p >= .85 ? ['Trofeekala', '#ffb347'] : p >= .6 ? ['Suurepärane', '#8fd17a'] : p >= .3 ? ['Hea', '#5ac8e8'] : ['Tavaline', '#c3d3a4'];
 }
+function kiValue(r) {
+  const c = (FS.inventory || []).find(x => x.id === r.catch_id), m = FV.market && FV.market[r.species], v = estPrice(r.catch_id); if (!c) return '';
+  const bits = [m ? `turg täna ×${String(m.mult).replace('.', ',')}${m.mult >= 1.1 ? ' 📈' : m.mult <= .85 ? ' 📉' : ''}` : '', c.fresh != null && +c.fresh < 1 ? `värskus ${Math.round(c.fresh * 100)}%` : '', m && m.sold ? `täna müüdud ${m.sold}` : ''].filter(Boolean);
+  return `<div><small>Turuväärtus</small><b style="color:#ffd27a">${fmt(v)} kulda</b>${bits.length ? `<small>${bits.join(' · ')}</small>` : ''}</div>`;
+}
 function kiPanel(r) {
   const sp = FD.sp[r.species]; if (!sp) return '';
   const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), L = typeof fLen === 'function' ? fLen(sp, +r.weight) : '';
@@ -14761,7 +14768,7 @@ function kiPanel(r) {
   return `<div class="ki">
     <div class="ki-h">${I[0] ? `<i>${esc(I[0])}</i>` : ''}${I[3] ? '<span class="ki-myth">✨ Muinasjutuline liik</span>' : ''}</div>
     <h4>Sinu saak</h4>
-    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div></div>
+    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
     <h4>📖 Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
     ${I[2].length ? `<h4>🌿 Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${inInv ? `<h4>Mida saad saagiga teha?</h4><div class="ki-acts">

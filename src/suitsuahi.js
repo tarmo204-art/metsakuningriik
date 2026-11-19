@@ -116,7 +116,7 @@ function smView() {
     ${l < 10 ? `<p class="lead" style="margin:8px 0 4px">Järgmine: <b>${SM_LV[l]}</b>${nextUnl.length ? ` – avaneb ${nextUnl.join(', ')}` : ''}</p>${ktCost(nx)}<button class="btn sm" type="button" data-sm="lvl" ${SM.busy ? 'disabled' : ''}>🔨 Täienda ahju</button>` : '<p class="lead">🏆 Legendaarne suitsukoda – kõrgeim tase!</p>'}</div></div>`;
   if (B) {
     const pr = smProd(B.product), tot = Date.parse(B.ready_at) - Date.parse(B.started_at), done = Date.parse(B.ready_at) <= Date.now() + (SM.off || 0);
-    h += `<div class="fv-card sm-batch"><h2>🔥 Ahjus praegu</h2><div class="sm-brow">${smIc(pr.grp, pr.method, pr.special, 72)}<div><h3 style="margin:0">${B.qty} × ${esc(pr.name)}</h3>
+    h += `<div class="fv-card sm-batch"><h2>🔥 Ahjus praegu</h2><div class="sm-brow">${smIc(pr.grp, pr.method, pr.special, 72)}<div><h3 style="margin:0">${B.out_qty || B.qty} × ${esc(pr.name)}</h3>${B.out_qty && B.out_qty > B.qty ? `<small class="lead">${B.qty} kalast – suured kalad annavad rohkem tooteid</small>` : ''}
       <div class="kt-chips" style="margin-top:4px"><span class="kt-chip">${SM_ICON[B.wood]} ${SM_WNAME[B.wood]}</span>${(B.spices || []).map(x => `<span class="kt-chip">${SM_ICON[x]} ${SM_WNAME[x]}</span>`).join('')}</div></div></div>
       <div class="kt-prog" style="margin-top:10px"><i data-smp="${B.started_at}|${B.ready_at}" style="width:${Math.min(100, (Date.now() + (SM.off || 0) - Date.parse(B.started_at)) / tot * 100).toFixed(1)}%"></i></div>
       <div class="kt-act" style="justify-content:space-between;margin-top:6px"><span class="bz-time">⏳ <b data-smt="${B.ready_at}">${smLeft(B.ready_at)}</b></span>
@@ -151,7 +151,7 @@ function smBuilder() {
   const mins = ({ kuum: 15, maitse: 40, kulm: 120, kuiv: 180, premium: 240 }[pr.method]) * (1 + .04 * (SM.qty - 1)) * (1 - .05 * (D.lvl - 1)) * (smHas('kytte') ? .8 : 1);
   h += `<h3 class="sm-step" style="margin-top:12px"><b>${SM.special ? 3 : 4}</b> Kogus ja käivitamine</h3>
     <div class="sm-sum">${smIc(pr.grp, pr.method, pr.special, 64)}<div><b>${esc(pr.name)}</b><small>Hind ${fmt(pr.price)}–${fmt(Math.round(pr.price * 1.8))} kulda tk (sõltub kvaliteedist) · aega umbes ${mins >= 60 ? (mins / 60).toFixed(1).replace('.', ',') + ' h' : Math.round(mins) + ' min'}</small>
-      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap}</small></div></div></div>
+      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
     <button class="btn sm-go" type="button" data-sm="start" ${!have || SM.busy ? 'disabled' : ''}>🔥 Käivita suitsutamine</button></div>`;
   return h;
 }
@@ -215,7 +215,7 @@ async function smAct(a, arg, n) {
     if (a === 'start') {
       const { pid } = smSel(); if (SM.special && SM.special.includes('marjaforell') || (smProd(pid).spices || {}).berries) { if (typeof cloudSave === 'function') await cloudSave(true) }
       const d = await rpc('smoke_start', { p_product: pid, p_qty: SM.qty, p_wood: SM.wood, p_spices: SM.spices }); smSet(d); await refreshFS();
-      toast(`🔥 Ahi köeb! ${d.started.qty} × ${d.started.name} valmib umbes ${d.started.minutes >= 60 ? Math.round(d.started.minutes / 6) / 10 + ' tunniga' : d.started.minutes + ' minutiga'}.`, 'good'); if (typeof sfx === 'function') sfx('build');
+      toast(`🔥 Ahi köeb! ${d.started.out || d.started.qty} × ${d.started.name} valmib umbes ${d.started.minutes >= 60 ? Math.round(d.started.minutes / 6) / 10 + ' tunniga' : d.started.minutes + ' minutiga'}.`, 'good'); if (typeof sfx === 'function') sfx('build');
     } else if (a === 'buymiss') {
       const { pr } = smSel(); let d;
       for (const [k, q] of smMiss(pr).filter(([k]) => SM_PRICE[k])) d = await rpc('smoke_buy', { p_item: k, p_qty: q });

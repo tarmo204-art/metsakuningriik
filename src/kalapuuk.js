@@ -910,11 +910,13 @@ function resultMsg(r) {
 function itemName(id) { return (ITEM_IC[id] || '✨') + ' ' + (FD.item[id] ? FD.item[id].name : id) }
 function itemsTxt(list, bare) { if (!list || !list.length) return ''; const t = list.map(x => itemName(x.id) + (x.qty > 1 ? ' ×' + x.qty : '')).join(', '); return bare ? t : ' ning kotti: ' + t }
 function itemsRow(list) { return list && list.length ? `<div class="itemrow">${list.map(x => { const it = FD.item[x.id]; return `<span class="itm" style="border-color:${RAR2[it ? it.rarity : 1][1]}88">${itemIcon(x.id)}${x.qty > 1 ? ' ×' + x.qty : ''}</span>` }).join('')}</div>` : '' }
+// suurusekordaja nagu serveris (fx_size_mult): väikseim ×0,5, liigi suurim ×2,5, hiiglased rohkem
+function fSizeMult(s, w) { return .5 + 2 * Math.min(1.6, Math.max(0, Math.log(Math.max(w, s.min_w) / s.min_w) / Math.log(Math.max(1.01, s.max_w / s.min_w)))) }
 function estPrice(id) {
   const c = (FS.inventory || []).find(x => x.id === id); if (!c) return 0;
+  if (c.value != null) return +c.value; // serveri arvutatud täpne hind
   const s = FD.sp[c.species]; if (!s) return 0; const m = FV.market && FV.market[c.species] ? FV.market[c.species] : { mult: 1, sold: 0 };
-  const avg = (s.min_w + s.max_w) / 2;
-  return Math.max(1, Math.round(s.price * m.mult * Math.min(2, .6 + .4 * c.weight / avg) / (1 + m.sold / 15) * (c.fresh != null ? +c.fresh : 1)));
+  return Math.max(1, Math.round(s.price * m.mult * fSizeMult(s, +c.weight) / (1 + m.sold / 15) * (c.fresh != null ? +c.fresh : 1)));
 }
 function resultCard() {
   const r = FV.result;
@@ -1505,7 +1507,7 @@ QUESTS.push(
 /* ---------- Kalaturg (mängijate vaheline) ---------- */
 const FMK = { list: null, mine: null, rar: null, sp: null, sort: 'new', view: 'osta', confirm: null, loading: false, newSold: 0, seenSold: 0, at: 0 };
 try { FMK.seenSold = +localStorage.getItem('mk.mkSeen') || Date.now() } catch (e) { FMK.seenSold = Date.now() }
-function mkBase(species, w) { const s = FD.sp[species]; if (!s) return 1; const avg = (s.min_w + s.max_w) / 2; return Math.max(1, Math.round(s.price * Math.min(2, .6 + .4 * w / avg))) }
+function mkBase(species, w) { const s = FD.sp[species]; if (!s) return 1; return Math.max(1, Math.round(s.price * fSizeMult(s, +w))) }
 async function loadMarket(silent) {
   if (!CL.user || FMK.loading) return; FMK.loading = true;
   try {

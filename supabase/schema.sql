@@ -1210,6 +1210,12 @@ on conflict (id) do update set name = excluded.name, descr = excluded.descr, spo
   min_w = excluded.min_w, max_w = excluded.max_w, rarity = excluded.rarity, min_level = excluded.min_level;
 update public.fish_species set event = 'hai', real = true, element = 'vesi', arch = 'pike', body = 'haug', baits = '{krevett,kuldvobler}', times = '{}',
   max_len = case id when 'ogahai' then 110 else 300 end, max_age = case id when 'ogahai' then 70 else 65 end where id in ('ogahai','heeringahai');
+-- hinnaparandus: legendaarne 40–250 kg heeringahai maksis ekslikult vaid 30 kulda
+update public.fish_species set price = 800 where id = 'heeringahai' and price < 800;
+-- haug, koha ja tursk on suured kalad, kelle baashind oli liiga madal
+update public.fish_species set price = 20 where id = 'haug' and price < 20;
+update public.fish_species set price = 24 where id = 'koha' and price < 24;
+update public.fish_species set price = 20 where id = 'tursk' and price < 20;
 create table if not exists public.fish_event_override (id serial primary key, kind text not null check (kind in ('hai','saga')), starts timestamptz not null, ends timestamptz not null);
 create table if not exists public.fish_event_prizes (user_id uuid not null references auth.users(id) on delete cascade, kind text not null, starts timestamptz not null, place int not null,
   primary key (user_id, kind, starts));
@@ -1644,6 +1650,8 @@ create table if not exists public.fisher_smoke_batch (
   started_at timestamptz not null default now(), ready_at timestamptz not null, status text not null default 'run', taken_at timestamptz
 );
 create unique index if not exists fisher_smoke_batch_one on public.fisher_smoke_batch(user_id) where status = 'run';
+-- suur kala annab rohkem suitsutooteid (out_qty); vanadel partiidel on see tühi ja kasutatakse qty-d
+alter table public.fisher_smoke_batch add column if not exists out_qty int;
 create table if not exists public.fisher_smoked (
   user_id uuid not null references auth.users(id) on delete cascade, product text not null references public.fish_smoke_products(id), quality int not null, qty int not null default 0,
   primary key (user_id, product, quality)
@@ -1965,9 +1973,9 @@ end $$;
 
 -- Kogu kalapüügi seis ühe päringuga
 create or replace function public.fish_state() returns jsonb language plpgsql security definer set search_path = public as $$
-declare u uuid := fx_uid(); f fishers; book jsonb; v_ach jsonb; byr jsonb; inv jsonb; inbox int; act jsonb; w text := fx_weather(); v_items jsonb;
+declare u uuid := fx_uid(); f fishers; book jsonb; v_ach jsonb; byr jsonb; inv jsonb; inbox int; act jsonb; w text := fx_weather(); v_items jsonb; v_sb numeric;
 begin
-  f := fx_fisher(u);
+  f := fx_fisher(u); v_sb := fx_sell_bonus(u);
   perform fx_proc(u); perform fx_biz_tick(u); -- äripartnerite tellimused tekivad serveris
   -- vanad pooleli jäänud viskamised loetakse kaotatuks
   update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked') and created_at < now() - interval '3 minutes';
@@ -1978,7 +1986,7 @@ begin
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
-           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap, 'fresh', round(fx_fresh(u, fish_catches), 2)) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap, 'fresh', round(fx_fresh(u, fish_catches), 2), 'value', case when status = 'kept' then fx_sell_price(u, fish_catches, v_sb) end) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
     into inv from fish_catches where user_id = u and status in ('kept','trophy');
   select count(*) into inbox from kingdom_inbox where user_id = u;
   select coalesce(jsonb_object_agg(item, qty), '{}') into v_items from fisher_items where user_id = u and qty > 0;
@@ -2284,6 +2292,10 @@ begin
 end $$;
 
 -- Turuhinnad (muutuvad iga päev, müües sama kala ühel päeval palju langeb hind)
+-- Kala suurusekordaja hinnale: väikseim kala ×0,5, oma liigi suurim ×2,5, hiiglased veel rohkem (logaritmiline skaala,
+-- sest liigi kaalud erinevad kümneid kordi – nt haug 0,8–14 kg)
+create or replace function public.fx_size_mult(s public.fish_species, w numeric) returns numeric language sql immutable as $$
+  select 0.5 + 2 * least(1.6, greatest(0, ln(greatest(w, s.min_w) / s.min_w) / ln(greatest(1.01, s.max_w / s.min_w)))) $$;
 create or replace function public.fx_market_mult(p_species text, d date) returns numeric language sql immutable as
 $$ select round((0.7 + (abs(hashtext('turg' || p_species || d::text)) % 600) / 1000.0)::numeric, 2) $$;
 
@@ -2294,20 +2306,30 @@ begin
     from fish_species s left join fish_sales x on x.user_id = u and x.day = d and x.species = s.id);
 end $$;
 
-create or replace function public.fx_sell_value(u uuid, c fish_catches) returns int language plpgsql as $$
-declare s fish_species; d date := fx_today(); sold int; avgw numeric; v numeric;
+-- Müügihinna boonused (maja, prestiiž, müüdid, ruumid, labor) – üks kord mängija kohta
+create or replace function public.fx_sell_bonus(u uuid) returns numeric language plpgsql as $$
+begin
+  return 1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
+    + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + case when fx_room(u, 'suitsukoda') then 0.08 else 0 end + fx_lab_aura(u, 'kuld');
+end $$;
+-- Ühe kala praegune müügihind (ei muuda midagi; sama arv näidatakse ka mängijale)
+create or replace function public.fx_sell_price(u uuid, c fish_catches, p_bonus numeric default null) returns int language plpgsql as $$
+declare s fish_species; d date := fx_today(); sold int; v numeric;
 begin
   select * into s from fish_species where id = c.species;
   select coalesce(qty, 0) into sold from fish_sales where user_id = u and day = d and species = c.species;
-  sold := coalesce(sold, 0);
-  avgw := (s.min_w + s.max_w) / 2;
-  v := s.price * fx_market_mult(s.id, d) * least(2, 0.6 + 0.4 * c.weight / avgw) / (1 + sold / 15.0)
-       * (1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
-            + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + case when fx_room(u, 'suitsukoda') then 0.08 else 0 end + fx_lab_aura(u, 'kuld') + case when c.bought then 0 else fx_kit_v(u, 'sump') end)
+  v := s.price * fx_market_mult(s.id, d) * fx_size_mult(s, c.weight) / (1 + coalesce(sold, 0) / 15.0)
+       * (coalesce(p_bonus, fx_sell_bonus(u)) + case when c.bought then 0 else fx_kit_v(u, 'sump') end)
        * (case when c.bought then 0.6 else 1 end) * fx_fresh(u, c);
-  insert into fish_sales(user_id, day, species, qty) values (u, d, c.species, 1)
-    on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return greatest(1, round(v));
+end $$;
+create or replace function public.fx_sell_value(u uuid, c fish_catches) returns int language plpgsql as $$
+declare v int;
+begin
+  v := fx_sell_price(u, c);
+  insert into fish_sales(user_id, day, species, qty) values (u, fx_today(), c.species, 1)
+    on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
+  return v;
 end $$;
 
 -- Kalade kasutamine: müü / toiduks / vabaks / trofeeks / vaheta
@@ -2993,7 +3015,7 @@ end $$;
 -- ---------------------------------------------------------------------
 -- Kala baasväärtus turu hinnapiiride jaoks (ei sõltu päeva müügist)
 create or replace function public.fx_base_value(p_species text, p_weight numeric) returns int language sql stable as $$
-  select greatest(1, round(s.price * least(2, 0.6 + 0.4 * p_weight / ((s.min_w + s.max_w) / 2))))::int from public.fish_species s where s.id = p_species
+  select greatest(1, round(s.price * public.fx_size_mult(s, p_weight)))::int from public.fish_species s where s.id = p_species
 $$;
 
 -- Aegunud kuulutused (72 h) lähevad tagasi müüjale
@@ -3898,7 +3920,7 @@ begin
   return jsonb_build_object('elements', jsonb_build_array(s.element), 'arch', s.arch, 'body', s.body, 'col', coalesce(s.look -> 'c', '["#9fb4bc","#4a6a7a","#eef4f6","#7a9aaa"]'),
     'size', greatest(1, least(10, round(2 + p * 6 + s.rarity * 0.4))), 'speed', greatest(1, least(10, spd)), 'strength', greatest(1, least(10, coalesce(s.difficulty, 3))),
     'name', s.name, 'species', s.id, 'rarity', s.rarity, 'weight', c.weight,
-    'value', round(s.price * least(2, 0.6 + 0.4 * c.weight / ((s.min_w + s.max_w) / 2))));
+    'value', round(s.price * fx_size_mult(s, c.weight)));
 end $$;
 create or replace function public.fx_lab_genes_h(h public.lab_fish) returns jsonb language sql stable as $$
   select h.genes || jsonb_build_object('name', ls.name, 'species', ls.id, 'rarity', h.rarity, 'weight', h.weight, 'value', h.value, 'elements', jsonb_build_array(ls.e1, ls.e2))
@@ -5999,7 +6021,7 @@ begin
   select * into b from public.fisher_smoke_batch where user_id = u and status = 'run' and ready_at <= now() for update;
   if b.id is null then return null; end if;
   select * into pr from public.fish_smoke_products where id = b.product;
-  n := b.qty - b.fails;
+  n := coalesce(b.out_qty, b.qty) - b.fails;
   if n > 0 then insert into public.fisher_smoked(user_id, product, quality, qty) values (u, b.product, b.quality, n)
     on conflict (user_id, product, quality) do update set qty = public.fisher_smoked.qty + n; end if;
   update public.fisher_smoke_batch set status = 'taken', taken_at = now() where id = b.id;
@@ -6034,7 +6056,7 @@ end $$;
 -- suitsutamise käivitamine: kõik kontrollid ja tooraine eemaldamine toimuvad korraga, alles siis algab taimer
 create or replace function public.smoke_start(p_product text, p_qty int, p_wood text, p_spices text[] default '{}') returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; p fisher_proc; s fisher_smoke; pr fish_smoke_products; n int; ids bigint[]; fr numeric; sc numeric; q int; fails int := 0;
-  mins numeric; k text; need int; sp text[]; sv saves; have numeric; flav text[] := array['till','kuuslauk','pipar','maitsetaim'];
+  v_out int; mins numeric; k text; need int; sp text[]; sv saves; have numeric; flav text[] := array['till','kuuslauk','pipar','maitsetaim'];
 begin
   f := fx_fisher(u); p := fx_proc(u); s := fx_smoke(u);
   perform 1 from fisher_smoke where user_id = u for update;
@@ -6054,7 +6076,8 @@ begin
     elsif k <> 'berries' and not (k = any(sp)) then raise exception 'See retsept vajab maitseainet: %', (select name from fish_mats where id = k); end if;
   end loop;
   -- kalad
-  select array_agg(z.id), avg(z.f2) into ids, fr from (select c.id, fx_fresh(u, c) f2 from fx_smoke_fish(u, pr) c limit n) z;
+  select array_agg(z.id), avg(z.f2), sum(z.o) into ids, fr, v_out from (select c.id, fx_fresh(u, c) f2,
+      (select greatest(1, round(fx_size_mult(sp0, c.weight) * 0.8))::int from fish_species sp0 where sp0.id = c.species) o from fx_smoke_fish(u, pr) c limit n) z;
   if coalesce(array_length(ids, 1), 0) < n then raise exception 'Sobivaid kalu on ainult %', coalesce(array_length(ids, 1), 0); end if;
   -- küttepuud: 1 puu iga 3 kala kohta; maitseained: 1 iga 5 kala kohta (retsepti nõutud kogus korda)
   need := ceil(n / 3.0);
@@ -6077,11 +6100,11 @@ begin
     + case when (pr.method = 'kuum' and p_wood = 'lepp') or (pr.method in ('kulm','kuiv') and p_wood = 'tamm') or (pr.method in ('maitse','premium') and p_wood = 'ounapuu') then 8 else 0 end
     + coalesce(array_length(sp, 1), 0) * 3 + coalesce(fr, 1) * 15 + random() * 15 + case when pr.special then 5 else 0 end;
   q := case when sc >= 70 then 5 when sc >= 55 then 4 when sc >= 40 then 3 when sc >= 25 then 2 else 1 end;
-  if random() < (case when 'filter' = any(s.upg) then 0.02 else 0.12 end) then fails := greatest(1, floor(n * 0.25)::int); end if;
+  if random() < (case when 'filter' = any(s.upg) then 0.02 else 0.12 end) then fails := greatest(1, floor(v_out * 0.25)::int); end if;
   mins := (case pr.method when 'kuum' then 15 when 'maitse' then 40 when 'kulm' then 120 when 'kuiv' then 180 else 240 end)
     * (1 + 0.04 * (n - 1)) * (1 - 0.05 * (s.lvl - 1)) * case when 'kytte' = any(s.upg) then 0.8 else 1 end;
-  insert into fisher_smoke_batch(user_id, product, qty, fails, quality, wood, spices, ready_at) values (u, pr.id, n, fails, q, p_wood, sp, now() + make_interval(secs => round(mins * 60)::int));
-  return smoke_state() || jsonb_build_object('started', jsonb_build_object('name', pr.name, 'qty', n, 'minutes', round(mins)));
+  insert into fisher_smoke_batch(user_id, product, qty, out_qty, fails, quality, wood, spices, ready_at) values (u, pr.id, n, v_out, fails, q, p_wood, sp, now() + make_interval(secs => round(mins * 60)::int));
+  return smoke_state() || jsonb_build_object('started', jsonb_build_object('name', pr.name, 'qty', n, 'out', v_out, 'minutes', round(mins)));
 end $$;
 create or replace function public.smoke_take() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); got jsonb;

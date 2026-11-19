@@ -108,6 +108,11 @@ function kiQual(sp, w, giant) {
   const p = Math.log(Math.max(w, sp.min_w) / sp.min_w) / Math.log(Math.max(1.01, sp.max_w / sp.min_w));
   return p >= .85 ? ['Trofeekala', '#ffb347'] : p >= .6 ? ['Suurepärane', '#8fd17a'] : p >= .3 ? ['Hea', '#5ac8e8'] : ['Tavaline', '#c3d3a4'];
 }
+function kiValue(r) {
+  const c = (FS.inventory || []).find(x => x.id === r.catch_id), m = FV.market && FV.market[r.species], v = estPrice(r.catch_id); if (!c) return '';
+  const bits = [m ? `turg täna ×${String(m.mult).replace('.', ',')}${m.mult >= 1.1 ? ' 📈' : m.mult <= .85 ? ' 📉' : ''}` : '', c.fresh != null && +c.fresh < 1 ? `värskus ${Math.round(c.fresh * 100)}%` : '', m && m.sold ? `täna müüdud ${m.sold}` : ''].filter(Boolean);
+  return `<div><small>Turuväärtus</small><b style="color:#ffd27a">${fmt(v)} kulda</b>${bits.length ? `<small>${bits.join(' · ')}</small>` : ''}</div>`;
+}
 function kiPanel(r) {
   const sp = FD.sp[r.species]; if (!sp) return '';
   const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), L = typeof fLen === 'function' ? fLen(sp, +r.weight) : '';
@@ -118,7 +123,7 @@ function kiPanel(r) {
   return `<div class="ki">
     <div class="ki-h">${I[0] ? `<i>${esc(I[0])}</i>` : ''}${I[3] ? '<span class="ki-myth">✨ Muinasjutuline liik</span>' : ''}</div>
     <h4>Sinu saak</h4>
-    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div></div>
+    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
     <h4>📖 Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
     ${I[2].length ? `<h4>🌿 Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${inInv ? `<h4>Mida saad saagiga teha?</h4><div class="ki-acts">
