@@ -13605,8 +13605,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-stage .obj .kt-ic{width:150px;height:150px;filter:drop-shadow(0 8px 10px rgba(0,0,0,.45))}
 .kt-stage .obj.hit{transform:scale(.97) translateY(2px)}
 .kt-stage .knife{position:absolute;right:20%;top:12%;transform-origin:20% 85%;transform:rotate(-12deg);transition:transform .12s cubic-bezier(.3,1.6,.5,1);pointer-events:none;filter:drop-shadow(0 6px 6px rgba(0,0,0,.45))}
-.kt-stage .knife svg{width:110px;height:110px}
-@media (max-width:600px){.kt-stage .knife svg{width:80px;height:80px}.kt-stage .knife{right:8%}}
+.kt-stage .knife svg{width:150px;height:150px}
+@media (max-width:600px){.kt-stage .knife svg{width:104px;height:104px}.kt-stage .knife{right:8%}}
 .kt-stage .knife.cut{transform:rotate(-58deg) translate(-26px,24px)}
 .kt-stage .pt{position:absolute;pointer-events:none;width:9px;height:12px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;animation:ktPt .7s ease-out forwards}
 .kt-stage .hint{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-weight:800;color:#fff3dc;text-shadow:0 2px 6px rgba(0,0,0,.7);font-size:14px;pointer-events:none}
@@ -13622,7 +13622,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-got div{display:grid;justify-items:center;gap:2px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.05);min-width:76px;animation:ktIn .5s cubic-bezier(.2,1.4,.4,1) both}
 .kt-got div.rare{background:radial-gradient(circle,rgba(255,210,100,.25),rgba(255,255,255,.05));box-shadow:0 0 14px rgba(255,201,74,.3)}
 .kt-got b{font-size:17px;color:#ffe0a0}.kt-got small{font-size:11.5px;color:#a9c4c8}
-.kt-tool{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:center}
+.kt-tool svg.tool-svg{width:72px;height:72px}
+.kt-tool{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center}
 .kt-ws{display:grid;gap:6px}
 .kt-ws div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;font-size:13.5px;padding:6px 8px;border-radius:10px;background:rgba(0,0,0,.18)}
 .kt-ws div.on{background:rgba(127,224,160,.1);color:#d8f8e0}.kt-ws div.nx{box-shadow:inset 0 0 0 1px rgba(232,182,90,.5)}
@@ -14035,6 +14036,76 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .cs-done{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(20,60,40,.92);color:#bff5cf;font-weight:900;font-size:14px;box-shadow:0 0 16px rgba(127,224,160,.4);animation:ktIn .4s cubic-bezier(.2,1.4,.4,1) both;pointer-events:none;white-space:nowrap}
 @media (max-width:600px){.cs-bucket{right:-14%;bottom:-22%}.cs-bucket svg{width:34px;height:34px}.cs-steps li b{font-size:11px}.cs-steps li{padding:6px 2px}}
 </style>`);
+
+/* ---------- Realistlikud tööriistad: metallilõige, läige, terajoon, puitkäepide neetidega ---------- */
+let TOOL_N = 0;
+const TOOL_METAL = [
+  ['#5e656c', '#c9d0d6', '#f2f5f7', '#8a9299'],   // raud
+  ['#7c8a97', '#dfe6ec', '#ffffff', '#a9b6c2'],   // teras
+  ['#7a4a1c', '#d99a5a', '#ffe0b0', '#a8682c'],   // pronks
+  ['#8a6206', '#f0c24a', '#fff4c8', '#c8961a'],   // kuld
+  ['#1f7a80', '#7fe8e0', '#effffd', '#3ab8b4']    // müütiline
+];
+const TOOL_GRIP = [['#5a321a', '#8a5530', '#b07448'], ['#4a2a14', '#7a4626', '#a0623a'], ['#3a2010', '#6a3a1c', '#94562e'], ['#1a1210', '#3a2a22', '#5a4434'], ['#d8e8e4', '#f4fbf9', '#ffffff']];
+function toolDefs(id, t) {
+  const m = TOOL_METAL[t], g = TOOL_GRIP[t];
+  return `<defs>
+    <linearGradient id="bl${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${m[0]}"/><stop offset=".38" stop-color="${m[1]}"/><stop offset=".52" stop-color="${m[2]}"/><stop offset=".7" stop-color="${m[1]}"/><stop offset="1" stop-color="${m[3]}"/></linearGradient>
+    <linearGradient id="ed${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="${m[2]}" stop-opacity=".4"/></linearGradient>
+    <linearGradient id="gr${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${g[2]}"/><stop offset=".45" stop-color="${g[1]}"/><stop offset="1" stop-color="${g[0]}"/></linearGradient>
+    <linearGradient id="bo${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8e2d0"/><stop offset=".5" stop-color="#a8a090"/><stop offset="1" stop-color="#6a6458"/></linearGradient>
+    <radialGradient id="rv${id}"><stop offset="0" stop-color="#fff2c0"/><stop offset=".6" stop-color="#c8a050"/><stop offset="1" stop-color="#6a4a14"/></radialGradient>
+    <filter id="sh${id}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="2" dy="4" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/></filter></defs>`;
+}
+function toolGrip(id, t, len) {
+  // puitkäepide syükarvade ja kolme messingneediga (kuldsel ja müütilisel tumedam / luuvalge käepide)
+  const grain = t < 3 ? `<path d="M6 ${-3.5} C ${len * .3} -5, ${len * .6} -2, ${len} -4 M4 1 C ${len * .35} 3, ${len * .7} -1, ${len} 2" stroke="#2a1608" stroke-opacity=".35" stroke-width=".9" fill="none"/>` : '';
+  return `<rect x="0" y="-7.5" width="${len}" height="15" rx="6" fill="url(#gr${id})" stroke="#1a0e06" stroke-opacity=".6" stroke-width="1"/>${grain}
+    <rect x="2" y="-6" width="${len - 4}" height="3" rx="1.5" fill="#ffffff" opacity=".18"/>
+    ${[.2, .5, .8].map(f => `<circle cx="${(len * f).toFixed(1)}" cy="0" r="2.4" fill="url(#rv${id})" stroke="#4a3410" stroke-width=".6"/>`).join('')}`;
+}
+function toolWrap(id, t, inner, size) {
+  const glow = t >= 3 ? `<radialGradient id="gl${id}"><stop offset="0" stop-color="${TOOL_METAL[t][2]}" stop-opacity="${t === 4 ? .5 : .32}"/><stop offset="1" stop-color="${TOOL_METAL[t][1]}" stop-opacity="0"/></radialGradient><circle cx="64" cy="56" r="56" fill="url(#gl${id})"/>` : '';
+  return `<svg viewBox="0 0 120 120" width="${size || 56}" height="${size || 56}" aria-hidden="true" class="tool-svg">${toolDefs(id, t)}${glow}<g filter="url(#sh${id})">${inner}</g>${t === 4 ? '<g fill="#e8fffc"><circle cx="86" cy="26" r="1.6"/><circle cx="72" cy="44" r="1.2"/><circle cx="96" cy="40" r="1"/></g>' : ''}</svg>`;
+}
+// rookimisnuga (drop-point tera)
+knifeSvg = function (tier, size) {
+  const t = Math.max(0, Math.min(4, (tier || 1) - 1)), id = 'k' + (++TOOL_N);
+  return toolWrap(id, t, `<g transform="translate(14 104) rotate(-45)">
+    ${toolGrip(id, t, 40)}
+    <rect x="38" y="-8.5" width="7" height="17" rx="2" fill="url(#bo${id})" stroke="#4a4438" stroke-width=".8"/>
+    <path d="M45 -6.5 L102 -6.5 C110 -6.5 116 -4 120 -1 C114 4 104 8.5 92 8.5 L45 8.5 Z" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".7" stroke-width="1"/>
+    <path d="M46 4.5 L92 4.5 C102 4.5 110 2 118 -1" stroke="url(#ed${id})" stroke-width="2.2" fill="none"/>
+    <path d="M47 -4.5 L100 -4.5" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.2"/>
+    <path d="M60 -2 L96 -2" stroke="#000" stroke-opacity=".12" stroke-width="2"/></g>`, size);
+};
+csTool = function (kind, tier) {
+  const t = Math.max(0, Math.min(4, (tier || 1) - 1)), id = 't' + (++TOOL_N);
+  if (kind === 'knife') return knifeSvg(tier);
+  if (kind === 'scaler') return toolWrap(id, t, `<g transform="translate(18 102) rotate(-45)">
+    ${toolGrip(id, t, 42)}
+    <rect x="40" y="-4" width="12" height="8" rx="2" fill="url(#bo${id})"/>
+    <path d="M52 -15 L100 -15 C106 -15 108 -11 108 0 C108 11 106 15 100 15 L52 15 C50 15 50 13 50 11 L50 -11 C50 -13 50 -15 52 -15 Z" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".7" stroke-width="1"/>
+    <path d="M56 -15 ${Array.from({ length: 12 }, (_, i) => `L${58 + i * 4} -19 L${60 + i * 4} -15`).join(' ')}" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".6" stroke-width=".8"/>
+    <path d="M56 15 ${Array.from({ length: 12 }, (_, i) => `L${58 + i * 4} 19 L${60 + i * 4} 15`).join(' ')}" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".6" stroke-width=".8"/>
+    ${[-8, 0, 8].map(y => `<path d="M58 ${y} L102 ${y}" stroke="#2a2e32" stroke-opacity=".35" stroke-width="1.2" stroke-dasharray="3 2"/>`).join('')}
+    <path d="M54 -12 L100 -12" stroke="#ffffff" stroke-opacity=".6" stroke-width="1.4"/></g>`);
+  if (kind === 'cleaver') return toolWrap(id, t, `<g transform="translate(16 100) rotate(-38)">
+    ${toolGrip(id, t, 40)}
+    <rect x="38" y="-6" width="8" height="12" rx="2" fill="url(#bo${id})"/>
+    <path d="M44 -10 L44 -26 L110 -26 C113 -26 114 -24 114 -21 L114 18 C114 22 112 24 108 24 L52 24 C47 24 44 21 44 16 Z" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".7" stroke-width="1.1"/>
+    <path d="M50 21 L110 21" stroke="url(#ed${id})" stroke-width="3" fill="none"/>
+    <path d="M48 -23 L110 -23" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.4"/>
+    <circle cx="102" cy="-14" r="5" fill="#1a2024" stroke="#ffffff" stroke-opacity=".4" stroke-width="1"/>
+    <path d="M48 12 L110 12" stroke="#000" stroke-opacity=".08" stroke-width="6"/></g>`);
+  if (kind === 'fillet') return toolWrap(id, t, `<g transform="translate(12 108) rotate(-48)">
+    ${toolGrip(id, t, 38)}
+    <path d="M36 -9 L42 -9 L42 9 L36 9 Z" fill="url(#bo${id})"/><path d="M42 -10 L46 -6 L46 6 L42 10 Z" fill="url(#bo${id})"/>
+    <path d="M46 -4.5 C80 -5 112 -6 136 -10 C134 -6 128 -1 118 1.5 C96 5.5 70 5.5 46 5 Z" fill="url(#bl${id})" stroke="#2a2e32" stroke-opacity=".7" stroke-width=".9"/>
+    <path d="M48 3.6 C70 4 96 3.6 118 0 C126 -1.5 131 -4.5 134 -8" stroke="url(#ed${id})" stroke-width="1.6" fill="none"/>
+    <path d="M48 -3 C80 -3.5 108 -4.5 130 -8" stroke="#ffffff" stroke-opacity=".6" stroke-width="1"/></g>`);
+  return knifeSvg(tier);
+};
 
 </script>
 </body></html>
