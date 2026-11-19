@@ -6,13 +6,24 @@ function fKg(w) { w = +w; if (!isFinite(w)) return ''; if (w < 1) return Math.ma
 function fLen(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return ''; const L = sp.max_len * Math.cbrt(Math.max(0, +w) / sp.max_w); return L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
 function fRange(a, b) { const m = /^(.*) (g|kg|cm|m)$/; const x = String(a).match(m), y = String(b).match(m); return x && y && x[2] === y[2] ? `${x[1]}–${y[1]} ${y[2]}` : `${a}–${b}` }
 const FISH_GIANT = 1.6; // hiiglane võib olla kuni 1,6 × max_w (fish_cast)
-// kala vanus: klass kaalu järgi (noor < 30%, täiskasvanud < 75%, vana kuni max_w, legendaarne üle selle)
-// aastad kasvuvalemiga L(t) = L∞(1 − e^(−kt)), k = 3,9 / eluiga (kala jõuab eluea lõpuks 98% maksimumpikkusest)
-const AGE_CLS = [['noor', '🌱', 'Noor', '#8fd17a'], ['taiskasvanud', '🐟', 'Täiskasvanud', '#5ac8e8'], ['vana', '🍂', 'Vana', '#f2b552'], ['legend', '👑', 'Legendaarne', '#c58cff']];
-function fAgeCls(sp, w) { const p = (w - sp.min_w) / Math.max(1e-9, sp.max_w - sp.min_w); return w > sp.max_w * 1.0001 ? 3 : p >= .75 ? 2 : p >= .3 ? 1 : 0 }
-function fAgeYears(sp, w) { if (!sp || !sp.max_age) return null; const r = Math.min(.999, Math.cbrt(Math.max(0, w) / (sp.max_w * FISH_GIANT)) / 1.03); return -Math.log(1 - r) / (3.9 / sp.max_age) }
-function fAgeTxt(t) { return t == null ? '' : t < 1 ? 'alla aasta' : '~' + fmt(Math.round(t)) + ' a' }
-function fAge(sp, w) { if (!sp) return null; const c = AGE_CLS[fAgeCls(sp, +w)], t = fAgeYears(sp, +w); return { k: c[0], ic: c[1], name: c[2], col: c[3], years: t, txt: c[1] + ' ' + c[2] + (t != null ? ' · ' + fAgeTxt(t) : '') } }
+// kala vanus: iga püütud kala saab serveris püüdmisel oma vanuse ja pikkuse (liigi kasvumudel + bioloogiline erinevus),
+// mis salvestatakse kala andmetesse (age, len, acls). Siin on ainult kuvamine; ilma salvestatud vanuseta (nt kalaraamatu
+// näited) hinnatakse vanust liigi kasvukõverast L(t) = L∞(1 − e^(−k(t − t0))).
+const AGE_CLS = [['noor', '🌱', 'Noor kala', '#8fd17a'], ['noortk', '🌿', 'Noor täiskasvanu', '#6fd6b0'], ['taiskasvanud', '🐟', 'Täiskasvanud', '#5ac8e8'], ['vana', '🍂', 'Vana kala', '#f2b552'], ['erak', '👑', 'Erakordselt vana', '#c58cff']];
+function fAgeClsY(sp, t) { const c = sp && sp.g_cls; if (!c || t == null) return 2; return t < +c[0] ? 0 : t < +c[1] ? 1 : t < +c[2] ? 2 : t < +c[3] ? 3 : 4 }
+function fLenOf(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return null; const b = +sp.g_b || 3; return sp.max_len * Math.pow(Math.max(0, +w) / sp.max_w, 1 / b) }
+function fAgeYears(sp, w) {
+  if (!sp || !sp.max_age) return null; const L = fLenOf(sp, w), Li = +sp.g_linf || (sp.max_len * 1.12), k = +sp.g_k || 2.9 / sp.max_age, t0 = +sp.g_t0 || -.3;
+  if (L == null) return null; const r = Math.min(.97, L / Li); return Math.max(.2, Math.min(sp.max_age * 1.15, t0 - Math.log(1 - r) / k));
+}
+function fAgeCls(sp, w) { return fAgeClsY(sp, fAgeYears(sp, w)) }
+function fAgeTxt(t) { return t == null ? '' : t < 1 ? 'alla aasta' : (t < 3 ? fmt1(+t) : fmt(Math.round(t))) + ' a' }
+// c = salvestatud kala andmed ({age, acls}); kui neid pole, hinnang kaalu järgi
+function fAge(sp, w, c) {
+  if (!sp) return null; const has = c && c.age != null, t = has ? +c.age : fAgeYears(sp, +w), k = has && c.acls != null ? +c.acls : fAgeClsY(sp, t), cl = AGE_CLS[k] || AGE_CLS[2];
+  return { k: cl[0], i: k, ic: cl[1], name: cl[2], col: cl[3], years: t, txt: cl[1] + ' ' + cl[2] + (t != null ? ' · ' + (has ? '' : '~') + fAgeTxt(t) : '') };
+}
+function fLenTxt(L) { return L == null ? '' : L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
 function fSize(sp, w) { const l = fLen(sp, w); return fKg(w) + (l ? ' · ' + l : '') }
 const RAR2 = { 1: ['Tavaline', '#c3d3a4'], 2: ['Ebatavaline', '#8fd17a'], 3: ['Haruldane', '#6cb8ff'], 4: ['Eepiline', '#c58cff'], 5: ['Legendaarne', '#ffb347'], 6: ['Müütiline', '#ff6b9a'] };
 const JUNK2 = { saabas: ['Vana saabas', 'Keegi on siin kunagi märjaks saanud.'], purk: ['Plekkpurk', 'Purgi põhjas kõlises 3 kuldmünti.'], kepp: ['Triivpuu', 'Lihtsalt üks märg oks. Vähemalt said harjutada.'], pudel: ['Pudelipost', 'Pudelis oli aardekaart! See saadeti sinu kuningriiki.'], karp: ['Merekarp', 'Põhjamudast tuli ilus karp. See läks sinu kotti.'] };
@@ -1002,7 +1013,7 @@ function tabSaak() {
   const kept = kept0.slice().sort(sorters[SO] || sorters.value);
   const selN = FV.sel.size, selList = kept.filter(x => FV.sel.has(x.id)), selGold = selList.reduce((t, x) => t + estPrice(x.id), 0), selRare = selList.filter(x => x.rarity >= 4).length;
   const recs = new Set(Object.entries(FS.book || {}).map(([sp, b]) => { const r = kept.filter(x => x.species === sp).sort((a, b2) => b2.weight - a.weight)[0]; return r && +r.weight >= +b.max ? r.id : null }).filter(Boolean));
-  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" aria-pressed="${FV.sel.has(x.id)}" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : FV.sel.has(x.id) ? '<span class="selck">✓</span>' : ''}${recs.has(x.id) && !x.trophy ? '<span class="recb">🏆</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${FD.sp[x.species] ? ' · ' + fAge(FD.sp[x.species], +x.weight).ic : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}${x.trap ? '<small class="tag-b">Püünisest</small>' : ''}</div>` };
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" aria-pressed="${FV.sel.has(x.id)}" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : FV.sel.has(x.id) ? '<span class="selck">✓</span>' : ''}${recs.has(x.id) && !x.trophy ? '<span class="recb">🏆</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+x.weight)}${x.len != null ? ' · ' + fLenTxt(+x.len) : ''}${FD.sp[x.species] ? ' · ' + (a => `<span title="${a.name}">${a.ic} ${fAgeTxt(a.years)}</span>`)(fAge(FD.sp[x.species], +x.weight, x)) : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}${x.trap ? '<small class="tag-b">Püünisest</small>' : ''}</div>` };
   const byR = [1, 2, 3, 4, 5, 6].map(r => [r, kept.filter(x => x.rarity === r)]).filter(([, l]) => l.length);
   const species = [...new Set(kept.map(x => x.species))].sort((a, b) => ((FD.sp[a] || {}).name || a).localeCompare((FD.sp[b] || {}).name || b, 'et'));
   const allSel = kept.length && selN === kept.length, showAll = FV.saakAll, shown = showAll ? kept : kept.slice(0, 150);

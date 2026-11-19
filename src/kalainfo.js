@@ -115,7 +115,8 @@ function kiValue(r) {
 }
 function kiPanel(r) {
   const sp = FD.sp[r.species]; if (!sp) return '';
-  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), L = typeof fLen === 'function' ? fLen(sp, +r.weight) : '';
+  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), c0 = (FS.inventory || []).find(x => x.id === r.catch_id), bio = r.age != null ? r : c0 && c0.age != null ? c0 : null,
+    L = bio && bio.len != null ? fLenTxt(+bio.len) : typeof fLen === 'function' ? fLen(sp, +r.weight) : '', ag = fAge(sp, +r.weight, bio);
   const spot = (FD.spot[r.spot || FV.spot] || {}).name || '';
   const inInv = (FS.inventory || []).some(x => x.id === r.catch_id), ws = typeof KTK !== 'undefined' && KTK.d ? KTK.d.proc.ws : 1;
   const lockSmoke = typeof KTK !== 'undefined' && KTK.d && ws < 3;
@@ -123,7 +124,7 @@ function kiPanel(r) {
   return `<div class="ki">
     <div class="ki-h">${I[0] ? `<i>${esc(I[0])}</i>` : ''}${I[3] ? '<span class="ki-myth">✨ Muinasjutuline liik</span>' : ''}</div>
     <h4>Sinu saak</h4>
-    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
+    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Vanus</small><b style="color:${ag.col}">${fAgeTxt(ag.years)}</b><small>${ag.ic} ${ag.name}</small></div><div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
     <h4>📖 Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
     ${I[2].length ? `<h4>🌿 Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${inInv ? `<h4>Mida saad saagiga teha?</h4><div class="ki-acts">

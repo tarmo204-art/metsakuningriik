@@ -4429,13 +4429,24 @@ function fKg(w) { w = +w; if (!isFinite(w)) return ''; if (w < 1) return Math.ma
 function fLen(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return ''; const L = sp.max_len * Math.cbrt(Math.max(0, +w) / sp.max_w); return L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
 function fRange(a, b) { const m = /^(.*) (g|kg|cm|m)$/; const x = String(a).match(m), y = String(b).match(m); return x && y && x[2] === y[2] ? `${x[1]}–${y[1]} ${y[2]}` : `${a}–${b}` }
 const FISH_GIANT = 1.6; // hiiglane võib olla kuni 1,6 × max_w (fish_cast)
-// kala vanus: klass kaalu järgi (noor < 30%, täiskasvanud < 75%, vana kuni max_w, legendaarne üle selle)
-// aastad kasvuvalemiga L(t) = L∞(1 − e^(−kt)), k = 3,9 / eluiga (kala jõuab eluea lõpuks 98% maksimumpikkusest)
-const AGE_CLS = [['noor', '🌱', 'Noor', '#8fd17a'], ['taiskasvanud', '🐟', 'Täiskasvanud', '#5ac8e8'], ['vana', '🍂', 'Vana', '#f2b552'], ['legend', '👑', 'Legendaarne', '#c58cff']];
-function fAgeCls(sp, w) { const p = (w - sp.min_w) / Math.max(1e-9, sp.max_w - sp.min_w); return w > sp.max_w * 1.0001 ? 3 : p >= .75 ? 2 : p >= .3 ? 1 : 0 }
-function fAgeYears(sp, w) { if (!sp || !sp.max_age) return null; const r = Math.min(.999, Math.cbrt(Math.max(0, w) / (sp.max_w * FISH_GIANT)) / 1.03); return -Math.log(1 - r) / (3.9 / sp.max_age) }
-function fAgeTxt(t) { return t == null ? '' : t < 1 ? 'alla aasta' : '~' + fmt(Math.round(t)) + ' a' }
-function fAge(sp, w) { if (!sp) return null; const c = AGE_CLS[fAgeCls(sp, +w)], t = fAgeYears(sp, +w); return { k: c[0], ic: c[1], name: c[2], col: c[3], years: t, txt: c[1] + ' ' + c[2] + (t != null ? ' · ' + fAgeTxt(t) : '') } }
+// kala vanus: iga püütud kala saab serveris püüdmisel oma vanuse ja pikkuse (liigi kasvumudel + bioloogiline erinevus),
+// mis salvestatakse kala andmetesse (age, len, acls). Siin on ainult kuvamine; ilma salvestatud vanuseta (nt kalaraamatu
+// näited) hinnatakse vanust liigi kasvukõverast L(t) = L∞(1 − e^(−k(t − t0))).
+const AGE_CLS = [['noor', '🌱', 'Noor kala', '#8fd17a'], ['noortk', '🌿', 'Noor täiskasvanu', '#6fd6b0'], ['taiskasvanud', '🐟', 'Täiskasvanud', '#5ac8e8'], ['vana', '🍂', 'Vana kala', '#f2b552'], ['erak', '👑', 'Erakordselt vana', '#c58cff']];
+function fAgeClsY(sp, t) { const c = sp && sp.g_cls; if (!c || t == null) return 2; return t < +c[0] ? 0 : t < +c[1] ? 1 : t < +c[2] ? 2 : t < +c[3] ? 3 : 4 }
+function fLenOf(sp, w) { if (!sp || !sp.max_len || !sp.max_w) return null; const b = +sp.g_b || 3; return sp.max_len * Math.pow(Math.max(0, +w) / sp.max_w, 1 / b) }
+function fAgeYears(sp, w) {
+  if (!sp || !sp.max_age) return null; const L = fLenOf(sp, w), Li = +sp.g_linf || (sp.max_len * 1.12), k = +sp.g_k || 2.9 / sp.max_age, t0 = +sp.g_t0 || -.3;
+  if (L == null) return null; const r = Math.min(.97, L / Li); return Math.max(.2, Math.min(sp.max_age * 1.15, t0 - Math.log(1 - r) / k));
+}
+function fAgeCls(sp, w) { return fAgeClsY(sp, fAgeYears(sp, w)) }
+function fAgeTxt(t) { return t == null ? '' : t < 1 ? 'alla aasta' : (t < 3 ? fmt1(+t) : fmt(Math.round(t))) + ' a' }
+// c = salvestatud kala andmed ({age, acls}); kui neid pole, hinnang kaalu järgi
+function fAge(sp, w, c) {
+  if (!sp) return null; const has = c && c.age != null, t = has ? +c.age : fAgeYears(sp, +w), k = has && c.acls != null ? +c.acls : fAgeClsY(sp, t), cl = AGE_CLS[k] || AGE_CLS[2];
+  return { k: cl[0], i: k, ic: cl[1], name: cl[2], col: cl[3], years: t, txt: cl[1] + ' ' + cl[2] + (t != null ? ' · ' + (has ? '' : '~') + fAgeTxt(t) : '') };
+}
+function fLenTxt(L) { return L == null ? '' : L < 10 ? fmt1(L) + ' cm' : L < 200 ? Math.round(L) + ' cm' : fmt1(L / 100) + ' m' }
 function fSize(sp, w) { const l = fLen(sp, w); return fKg(w) + (l ? ' · ' + l : '') }
 const RAR2 = { 1: ['Tavaline', '#c3d3a4'], 2: ['Ebatavaline', '#8fd17a'], 3: ['Haruldane', '#6cb8ff'], 4: ['Eepiline', '#c58cff'], 5: ['Legendaarne', '#ffb347'], 6: ['Müütiline', '#ff6b9a'] };
 const JUNK2 = { saabas: ['Vana saabas', 'Keegi on siin kunagi märjaks saanud.'], purk: ['Plekkpurk', 'Purgi põhjas kõlises 3 kuldmünti.'], kepp: ['Triivpuu', 'Lihtsalt üks märg oks. Vähemalt said harjutada.'], pudel: ['Pudelipost', 'Pudelis oli aardekaart! See saadeti sinu kuningriiki.'], karp: ['Merekarp', 'Põhjamudast tuli ilus karp. See läks sinu kotti.'] };
@@ -5425,7 +5436,7 @@ function tabSaak() {
   const kept = kept0.slice().sort(sorters[SO] || sorters.value);
   const selN = FV.sel.size, selList = kept.filter(x => FV.sel.has(x.id)), selGold = selList.reduce((t, x) => t + estPrice(x.id), 0), selRare = selList.filter(x => x.rarity >= 4).length;
   const recs = new Set(Object.entries(FS.book || {}).map(([sp, b]) => { const r = kept.filter(x => x.species === sp).sort((a, b2) => b2.weight - a.weight)[0]; return r && +r.weight >= +b.max ? r.id : null }).filter(Boolean));
-  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" aria-pressed="${FV.sel.has(x.id)}" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : FV.sel.has(x.id) ? '<span class="selck">✓</span>' : ''}${recs.has(x.id) && !x.trophy ? '<span class="recb">🏆</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fSize(FD.sp[x.species], +x.weight)}${FD.sp[x.species] ? ' · ' + fAge(FD.sp[x.species], +x.weight).ic : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}${x.trap ? '<small class="tag-b">Püünisest</small>' : ''}</div>` };
+  const cell = x => { const s = FD.sp[x.species] || { name: x.species }, [rn, rc] = RAR2[x.rarity]; return `<div class="fcell ${FV.sel.has(x.id) ? 'sel' : ''}" data-fa="${x.trophy ? 'untro' : 'pick'}" data-arg="${x.id}" role="button" tabindex="0" aria-pressed="${FV.sel.has(x.id)}" style="border-color:${FV.sel.has(x.id) ? '' : rc + '44'}">${x.trophy ? '<span class="tro">Trofee</span>' : FV.sel.has(x.id) ? '<span class="selck">✓</span>' : ''}${recs.has(x.id) && !x.trophy ? '<span class="recb">🏆</span>' : ''}<canvas data-fl="${x.species}" data-r="${x.rarity}"></canvas><b>${esc(s.name)}</b><small style="color:${rc}">${rn}${x.giant ? ' · rekordsuurus' : ''}</small><small>${fKg(+x.weight)}${x.len != null ? ' · ' + fLenTxt(+x.len) : ''}${FD.sp[x.species] ? ' · ' + (a => `<span title="${a.name}">${a.ic} ${fAgeTxt(a.years)}</span>`)(fAge(FD.sp[x.species], +x.weight, x)) : ''}${x.trophy ? '' : ` · ~${estPrice(x.id)} kulda`}</small>${x.bought ? '<small class="tag-b">Turult ostetud</small>' : ''}${x.trap ? '<small class="tag-b">Püünisest</small>' : ''}</div>` };
   const byR = [1, 2, 3, 4, 5, 6].map(r => [r, kept.filter(x => x.rarity === r)]).filter(([, l]) => l.length);
   const species = [...new Set(kept.map(x => x.species))].sort((a, b) => ((FD.sp[a] || {}).name || a).localeCompare((FD.sp[b] || {}).name || b, 'et'));
   const allSel = kept.length && selN === kept.length, showAll = FV.saakAll, shown = showAll ? kept : kept.slice(0, 150);
@@ -7838,9 +7849,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fav-f.best::after{content:"🕐";font-size:11px}
 .fav-chip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:8px;font:800 12px system-ui;vertical-align:middle;color:#3a0b1c;background:linear-gradient(180deg,#ffc2d4,#ff8fb0);animation:favPop .5s cubic-bezier(.2,1.7,.4,1) both}
 .age-chip{display:inline-block;margin:2px 0 0;padding:2px 9px;border-radius:999px;font:700 12px system-ui;color:#fff;background:color-mix(in srgb,var(--ac) 28%,rgba(0,0,0,.25));border:1px solid var(--ac);justify-self:start}
-.fc-ages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.fc-ages{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:4px}
 .fc-ages div{padding:6px 6px 5px;border-radius:8px;background:rgba(255,255,255,.05);border-top:3px solid var(--ac);display:grid;gap:1px;min-width:0}
-.fc-ages b{font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fc-ages small{font-size:11px;color:#9cb8c2}
+.fc-ages b{font-size:12px;color:#fff;line-height:1.25}.fc-ages small{font-size:11px;color:#9cb8c2}
 .fc-ages div.on{background:color-mix(in srgb,var(--ac) 22%,transparent);box-shadow:0 0 0 1px var(--ac)}
 .fc-disc{display:grid;gap:3px;font-size:13.5px;color:#e8f2f4}
 .fav-chip.t{color:#2a1a05;background:linear-gradient(180deg,#ffe2a0,#f2b552)}
@@ -7869,11 +7880,12 @@ function fcDayRing(times, now) {
 function fcDate(d) { return new Date(d).toLocaleDateString('et-EE', { day: 'numeric', month: 'long', year: 'numeric' }) }
 function fcSpot(id) { return FD.spot[id] ? FD.spot[id].name : (id || '') }
 function fcAges(s, b) {
-  if (!s.max_age) return '';
-  const lim = [s.min_w + .3 * (s.max_w - s.min_w), s.min_w + .75 * (s.max_w - s.min_w), s.max_w], my = b ? fAgeCls(s, +b.max) : -1;
-  const rng = [`kuni ${fKg(lim[0])}`, `${fRange(fKg(lim[0]), fKg(lim[1]))}`, `${fRange(fKg(lim[1]), fKg(lim[2]))}`, `üle ${fKg(lim[2])}`];
-  return `<div class="fc-ages">${AGE_CLS.map((c, i) => `<div class="${i === my ? 'on' : ''}" style="--ac:${c[3]}"><b>${c[1]} ${c[2]}</b><small>${rng[i]}</small><small>${fAgeTxt(fAgeYears(s, i === 0 ? lim[0] : i === 1 ? lim[1] : i === 2 ? lim[2] : s.max_w * FISH_GIANT))}</small></div>`).join('')}</div>
-    ${b ? `<span style="font-size:13.5px;color:#e8f2f4">Sinu rekordkala: <b>${fAge(s, +b.max).txt}</b></span>` : ''}`;
+  if (!s.max_age || !s.g_cls) return '';
+  const c = s.g_cls.map(Number), my = b && b.age != null ? fAgeClsY(s, +b.age) : -1;
+  const rng = [`alla ${fAgeTxt(c[0])}`, `${fAgeTxt(c[0])} – ${fAgeTxt(c[1])}`, `${fAgeTxt(c[1])} – ${fAgeTxt(c[2])}`, `${fAgeTxt(c[2])} – ${fAgeTxt(c[3])}`, `üle ${fAgeTxt(c[3])}`];
+  return `<div class="fc-ages">${AGE_CLS.map((k, i) => `<div class="${i === my ? 'on' : ''}" style="--ac:${k[3]}"><b>${k[1]} ${k[2]}</b><small>${rng[i]}</small></div>`).join('')}</div>
+    <small style="color:#a9c4c8">Suguküpseks saab umbes ${fAgeTxt(+s.g_mat)} vanuselt. Iga kala kasvab erineva kiirusega, nii et sama suur kala võib olla eri vanuses.</small>
+    ${b && b.age != null ? `<span style="font-size:13.5px;color:#e8f2f4">Sinu vanim püütud: <b>${fAge(s, 0, { age: b.age }).txt}</b>${b.len ? ` · pikim ${fLenTxt(+b.len)}` : ''}</span>` : ''}`;
 }
 
 /* ---------- mõõdulint: tavaline suurus, hiiglased ja sinu rekord ---------- */
@@ -7991,7 +8003,7 @@ function favStrip() {
   const baseResult = resultCard;
   resultCard = function () {
     let h = baseResult(); const r = FV.result;
-    if (r && r.kind === 'fish' && FD.sp[r.species] && typeof fAge === 'function') { const ag = fAge(FD.sp[r.species], +r.weight); h = h.replace(/(<h3>[^<]*<\/h3>)/, `$1<span class="age-chip" style="--ac:${ag.col}">${ag.txt}</span>`) }
+    if (r && r.kind === 'fish' && FD.sp[r.species] && typeof fAge === 'function') { const ag = fAge(FD.sp[r.species], +r.weight, r.age != null ? r : (FS.inventory || []).find(x => x.id === r.catch_id)); h = h.replace(/(<h3>[^<]*<\/h3>)/, `$1<span class="age-chip" style="--ac:${ag.col}">${ag.txt}</span>`) }
     if (r && r.kind === 'fish' && (r.fav || r.best)) {
       const chips = `${r.fav ? '<span class="fav-chip">❤ Lemmiksööt</span>' : ''}${r.best ? '<span class="fav-chip t">🕐 Parim aeg</span>' : ''}`;
       h = h.replace(/(kogemust[^<]*(?:<span class="kx2"[^>]*>×2<\/span>)?)/, '$1' + chips);
@@ -8351,11 +8363,11 @@ function kitShow(r) {
   const p = Math.max(0, Math.min(1, (w - s.min_w) / Math.max(1e-9, s.max_w - s.min_w)));
   const tier = r.giant || w > s.max_w ? 'hiid' : p >= .7 ? 'suur' : p >= .35 ? 'hea' : 'vaike';
   const [heads, sup] = KIT_TXT[tier], head = heads[Math.floor(Math.random() * heads.length)];
-  const name = s.name.charAt(0).toLowerCase() + s.name.slice(1), len = typeof fLen === 'function' ? fLen(s, w) : '';
+  const name = s.name.charAt(0).toLowerCase() + s.name.slice(1), len = r.len != null && typeof fLenTxt === 'function' ? fLenTxt(+r.len) : typeof fLen === 'function' ? fLen(s, w) : '';
   const col = tier === 'hiid' ? '#f2b552' : (RAR2[s.rarity] || RAR2[1])[1];
   // mõõdulint pikkuse järgi (sama mis kalakaardil)
   const L = (x) => s.max_len ? Math.cbrt(x / s.max_w) : x / s.max_w, top = L(gm), pos = (x) => Math.max(0, Math.min(100, L(x) / top * 100));
-  const ag = typeof fAge === 'function' ? fAge(s, w) : null;
+  const ag = typeof fAge === 'function' ? fAge(s, w, r.age != null ? r : null) : null;
   const chips = [ag ? `<span class="age" style="--ac:${ag.col}">${ag.txt}</span>` : '', r.record || r.new_species ? (r.new_species ? '<span class="new">📖 Uus liik</span>' : '<span class="rec">🏆 Isiklik rekord</span>') : '', r.fav ? '<span class="fav">❤ Lemmiksööt</span>' : ''].filter(Boolean).join('');
   const conf = tier === 'suur' || tier === 'hiid' ? Array.from({ length: tier === 'hiid' ? 26 : 14 }, (_, i) => `<i class="cf" style="left:${(4 + i * 92 / (tier === 'hiid' ? 26 : 14)).toFixed(1)}%;background:${['#ffd286', '#ff8fb0', '#7ae0ff', '#b8f5c4', '#fff'][i % 5]};--x:${((i % 2 ? 1 : -1) * (10 + (i * 7) % 30))}px;--d:${(.1 + (i % 7) * .09).toFixed(2)}s"></i>`).join('') : '';
   kitHide();
@@ -12349,6 +12361,9 @@ const KS = { d: null, at: 0, loading: false, anim: '' };
   FTAB_FN.stats = ksTab;
 }
 const KS_IC = {
+  age: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/><path d="M4 4l2.5 2.5M20 4l-2.5 2.5"/>',
+  leaf: '<path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/>',
+  ruler: '<rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6 8v3M9.5 8v4M13 8v3M16.5 8v4"/>',
   stats: '<path d="M4 20.5h16"/><path d="M6.5 20.5v-6M11 20.5V8M15.5 20.5v-9M20 20.5V5"/>',
   fish: '<path d="M2.5 12c3.2-5 10.5-5.2 14.5 0-4 5.2-11.3 5-14.5 0Z"/><path d="M17 12l4.5-3.5v7Z"/><circle cx="7" cy="11.2" r=".6" fill="currentColor"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
@@ -12472,9 +12487,14 @@ function ksTab() {
     ['deep', 'Kõige sügavamast veest', R.deep ? fishRec(R.deep, FD.spot[R.deep.spot] ? FD.spot[R.deep.spot].name : '') : null],
     ['watch', 'Kiireim tabamine', R.fast != null ? { v: `${String(R.fast).replace('.', ',')} s`, sub: 'näkkamisest haakimiseni' } : null],
     ['trophy', 'Suurim võistluse punktisumma', R.comp ? { v: `${fmt(R.comp)} punkti`, sub: 'ühe Kalatunni jooksul' } : null],
-    ['crown', 'Kõige haruldasem püütud kala', R.rare ? fishRec(R.rare, RAR2[R.rare.rarity][0]) : null]
+    ['crown', 'Kõige haruldasem püütud kala', R.rare ? fishRec(R.rare, RAR2[R.rare.rarity][0]) : null],
+    ['age', 'Vanim püütud kala', R.old ? { v: `${esc(ksSp(R.old.species))} · ${fAgeTxt(+R.old.age)}`, sub: `${fKg(+R.old.weight)}${R.old.len ? ' · ' + fLenTxt(+R.old.len) : ''}${FD.spot[R.old.spot] ? ' · ' + FD.spot[R.old.spot].name : ''}`, sp: R.old.species, r: R.old.rarity } : null],
+    ['leaf', 'Vanim oma liigi kohta', R.oldrel ? { v: `${esc(ksSp(R.oldrel.species))} · ${fAgeTxt(+R.oldrel.age)}`, sub: `liigi tavaline eluiga ~${fmt(R.oldrel.max_age)} a – sinu kala on ${Math.round(R.oldrel.age / R.oldrel.max_age * 100)}% sellest`, sp: R.oldrel.species, r: R.oldrel.rarity } : null],
+    ['ruler', 'Pikim püütud kala', R.long ? { v: `${esc(ksSp(R.long.species))} · ${fLenTxt(+R.long.len)}`, sub: `${fKg(+R.long.weight)}${R.long.age != null ? ' · ' + fAgeTxt(+R.long.age) : ''}`, sp: R.long.species, r: R.long.rarity } : null]
   ];
   h += `<section class="ks-sec"><div class="ks-sh">${ksI('star')}<h3>Isiklikud rekordid</h3></div><div class="ks-recs">${recs.map(([ic, l, o]) => `<div class="ks-rec ${o ? '' : 'none'}"><span class="ic">${ksI(ic)}</span><div><small>${l}</small><b>${o ? o.v : KS_NONE}</b>${o && o.sub ? `<em>${esc(o.sub)}</em>` : ''}</div>${o && o.sp ? `<canvas data-fl="${o.sp}" data-r="${o.r}" data-nobg="1"></canvas>` : '<span></span>'}</div>`).join('')}</div></section>`;
+  const OF = R.oldfish || { n: 0, list: [] };
+  h += `<section class="ks-sec"><div class="ks-sh">${ksI('age')}<h3>Erakordselt vanad kalad</h3><small>${fmt(OF.n)} püütud</small></div>${OF.list.length ? `<div class="ks-recs">${OF.list.map(o => `<div class="ks-rec"><span class="ic">👑</span><div><small>${esc(ksSp(o.species))}</small><b>${fAgeTxt(+o.age)}</b><em>${fKg(+o.weight)} · ${RAR2[o.rarity][0]}</em></div><canvas data-fl="${o.species}" data-r="${o.rarity}" data-nobg="1"></canvas></div>`).join('')}</div>` : `<p class="lead" style="margin:0">Sa pole veel püüdnud ühtegi erakordselt vana kala. Need on oma liigi kõige vanemad isendid – haruldane leid!</p>`}</section>`;
   // 4. saavutused
   const got = FS.ach || {}, A = id => FD.achs.find(a => a.id === id) || { name: id, descr: '' }, b = d.boss || {};
   const achs = [['esimene', 'fish', d.total, 1], ['kala100', 'fish', d.total, 100], ['kala1000', 'crown', d.total, 1000], ['legendaarne', 'crown', maxr >= 5 ? 1 : 0, 1], ['muutiline', 'gem', maxr >= 6 ? 1 : 0, 1],
@@ -13699,7 +13719,7 @@ function ktClean() {
     const lock = (r >= 5 && P.lvl < 30) || (r === 4 && P.lvl < 15), n = Math.max(1, Math.min(10, L.length, KTK.sel[sp] || 1));
     const pick = L.slice(0, n), cl = Math.max(3, Math.round(pick.reduce((t, x) => t + x.clicks, 0) * P.cmult)), fr = Math.min(...L.map(x => +x.fresh));
     return `<div class="kt-card r${r} ${lock ? 'lock' : ''}"><div class="kt-row"><canvas data-fl="${sp}" data-r="${r}" data-nobg="1"></canvas><div><h3>${esc(s.name)} <small style="display:inline;color:${RAR2[r][1]}">· ${RAR2[r][0]}</small></h3>
-      <small>${L.length} tk · ${fKg(Math.min(...L.map(x => +x.weight)))}–${fKg(Math.max(...L.map(x => +x.weight)))}</small>${ktFresh(fr)}</div></div>
+      <small>${L.length} tk · ${fKg(Math.min(...L.map(x => +x.weight)))}–${fKg(Math.max(...L.map(x => +x.weight)))}${(ag => ag.length ? ` · vanus ${fAgeTxt(Math.min(...ag)).replace(' a', '')}–${fAgeTxt(Math.max(...ag))}` : '')(L.filter(x => x.age != null).map(x => +x.age))}</small>${ktFresh(fr)}</div></div>
       ${lock ? `<small class="lead" style="font-size:12.5px">🔒 ${r >= 5 ? 'Legendaarseid ja müütilisi kalu saab töödelda 30. tasemel' : 'Eepilisi kalu saab töödelda 15. tasemel'}</small>`
         : `<div class="kt-act"><span class="kt-step"><button type="button" data-kt="n-" data-arg="${sp}" aria-label="Vähem">−</button><b>${n}</b><button type="button" data-kt="n+" data-arg="${sp}" aria-label="Rohkem">+</button></span>
           <button class="btn sm" type="button" data-kt="clean" data-arg="${sp}" ${KTK.busy || KTK.job ? 'disabled' : ''}>🔪 Puhasta (${cl} klikki)</button></div>`}</div>`;
@@ -14419,7 +14439,7 @@ function smBuilder() {
   const mins = ({ kuum: 15, maitse: 40, kulm: 120, kuiv: 180, premium: 240 }[pr.method]) * (1 + .04 * (SM.qty - 1)) * (1 - .05 * (D.lvl - 1)) * (smHas('kytte') ? .8 : 1);
   h += `<h3 class="sm-step" style="margin-top:12px"><b>${SM.special ? 3 : 4}</b> Kogus ja käivitamine</h3>
     <div class="sm-sum">${smIc(pr.grp, pr.method, pr.special, 64)}<div><b>${esc(pr.name)}</b><small>Hind ${fmt(pr.price)}–${fmt(Math.round(pr.price * 1.8))} kulda tk (sõltub kvaliteedist) · aega umbes ${mins >= 60 ? (mins / 60).toFixed(1).replace('.', ',') + ' h' : Math.round(mins) + ' min'}</small>
-      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
+      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala${(F0 => F0 && F0.amin != null ? ` (vanus ${fAgeTxt(+F0.amin).replace(' a', '')}–${fAgeTxt(+F0.amax)})` : '')(SM.special && pr.grp === 'legend' ? null : D.fish[pr.grp])} · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
     <button class="btn sm-go" type="button" data-sm="start" ${!have || SM.busy ? 'disabled' : ''}>🔥 Käivita suitsutamine</button></div>`;
   return h;
 }
@@ -14760,7 +14780,8 @@ function kiValue(r) {
 }
 function kiPanel(r) {
   const sp = FD.sp[r.species]; if (!sp) return '';
-  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), L = typeof fLen === 'function' ? fLen(sp, +r.weight) : '';
+  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), c0 = (FS.inventory || []).find(x => x.id === r.catch_id), bio = r.age != null ? r : c0 && c0.age != null ? c0 : null,
+    L = bio && bio.len != null ? fLenTxt(+bio.len) : typeof fLen === 'function' ? fLen(sp, +r.weight) : '', ag = fAge(sp, +r.weight, bio);
   const spot = (FD.spot[r.spot || FV.spot] || {}).name || '';
   const inInv = (FS.inventory || []).some(x => x.id === r.catch_id), ws = typeof KTK !== 'undefined' && KTK.d ? KTK.d.proc.ws : 1;
   const lockSmoke = typeof KTK !== 'undefined' && KTK.d && ws < 3;
@@ -14768,7 +14789,7 @@ function kiPanel(r) {
   return `<div class="ki">
     <div class="ki-h">${I[0] ? `<i>${esc(I[0])}</i>` : ''}${I[3] ? '<span class="ki-myth">✨ Muinasjutuline liik</span>' : ''}</div>
     <h4>Sinu saak</h4>
-    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
+    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Vanus</small><b style="color:${ag.col}">${fAgeTxt(ag.years)}</b><small>${ag.ic} ${ag.name}</small></div><div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
     <h4>📖 Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
     ${I[2].length ? `<h4>🌿 Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${inInv ? `<h4>Mida saad saagiga teha?</h4><div class="ki-acts">

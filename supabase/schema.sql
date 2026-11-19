@@ -1312,6 +1312,90 @@ do $$ declare t text; begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 2z6. Kala vanus: liigipõhine kasvumudel (von Bertalanffy) ja iga kala individuaalne vanus
+--   Igal liigil on oma kasvumudel fish_species veergudes (g_*). Tühjad väärtused täidetakse
+--   liigi andmete põhjal (max_len, max_age); päris kaladel on kalateaduse põhised väärtused.
+--     g_linf – asümptootiline pikkus (cm), mida kala kasvades lõpmatult läheneb
+--     g_k    – kasvukiirus (1/aasta): suurem = kasvab kiiremini ja jõuab varem täispikkusse
+--     g_t0   – teoreetiline vanus, mil pikkus oleks 0
+--     g_b    – pikkuse ja kaalu seose aste (W = a·L^b; a arvutatakse max_len ja max_w järgi)
+--     g_mat  – suguküpsuse vanus (aastat)
+--     g_cls  – vanuseklasside piirid aastates: {noor, noor täiskasvanu, täiskasvanud, vana}, üle viimase = erakordselt vana
+--   Vanus ja pikkus arvutatakse ÜKS kord, kala püüdmisel (trigger), ja salvestatakse fish_catches tabelisse.
+--   Uue liigi lisamisel piisab, kui sellel on max_len ja max_age – või panna g_* väärtused ise.
+-- ---------------------------------------------------------------------
+alter table public.fish_species add column if not exists g_linf numeric;
+alter table public.fish_species add column if not exists g_k numeric;
+alter table public.fish_species add column if not exists g_t0 numeric;
+alter table public.fish_species add column if not exists g_b numeric;
+alter table public.fish_species add column if not exists g_mat numeric;
+alter table public.fish_species add column if not exists g_cls numeric[];
+-- päris kalade kasvuandmed (ligikaudsed, kalateaduslike uuringute põhjal): k, t0, suguküpsus, b
+update public.fish_species s set g_k = coalesce(s.g_k, v.k), g_t0 = coalesce(s.g_t0, v.t0), g_mat = coalesce(s.g_mat, v.m), g_b = coalesce(s.g_b, v.b)
+from (values ('ahven',.20,-.5,3,3.15),('sarg',.18,-.6,3,3.1),('roosarg',.17,-.6,3,3.1),('haug',.20,-.4,3,3.05),('koha',.17,-.5,4,3.1),('latikas',.12,-.8,6,3.2),
+  ('angerjas',.08,-1,10,3.2),('lohe',.35,0,4,3.0),('meriforell',.25,-.2,4,3.0),('joeforell',.30,-.3,3,3.0),('vikerforell',.35,-.2,3,3.05),('raim',.35,-.5,2,3.15),
+  ('kilu',.50,-.5,1.5,3.1),('tursk',.15,-.3,3,3.05),('lest',.25,-.4,3,3.15),('linask',.15,-.6,4,3.15),('luts',.17,-.5,3,3.05),('siig',.30,-.4,4,3.1),
+  ('raabis',.50,-.3,2,3.1),('saga',.10,-.6,4,3.0),('tuur',.05,-1.5,15,3.1),('karpkala',.20,-.5,4,3.1),('harjus',.30,-.4,3,3.1),('sainas',.15,-.6,4,3.1),
+  ('toogjas',.18,-.5,4,3.1),('turb',.15,-.5,4,3.1),('tuun',.10,-1,5,3.0),('makrell',.30,-1,2,3.2),('kiisk',.25,-.5,2,3.1),('tint',.40,-.3,2,3.1),
+  ('viidikas',.40,-.3,2,3.1),('teib',.25,-.5,3,3.05),('koger',.20,-.5,3,3.2),('hobekoger',.25,-.5,2,3.2),('vimb',.20,-.5,4,3.1),('nurg',.18,-.6,4,3.15),
+  ('nokkhaug',.30,-.5,2,3.0),('kammeljas',.20,-.5,4,3.2),('amuur',.20,-.5,5,3.0),('hobekarp',.20,-.5,4,3.0),('merikurat',.12,-.5,6,3.1),('mookkala',.18,-1,4,3.2),
+  ('paalia',.18,-.5,5,3.05),('peled',.30,-.4,3,3.1),('vahk',.15,-.5,3,3.0)) as v(id, k, t0, m, b)
+where s.id = v.id;
+-- ülejäänud liigid (sh muinasjutulised): mudel liigi pikkuse ja eluea põhjal
+update public.fish_species set g_b = 3 where g_b is null;
+update public.fish_species set g_k = round(2.9 / greatest(1, max_age)::numeric, 4) where g_k is null and max_age is not null;
+update public.fish_species set g_t0 = -0.3 where g_t0 is null;
+update public.fish_species set g_mat = greatest(0.5, round(max_age * 0.15, 1)) where g_mat is null and max_age is not null;
+update public.fish_species set g_linf = round(max_len * 1.12, 1) where g_linf is null and max_len is not null;
+-- vanuseklasside piirid: noor < suguküpsus; noor täiskasvanu < küpsus + 25% ülejäänud elueast; täiskasvanud < 60% elueast; vana < 85%
+update public.fish_species set g_cls = array[g_mat, round(g_mat + (max_age - g_mat) * 0.25, 1), round(greatest(g_mat + (max_age - g_mat) * 0.3, max_age * 0.6), 1), round(max_age * 0.85, 1)]
+  where g_cls is null and max_age is not null and g_mat is not null;
+
+alter table public.fish_catches add column if not exists length_cm numeric;
+alter table public.fish_catches add column if not exists age numeric;
+alter table public.fish_catches add column if not exists age_cls smallint;
+
+-- vanuseklass aastate järgi (0 noor, 1 noor täiskasvanu, 2 täiskasvanud, 3 vana, 4 erakordselt vana)
+create or replace function public.fx_age_cls(s public.fish_species, t numeric) returns smallint language sql immutable as $$
+  select case when s.g_cls is null then null when t < s.g_cls[1] then 0 when t < s.g_cls[2] then 1 when t < s.g_cls[3] then 2 when t < s.g_cls[4] then 3 else 4 end::smallint $$;
+-- ühe kala pikkus ja vanus: kaal → pikkus (liigi pikkuse-kaalu seos + kala toitumus), pikkus → vanus (liigi kasvukõver)
+-- Juhuslik bioloogiline erinevus: toitumus ±12% (paks kala on lühem ja noorem), kasvukiirus ±15%, lõpp-pikkus ±8%
+create or replace function public.fx_fish_bio(p_species text, p_w numeric) returns numeric[] language plpgsql volatile as $$
+declare s public.fish_species; a numeric; cf numeric; l numeric; li numeric; ki numeric; t numeric; t97 numeric; mx numeric;
+begin
+  select * into s from public.fish_species where id = p_species;
+  if s.id is null or s.max_len is null or s.max_w is null or s.g_k is null or coalesce(p_w, 0) <= 0 then return null; end if;
+  a := s.max_w * 1000 / power(s.max_len, s.g_b);
+  cf := 0.88 + random() * 0.24;
+  l := power(p_w * 1000 / (a * cf), 1 / s.g_b);
+  li := s.g_linf * (0.92 + random() * 0.16);
+  ki := s.g_k * (0.85 + random() * 0.30);
+  mx := greatest(1, s.max_age);
+  t97 := s.g_t0 - ln(0.03) / ki;
+  if l < li * 0.97 then t := s.g_t0 - ln(1 - l / li) / ki;
+  else t := t97 + random() * greatest(0, mx * 1.1 - t97); -- täispikkuses kala võib olla väga erineva vanusega
+  end if;
+  t := greatest(0.2, least(mx * 1.15, t));
+  t := case when t < 3 then round(t, 1) else round(t) end;
+  return array[round(l, 1), t, public.fx_age_cls(s, t)];
+end $$;
+create or replace function public.fx_fish_bio_trg() returns trigger language plpgsql as $$
+declare v numeric[];
+begin
+  if new.age is null and new.species is not null then
+    v := public.fx_fish_bio(new.species, new.weight);
+    if v is not null then new.length_cm := v[1]; new.age := v[2]; new.age_cls := v[3]::smallint; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists fish_catches_bio on public.fish_catches;
+create trigger fish_catches_bio before insert on public.fish_catches for each row execute function public.fx_fish_bio_trg();
+-- varem püütud kalad saavad vanuse ühe korra (ainult need, kellel seda veel pole – olemasolevaid ei muudeta)
+update public.fish_catches c set length_cm = v[1], age = v[2], age_cls = v[3]::smallint
+  from (select id, public.fx_fish_bio(species, weight) v from public.fish_catches where age is null and species is not null) z
+  where c.id = z.id and z.v is not null;
+
+-- ---------------------------------------------------------------------
 -- 2t. Kes on mängus (online)
 alter table public.profiles add column if not exists last_seen timestamptz;
 alter table public.profiles add column if not exists last_where text;
@@ -1979,14 +2063,14 @@ begin
   perform fx_proc(u); perform fx_biz_tick(u); -- äripartnerite tellimused tekivad serveris
   -- vanad pooleli jäänud viskamised loetakse kaotatuks
   update fish_casts set state = 'lost' where user_id = u and state in ('waiting','hooked') and created_at < now() - interval '3 minutes';
-  select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx, 'fa', fa, 'fs', fsp, 'ra', ra, 'rs', rsp)), '{}') into book
-    from (select species, count(*) n, max(weight) mx, min(caught_at) fa, (array_agg(spot order by caught_at))[1] fsp,
+  select coalesce(jsonb_object_agg(species, jsonb_build_object('n', n, 'max', mx, 'fa', fa, 'fs', fsp, 'ra', ra, 'rs', rsp, 'age', ag, 'len', ln)), '{}') into book
+    from (select species, count(*) n, max(weight) mx, min(caught_at) fa, max(age) ag, max(length_cm) ln, (array_agg(spot order by caught_at))[1] fsp,
             (array_agg(caught_at order by weight desc, caught_at))[1] ra, (array_agg(spot order by weight desc, caught_at))[1] rsp
           from fish_catches where user_id = u and not bought group by species) x;
   select coalesce(jsonb_object_agg(ach, at), '{}') into v_ach from fish_unlocked where user_id = u;
   select coalesce(jsonb_object_agg(rarity, n), '{}') into byr from (select rarity, count(*) n from fish_catches where user_id = u and not bought group by rarity) x;
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'species', species, 'rarity', rarity, 'weight', weight, 'spot', spot,
-           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap, 'fresh', round(fx_fresh(u, fish_catches), 2), 'value', case when status = 'kept' then fx_sell_price(u, fish_catches, v_sb) end) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
+           'giant', giant, 'trophy', status = 'trophy', 'bought', bought, 'at', caught_at, 'trap', trap, 'fresh', round(fx_fresh(u, fish_catches), 2), 'age', age, 'len', length_cm, 'acls', age_cls, 'value', case when status = 'kept' then fx_sell_price(u, fish_catches, v_sb) end) order by status = 'trophy' desc, rarity desc, weight desc), '[]')
     into inv from fish_catches where user_id = u and status in ('kept','trophy');
   select count(*) into inbox from kingdom_inbox where user_id = u;
   select coalesce(jsonb_object_agg(item, qty), '{}') into v_items from fisher_items where user_id = u and qty > 0;
@@ -2282,7 +2366,8 @@ begin
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
   kt := fx_kt_add(u, s.id, s.rarity, c.weight, c.giant);
-  return jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
+  return coalesce((select jsonb_build_object('age', z.age, 'len', z.length_cm, 'acls', z.age_cls) from fish_catches z where z.id = cid), '{}')
+    || jsonb_build_object('ok', true, 'kind', 'fish', 'kt', kt, 'catch_id', cid, 'items', items, 'species', s.id, 'name', s.name, 'rarity', s.rarity,
     'weight', c.weight, 'giant', c.giant, 'new_species', newsp, 'record', prevmax is not null and c.weight > prevmax,
     'xp', xp, 'x2', fx_kuma(), 'fav', c.bait = any(s.baits), 'best', fx_daypart() = any(s.times), 'levels', to_jsonb(levels), 'ach', ach)
     || jsonb_build_object('net', netsave, 'second', second, 'dressed', dressed)
@@ -5457,6 +5542,15 @@ begin
   if x.species is not null then rec := rec || jsonb_build_object('deep', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'spot', x.spot)); end if;
   select c.species, c.weight, c.rarity into x from fish_catches c where c.user_id = u and not c.bought order by c.rarity desc, c.weight desc limit 1;
   if x.species is not null then rec := rec || jsonb_build_object('rare', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity)); end if;
+  -- vanuse ja pikkuse rekordid
+  select c.species, c.weight, c.rarity, c.age, c.length_cm, c.caught_at, c.spot into x from fish_catches c where c.user_id = u and not c.bought and c.age is not null order by c.age desc, c.weight desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('old', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'age', x.age, 'len', x.length_cm, 'at', x.caught_at, 'spot', x.spot)); end if;
+  select c.species, c.weight, c.rarity, c.age, s.max_age into x from fish_catches c join fish_species s on s.id = c.species where c.user_id = u and not c.bought and c.age is not null and s.max_age > 0 order by c.age / s.max_age desc, c.age desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('oldrel', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'age', x.age, 'max_age', x.max_age)); end if;
+  select c.species, c.weight, c.rarity, c.length_cm, c.age into x from fish_catches c where c.user_id = u and not c.bought and c.length_cm is not null order by c.length_cm desc limit 1;
+  if x.species is not null then rec := rec || jsonb_build_object('long', jsonb_build_object('species', x.species, 'weight', x.weight, 'rarity', x.rarity, 'len', x.length_cm, 'age', x.age)); end if;
+  rec := rec || jsonb_build_object('oldfish', (select jsonb_build_object('n', count(*), 'list', coalesce(jsonb_agg(jsonb_build_object('species', z.species, 'age', z.age, 'weight', z.weight, 'rarity', z.rarity) order by z.age desc) filter (where z.rn <= 6), '[]'))
+    from (select c.*, row_number() over (order by c.age desc) rn from fish_catches c where c.user_id = u and not c.bought and c.age_cls = 4) z));
   select min(extract(epoch from hooked_at - bite_at)) into fast from fish_casts where user_id = u and state = 'landed' and kind = 'fish' and hooked_at is not null and hooked_at >= bite_at;
   if fast is not null then rec := rec || jsonb_build_object('fast', round(fast, 2)); end if;
   -- pikim järjestikuste püügipäevade seeria
@@ -5737,7 +5831,7 @@ begin
     'catalog', (select jsonb_agg(to_jsonb(m) order by m.sort) from fish_mats m),
     'recipes', (select jsonb_agg(to_jsonb(r) order by r.sort) from fish_recipes r),
     'fish', (select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'species', c.species, 'rarity', c.rarity, 'weight', c.weight, 'fresh', round(fx_fresh(u, c), 2),
-        'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought),
+        'age', c.age, 'len', c.length_cm, 'acls', c.age_cls, 'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought),
     'orders', (select coalesce(jsonb_agg(to_jsonb(o) - 'user_id' order by o.idx), '[]') from fisher_proc_orders o where o.user_id = u and o.day = fx_today()),
     'quests', (select jsonb_agg(qq || jsonb_build_object('have', case when qq ->> 'stat' = '_lvl' then lv else coalesce((p.stats ->> (qq ->> 'stat'))::int, 0) end,
         'claimed', exists (select 1 from fisher_proc_quests z where z.user_id = u and z.q = qq ->> 'id'))) from jsonb_array_elements(fx_proc_quests()) qq),
@@ -6045,8 +6139,8 @@ begin
       'berries', floor(coalesce((sv.data -> 'res' ->> 'berries')::numeric, 0)), 'kingdom', sv.user_id is not null),
     'stock', (select coalesce(jsonb_object_agg(mat, qty), '{}') from fisher_mats where user_id = u and qty > 0 and mat in ('kask','lepp','ounapuu','tamm','sool','till','kuuslauk','pipar','maitsetaim','marinaad','luu','soomus','kuldsoomus','luukonks','iidneluu')),
     'products', (select jsonb_agg(to_jsonb(x) order by x.sort) from fish_smoke_products x),
-    'fish', (select coalesce(jsonb_object_agg(g, jsonb_build_object('n', n, 'fresh', fr)), '{}') from (
-        select fx_smoke_grp(c.species) g, count(*) n, round(avg(fx_fresh(u, c)), 2) fr from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought group by 1) z),
+    'fish', (select coalesce(jsonb_object_agg(g, jsonb_build_object('n', n, 'fresh', fr, 'amin', amin, 'amax', amax)), '{}') from (
+        select fx_smoke_grp(c.species) g, count(*) n, round(avg(fx_fresh(u, c)), 2) fr, min(c.age) amin, max(c.age) amax from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought group by 1) z),
     'legend_n', (select count(*) from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought and c.rarity >= 5),
     'smoked', (select coalesce(jsonb_agg(jsonb_build_object('product', z.product, 'quality', z.quality, 'qty', z.qty, 'value', fx_smoke_value(pr, z.quality)) order by pr.sort, z.quality desc), '[]')
       from fisher_smoked z join fish_smoke_products pr on pr.id = z.product where z.user_id = u and z.qty > 0),

@@ -151,7 +151,7 @@ function smBuilder() {
   const mins = ({ kuum: 15, maitse: 40, kulm: 120, kuiv: 180, premium: 240 }[pr.method]) * (1 + .04 * (SM.qty - 1)) * (1 - .05 * (D.lvl - 1)) * (smHas('kytte') ? .8 : 1);
   h += `<h3 class="sm-step" style="margin-top:12px"><b>${SM.special ? 3 : 4}</b> Kogus ja käivitamine</h3>
     <div class="sm-sum">${smIc(pr.grp, pr.method, pr.special, 64)}<div><b>${esc(pr.name)}</b><small>Hind ${fmt(pr.price)}–${fmt(Math.round(pr.price * 1.8))} kulda tk (sõltub kvaliteedist) · aega umbes ${mins >= 60 ? (mins / 60).toFixed(1).replace('.', ',') + ' h' : Math.round(mins) + ' min'}</small>
-      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
+      <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala${(F0 => F0 && F0.amin != null ? ` (vanus ${fAgeTxt(+F0.amin).replace(' a', '')}–${fAgeTxt(+F0.amax)})` : '')(SM.special && pr.grp === 'legend' ? null : D.fish[pr.grp])} · ahju mahub ${D.cap} · suur kala annab kuni 2 toodet</small></div></div></div>
     <button class="btn sm-go" type="button" data-sm="start" ${!have || SM.busy ? 'disabled' : ''}>🔥 Käivita suitsutamine</button></div>`;
   return h;
 }

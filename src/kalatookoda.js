@@ -174,7 +174,7 @@ function ktClean() {
     const lock = (r >= 5 && P.lvl < 30) || (r === 4 && P.lvl < 15), n = Math.max(1, Math.min(10, L.length, KTK.sel[sp] || 1));
     const pick = L.slice(0, n), cl = Math.max(3, Math.round(pick.reduce((t, x) => t + x.clicks, 0) * P.cmult)), fr = Math.min(...L.map(x => +x.fresh));
     return `<div class="kt-card r${r} ${lock ? 'lock' : ''}"><div class="kt-row"><canvas data-fl="${sp}" data-r="${r}" data-nobg="1"></canvas><div><h3>${esc(s.name)} <small style="display:inline;color:${RAR2[r][1]}">· ${RAR2[r][0]}</small></h3>
-      <small>${L.length} tk · ${fKg(Math.min(...L.map(x => +x.weight)))}–${fKg(Math.max(...L.map(x => +x.weight)))}</small>${ktFresh(fr)}</div></div>
+      <small>${L.length} tk · ${fKg(Math.min(...L.map(x => +x.weight)))}–${fKg(Math.max(...L.map(x => +x.weight)))}${(ag => ag.length ? ` · vanus ${fAgeTxt(Math.min(...ag)).replace(' a', '')}–${fAgeTxt(Math.max(...ag))}` : '')(L.filter(x => x.age != null).map(x => +x.age))}</small>${ktFresh(fr)}</div></div>
       ${lock ? `<small class="lead" style="font-size:12.5px">🔒 ${r >= 5 ? 'Legendaarseid ja müütilisi kalu saab töödelda 30. tasemel' : 'Eepilisi kalu saab töödelda 15. tasemel'}</small>`
         : `<div class="kt-act"><span class="kt-step"><button type="button" data-kt="n-" data-arg="${sp}" aria-label="Vähem">−</button><b>${n}</b><button type="button" data-kt="n+" data-arg="${sp}" aria-label="Rohkem">+</button></span>
           <button class="btn sm" type="button" data-kt="clean" data-arg="${sp}" ${KTK.busy || KTK.job ? 'disabled' : ''}>🔪 Puhasta (${cl} klikki)</button></div>`}</div>`;

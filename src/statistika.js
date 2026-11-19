@@ -11,6 +11,9 @@ const KS = { d: null, at: 0, loading: false, anim: '' };
   FTAB_FN.stats = ksTab;
 }
 const KS_IC = {
+  age: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/><path d="M4 4l2.5 2.5M20 4l-2.5 2.5"/>',
+  leaf: '<path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/>',
+  ruler: '<rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6 8v3M9.5 8v4M13 8v3M16.5 8v4"/>',
   stats: '<path d="M4 20.5h16"/><path d="M6.5 20.5v-6M11 20.5V8M15.5 20.5v-9M20 20.5V5"/>',
   fish: '<path d="M2.5 12c3.2-5 10.5-5.2 14.5 0-4 5.2-11.3 5-14.5 0Z"/><path d="M17 12l4.5-3.5v7Z"/><circle cx="7" cy="11.2" r=".6" fill="currentColor"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
@@ -134,9 +137,14 @@ function ksTab() {
     ['deep', 'Kõige sügavamast veest', R.deep ? fishRec(R.deep, FD.spot[R.deep.spot] ? FD.spot[R.deep.spot].name : '') : null],
     ['watch', 'Kiireim tabamine', R.fast != null ? { v: `${String(R.fast).replace('.', ',')} s`, sub: 'näkkamisest haakimiseni' } : null],
     ['trophy', 'Suurim võistluse punktisumma', R.comp ? { v: `${fmt(R.comp)} punkti`, sub: 'ühe Kalatunni jooksul' } : null],
-    ['crown', 'Kõige haruldasem püütud kala', R.rare ? fishRec(R.rare, RAR2[R.rare.rarity][0]) : null]
+    ['crown', 'Kõige haruldasem püütud kala', R.rare ? fishRec(R.rare, RAR2[R.rare.rarity][0]) : null],
+    ['age', 'Vanim püütud kala', R.old ? { v: `${esc(ksSp(R.old.species))} · ${fAgeTxt(+R.old.age)}`, sub: `${fKg(+R.old.weight)}${R.old.len ? ' · ' + fLenTxt(+R.old.len) : ''}${FD.spot[R.old.spot] ? ' · ' + FD.spot[R.old.spot].name : ''}`, sp: R.old.species, r: R.old.rarity } : null],
+    ['leaf', 'Vanim oma liigi kohta', R.oldrel ? { v: `${esc(ksSp(R.oldrel.species))} · ${fAgeTxt(+R.oldrel.age)}`, sub: `liigi tavaline eluiga ~${fmt(R.oldrel.max_age)} a – sinu kala on ${Math.round(R.oldrel.age / R.oldrel.max_age * 100)}% sellest`, sp: R.oldrel.species, r: R.oldrel.rarity } : null],
+    ['ruler', 'Pikim püütud kala', R.long ? { v: `${esc(ksSp(R.long.species))} · ${fLenTxt(+R.long.len)}`, sub: `${fKg(+R.long.weight)}${R.long.age != null ? ' · ' + fAgeTxt(+R.long.age) : ''}`, sp: R.long.species, r: R.long.rarity } : null]
   ];
   h += `<section class="ks-sec"><div class="ks-sh">${ksI('star')}<h3>Isiklikud rekordid</h3></div><div class="ks-recs">${recs.map(([ic, l, o]) => `<div class="ks-rec ${o ? '' : 'none'}"><span class="ic">${ksI(ic)}</span><div><small>${l}</small><b>${o ? o.v : KS_NONE}</b>${o && o.sub ? `<em>${esc(o.sub)}</em>` : ''}</div>${o && o.sp ? `<canvas data-fl="${o.sp}" data-r="${o.r}" data-nobg="1"></canvas>` : '<span></span>'}</div>`).join('')}</div></section>`;
+  const OF = R.oldfish || { n: 0, list: [] };
+  h += `<section class="ks-sec"><div class="ks-sh">${ksI('age')}<h3>Erakordselt vanad kalad</h3><small>${fmt(OF.n)} püütud</small></div>${OF.list.length ? `<div class="ks-recs">${OF.list.map(o => `<div class="ks-rec"><span class="ic">👑</span><div><small>${esc(ksSp(o.species))}</small><b>${fAgeTxt(+o.age)}</b><em>${fKg(+o.weight)} · ${RAR2[o.rarity][0]}</em></div><canvas data-fl="${o.species}" data-r="${o.rarity}" data-nobg="1"></canvas></div>`).join('')}</div>` : `<p class="lead" style="margin:0">Sa pole veel püüdnud ühtegi erakordselt vana kala. Need on oma liigi kõige vanemad isendid – haruldane leid!</p>`}</section>`;
   // 4. saavutused
   const got = FS.ach || {}, A = id => FD.achs.find(a => a.id === id) || { name: id, descr: '' }, b = d.boss || {};
   const achs = [['esimene', 'fish', d.total, 1], ['kala100', 'fish', d.total, 100], ['kala1000', 'crown', d.total, 1000], ['legendaarne', 'crown', maxr >= 5 ? 1 : 0, 1], ['muutiline', 'gem', maxr >= 6 ? 1 : 0, 1],

@@ -53,11 +53,11 @@ function kitShow(r) {
   const p = Math.max(0, Math.min(1, (w - s.min_w) / Math.max(1e-9, s.max_w - s.min_w)));
   const tier = r.giant || w > s.max_w ? 'hiid' : p >= .7 ? 'suur' : p >= .35 ? 'hea' : 'vaike';
   const [heads, sup] = KIT_TXT[tier], head = heads[Math.floor(Math.random() * heads.length)];
-  const name = s.name.charAt(0).toLowerCase() + s.name.slice(1), len = typeof fLen === 'function' ? fLen(s, w) : '';
+  const name = s.name.charAt(0).toLowerCase() + s.name.slice(1), len = r.len != null && typeof fLenTxt === 'function' ? fLenTxt(+r.len) : typeof fLen === 'function' ? fLen(s, w) : '';
   const col = tier === 'hiid' ? '#f2b552' : (RAR2[s.rarity] || RAR2[1])[1];
   // mõõdulint pikkuse järgi (sama mis kalakaardil)
   const L = (x) => s.max_len ? Math.cbrt(x / s.max_w) : x / s.max_w, top = L(gm), pos = (x) => Math.max(0, Math.min(100, L(x) / top * 100));
-  const ag = typeof fAge === 'function' ? fAge(s, w) : null;
+  const ag = typeof fAge === 'function' ? fAge(s, w, r.age != null ? r : null) : null;
   const chips = [ag ? `<span class="age" style="--ac:${ag.col}">${ag.txt}</span>` : '', r.record || r.new_species ? (r.new_species ? '<span class="new">📖 Uus liik</span>' : '<span class="rec">🏆 Isiklik rekord</span>') : '', r.fav ? '<span class="fav">❤ Lemmiksööt</span>' : ''].filter(Boolean).join('');
   const conf = tier === 'suur' || tier === 'hiid' ? Array.from({ length: tier === 'hiid' ? 26 : 14 }, (_, i) => `<i class="cf" style="left:${(4 + i * 92 / (tier === 'hiid' ? 26 : 14)).toFixed(1)}%;background:${['#ffd286', '#ff8fb0', '#7ae0ff', '#b8f5c4', '#fff'][i % 5]};--x:${((i % 2 ? 1 : -1) * (10 + (i * 7) % 30))}px;--d:${(.1 + (i % 7) * .09).toFixed(2)}s"></i>`).join('') : '';
   kitHide();
