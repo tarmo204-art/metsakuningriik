@@ -102,36 +102,84 @@ const KI = {
   kuningasaga: ['Silurus regalis', 'Kuningasäga on tiigi põhjas elav vana hiiglane, kelle vurrud on kullakarva.', ['Legendi järgi elab ta tiigis lossi ehitamisest saati.', 'Tema vurrud on kuldsed.', 'Ta on väga tark ja ettevaatlik.', 'Väga raske ja tugev.'], 1],
   kroonkala: ['Coronichthys regius', 'Kuninga kroonkala on müütiline kala, kelle seljauim on kroonikujuline.', ['Öeldakse, et kes ta püüab, see on kuninga väärt.', 'Tema seljauim särab nagu kroon.', 'Ilmub ainult kuninglikus tiigis.', 'Kõige haruldasem lossiaia kala.'], 1]
 };
+// Lucide ikoonid (lucide.dev, ISC litsents) – ühtne joonestiil: 24×24, joon 2, ümarad otsad
+const LU = {
+  'calendar-days': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>',
+  weight: '<circle cx="12" cy="5" r="3"/><path d="M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z"/>',
+  ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+  'map-pin': '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  'heart-pulse': '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+  trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  coins: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
+  fish: '<path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"/><path d="M18 12v.5"/><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"/><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"/><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"/><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"/>',
+  gem: '<path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>',
+  bug: '<path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>',
+  // Lucide'is pole õnge ikooni – joonistatud samas stiilis (24×24, joon 2, ümarad otsad)
+  'fishing-rod': '<path d="M3 21 16.5 4.5"/><path d="M16.5 4.5c2.8 1.6 4.5 5 4.5 9.5"/><path d="M21 14v2.5"/><path d="M19.5 19a1.5 1.5 0 0 0 3 0c0-1-1.5-2.5-1.5-2.5S19.5 18 19.5 19Z"/><circle cx="6.5" cy="17" r="2"/><path d="M8 15.5 10 13.5"/>',
+  'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+  baby: '<path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/>',
+  'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  medal: '<path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/><path d="M12 18v-2h-.5"/>',
+  crown: '<path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/>',
+  scissors: '<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  lightbulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  'trending-up': '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  'trending-down': '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>'
+};
+function luc(n, cls) { return `<svg class="lu ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LU[n] || ''}</svg>` }
+// vanuseklasside ikoonid ja värvid (noor → iidne)
+const KI_AGE = [['baby', '#8fd17a'], ['fish', '#6fd6b0'], ['shield-check', '#5ac8e8'], ['medal', '#f2b552'], ['crown', '#c58cff']];
+// värvid tähenduse järgi (sama värv = sama tüüpi info)
+const KI_COL = { mõõt: '#7ec8e3', koht: '#8fd17a', aeg: '#a9b8ff', raha: '#ffd27a', tervis: '#ff8fa3', varustus: '#d8b48a', haruldus: null };
 const KI_GRP = { joeforell: 'forell', vihmaforell: 'forell', vikerforell: 'forell', meriforell: 'forell', kroonforell: 'forell', angerjas: 'angerjas', kuuangerjas: 'angerjas', raim: 'raim', kilu: 'raim', sarg: 'sarg', roosarg: 'sarg', kuusarg: 'sarg', nokkhaug: 'tuulehaug', ahven: 'ahven', haug: 'haug', koha: 'koha', latikas: 'latikas', lohe: 'lohe' };
 function kiQual(sp, w, giant) {
   if (giant || w > sp.max_w * 1.0001) return ['Rekordsuurus', '#ffd27a'];
   const p = Math.log(Math.max(w, sp.min_w) / sp.min_w) / Math.log(Math.max(1.01, sp.max_w / sp.min_w));
   return p >= .85 ? ['Trofeekala', '#ffb347'] : p >= .6 ? ['Suurepärane', '#8fd17a'] : p >= .3 ? ['Hea', '#5ac8e8'] : ['Tavaline', '#c3d3a4'];
 }
-function kiValue(r) {
-  const c = (FS.inventory || []).find(x => x.id === r.catch_id), m = FV.market && FV.market[r.species], v = estPrice(r.catch_id); if (!c) return '';
-  const bits = [m ? `turg täna ×${String(m.mult).replace('.', ',')}${m.mult >= 1.1 ? ' 📈' : m.mult <= .85 ? ' 📉' : ''}` : '', c.fresh != null && +c.fresh < 1 ? `värskus ${Math.round(c.fresh * 100)}%` : '', m && m.sold ? `täna müüdud ${m.sold}` : ''].filter(Boolean);
-  return `<div><small>Turuväärtus</small><b style="color:#ffd27a">${fmt(v)} kulda</b>${bits.length ? `<small>${bits.join(' · ')}</small>` : ''}</div>`;
+function kiCell(icon, col, label, val, sub, vcol) {
+  return `<div class="ki-c" style="--ic:${col}"><span class="ki-i">${luc(icon)}</span><div><small>${label}</small><b${vcol ? ` style="color:${vcol}"` : ''}>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
 }
 function kiPanel(r) {
   const sp = FD.sp[r.species]; if (!sp) return '';
-  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), c0 = (FS.inventory || []).find(x => x.id === r.catch_id), bio = r.age != null ? r : c0 && c0.age != null ? c0 : null,
-    L = bio && bio.len != null ? fLenTxt(+bio.len) : typeof fLen === 'function' ? fLen(sp, +r.weight) : '', ag = fAge(sp, +r.weight, bio);
-  const spot = (FD.spot[r.spot || FV.spot] || {}).name || '';
-  const inInv = (FS.inventory || []).some(x => x.id === r.catch_id), ws = typeof KTK !== 'undefined' && KTK.d ? KTK.d.proc.ws : 1;
-  const lockSmoke = typeof KTK !== 'undefined' && KTK.d && ws < 3;
-  const act = (k, ic, t, s, dis) => `<button type="button" class="ki-a" data-ki="${k}" data-arg="${r.catch_id}" ${dis ? 'disabled' : ''}><span>${ic}</span><b>${t}</b><small>${s}</small></button>`;
+  const I = KI[r.species] || [null, sp.descr, []], q = kiQual(sp, +r.weight, r.giant), c0 = (FS.inventory || []).find(x => x.id === r.catch_id), bio = r.age != null ? r : c0 && c0.age != null ? c0 : null;
+  const L = bio && bio.len != null ? fLenTxt(+bio.len) : typeof fLen === 'function' ? fLen(sp, +r.weight) : '', ag = fAge(sp, +r.weight, bio), ai = KI_AGE[ag.i] || KI_AGE[2];
+  const spot = (FD.spot[r.spot || FV.spot] || {}).name || '', [rn, rc] = RAR2[r.rarity] || RAR2[1];
+  const at = c0 && c0.at ? new Date(c0.at) : new Date(), time = at.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' }), day = at.toLocaleDateString('et-EE', { day: 'numeric', month: 'long' });
+  const bait = FV.castBait && FD.bait[FV.castBait] ? FD.bait[FV.castBait].name : '', rod = FV.castRod && FD.rod && FD.rod[FV.castRod] ? FD.rod[FV.castRod].name : '';
+  const inInv = !!c0, ws = typeof KTK !== 'undefined' && KTK.d ? KTK.d.proc.ws : 1, lockSmoke = typeof KTK !== 'undefined' && KTK.d && ws < 3;
+  const fr = c0 && c0.fresh != null ? Math.round(+c0.fresh * 100) : 100, m = FV.market && FV.market[r.species];
+  const cells = [
+    kiCell('weight', KI_COL.mõõt, 'Kaal', fKg(+r.weight)),
+    L ? kiCell('ruler', KI_COL.mõõt, 'Pikkus', L) : '',
+    kiCell('calendar-days', ai[1], 'Vanus', fAgeTxt(ag.years), `<span class="ki-ac" style="color:${ai[1]}">${luc(ai[0])}${ag.name}</span>`, ai[1]),
+    kiCell('gem', q[1], 'Kvaliteet', q[0], '', q[1]),
+    kiCell('star', rc, 'Haruldus', rn, '', rc),
+    kiCell('heart-pulse', KI_COL.tervis, 'Tervis', fr >= 100 ? 'Värske' : fr + '% värske', fr >= 100 ? 'äsja püütud' : 'kala hakkab vananema'),
+    kiCell('map-pin', KI_COL.koht, 'Püügikoht', esc(spot)),
+    kiCell('clock', KI_COL.aeg, 'Püügiaeg', time, day),
+    bait ? kiCell('bug', KI_COL.varustus, 'Sööt', esc(bait), r.fav ? 'lemmiksööt' : '') : '',
+    rod ? kiCell('fishing-rod', KI_COL.varustus, 'Püügivahend', esc(rod)) : '',
+    inInv ? kiCell('coins', KI_COL.raha, 'Väärtus', fmt(estPrice(r.catch_id)) + ' kulda', m ? `<span class="ki-ac">${luc(m.mult >= 1 ? 'trending-up' : 'trending-down')}turg ×${String(m.mult).replace('.', ',')}${m.sold ? ` · täna müüdud ${m.sold}` : ''}</span>` : '', KI_COL.raha) : ''
+  ].join('');
+  const badges = [r.new_species ? `<span class="ki-b" style="--ic:#8ff0c8">${luc('sparkles')}Esmaleid – uus liik kalaraamatus</span>` : '',
+    r.giant ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Rekordsuurus</span>` : r.record ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Isiklik rekord</span>` : ''].join('');
+  const act = (k, ic, t, s, dis) => `<button type="button" class="ki-a" data-ki="${k}" data-arg="${r.catch_id}" ${dis ? 'disabled' : ''}>${luc(ic)}<b>${t}</b><small>${s}</small></button>`;
   return `<div class="ki">
-    <div class="ki-h">${I[0] ? `<i>${esc(I[0])}</i>` : ''}${I[3] ? '<span class="ki-myth">✨ Muinasjutuline liik</span>' : ''}</div>
+    <div class="ki-h"><span class="ki-sp">${luc('fish')}${I[0] ? `<i>${esc(I[0])}</i>` : esc(sp.name)}</span>${I[3] ? `<span class="ki-b" style="--ic:#c58cff">${luc('sparkles')}Muinasjutuline liik</span>` : ''}${badges}</div>
     <h4>Sinu saak</h4>
-    <div class="ki-g"><div><small>Kaal</small><b>${fKg(+r.weight)}</b></div>${L ? `<div><small>Pikkus</small><b>${L}</b></div>` : ''}<div><small>Vanus</small><b style="color:${ag.col}">${fAgeTxt(ag.years)}</b><small>${ag.ic} ${ag.name}</small></div><div><small>Püügikoht</small><b>${esc(spot)}</b></div><div><small>Kvaliteet</small><b style="color:${q[1]}">${q[0]}</b></div>${inInv ? kiValue(r) : ''}</div>
-    <h4>📖 Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
-    ${I[2].length ? `<h4>🌿 Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    <div class="ki-g">${cells}</div>
+    <h4>${luc('book-open')}Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
+    ${I[2].length ? `<h4>${luc('lightbulb')}Huvitavad faktid</h4><ul>${I[2].map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${inInv ? `<h4>Mida saad saagiga teha?</h4><div class="ki-acts">
-      ${act('fil', '🔪', 'Fileeri', 'Tee kalafileed')}
-      ${act('smoke', '🔥', 'Suitsuta', lockSmoke ? 'Avaneb töökoja 3. tasemel' : 'Valmista suitsukala', lockSmoke)}
-      ${act('biz', '🤝', 'Müü', 'Paku ettevõtetele')}
-      ${act('book', '📘', 'Kalaraamat', 'Vaata kollektsiooni')}</div>` : ''}
+      ${act('fil', 'scissors', 'Fileeri', 'Tee kalafileed')}
+      ${act('smoke', 'flame', 'Suitsuta', lockSmoke ? 'Avaneb töökoja 3. tasemel' : 'Valmista suitsukala', lockSmoke)}
+      ${act('biz', 'coins', 'Müü', 'Paku ettevõtetele')}
+      ${act('book', 'book-open', 'Kalaraamat', 'Täienda kollektsiooni')}</div>` : ''}
   </div>`;
 }
 {
@@ -141,7 +189,8 @@ function kiPanel(r) {
     if (!r || r.kind !== 'fish' || !FD.sp[r.species]) return h;
     // asenda lühikirjeldus põhjaliku tutvustusega (kirjeldus on nüüd paneelis)
     const sp = FD.sp[r.species], short = `<p class="lead" style="font-size:12.5px">${esc(sp.descr)}</p>`;
-    return h.replace(short, '').replace(/(<div class="acts">)/, kiPanel(r) + '<div class="ki-more">Veel võimalusi</div>$1');
+    const bio = r.age != null ? r : (FS.inventory || []).find(x => x.id === r.catch_id), ag = fAge(sp, +r.weight, bio && bio.age != null ? bio : null), ai = KI_AGE[ag.i] || KI_AGE[2];
+    return h.replace(/<span class="age-chip"[^>]*>[^<]*<\/span>/, `<span class="age-chip ki-chip" style="--ac:${ai[1]}">${luc(ai[0])}${ag.name} · ${fAgeTxt(ag.years)}</span>`).replace(short, '').replace(fSize(sp, +r.weight), fKg(+r.weight) + (bio && bio.len != null ? ' · ' + fLenTxt(+bio.len) : '')).replace(/(<div class="acts">)/, kiPanel(r) + '<div class="ki-more">Veel võimalusi</div>$1');
   };
 }
 document.addEventListener('click', e => {
@@ -165,11 +214,20 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .ki h4{margin:8px 0 0;font-size:15px}
 .ki p{margin:0;line-height:1.55;max-width:70ch}
 .ki ul{margin:0;padding-left:20px;line-height:1.6}.ki li::marker{color:var(--rc,#8fd17a)}
-.ki-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
-.ki-g div{padding:8px 11px;border-radius:10px;background:rgba(0,0,0,.22)}.ki-g small{display:block;color:#a9c4c8;font-size:12px}.ki-g b{font-size:16px}
+.lu{width:18px;height:18px;flex:none;display:inline-block;vertical-align:-3px}
+.ki h4{display:flex;align-items:center;gap:7px}.ki h4 .lu{color:#7ec8e3}
+.ki-h{gap:8px}.ki-sp{display:inline-flex;align-items:center;gap:6px;color:#a9c4c8}.ki-sp .lu{color:#7ec8e3}
+.ki-b{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;padding:3px 10px 3px 7px;border-radius:999px;color:var(--ic);background:color-mix(in srgb,var(--ic) 15%,transparent)}.ki-b .lu{width:15px;height:15px}
+.ki-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+@media (max-width:560px){.ki-g{grid-template-columns:repeat(2,minmax(0,1fr))}.ki-c{grid-template-columns:28px minmax(0,1fr);gap:7px;padding:7px 8px}.ki-i{width:28px;height:28px}.ki-i .lu{width:16px;height:16px}.ki-c b{font-size:14.5px}}
+.ki-c{display:grid;grid-template-columns:34px minmax(0,1fr);gap:9px;align-items:center;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
+.ki-i{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;color:var(--ic);background:color-mix(in srgb,var(--ic) 14%,transparent)}
+.ki-c small{display:block;color:#a9c4c8;font-size:12px}.ki-c b{display:block;font-size:15.5px;line-height:1.25}
+.ki-ac{display:inline-flex;align-items:center;gap:4px}.ki-ac .lu{width:14px;height:14px}
+.ki-chip{display:inline-flex;align-items:center;gap:5px}.ki-chip .lu{width:14px;height:14px;color:var(--ac)}
 .ki-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:2px}
-.ki-a{display:grid;justify-items:center;gap:2px;padding:12px 8px;border-radius:12px;border:1px solid rgba(134,205,224,.22);background:rgba(255,255,255,.05);color:#e6efec;font:inherit;cursor:pointer;transition:background .15s,border-color .15s}
-.ki-a span{font-size:22px;line-height:1}.ki-a b{font-size:15px}.ki-a small{font-size:12px;color:#a9c4c8}
+.ki-a{display:grid;justify-items:center;gap:3px;padding:12px 8px;border-radius:12px;border:1px solid rgba(134,205,224,.22);background:rgba(255,255,255,.05);color:#e6efec;font:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+.ki-a .lu{width:22px;height:22px;color:#7ec8e3;margin-bottom:2px}.ki-a b{font-size:15px}.ki-a small{font-size:12px;color:#a9c4c8}
 .ki-a:hover:not(:disabled),.ki-a:focus-visible{background:rgba(70,208,198,.14);border-color:rgba(130,245,230,.6)}
 .ki-a:disabled{opacity:.5;cursor:not-allowed}
 .ki-more{grid-column:1/-1;font-size:12.5px;color:#a9c4c8;margin-top:6px}

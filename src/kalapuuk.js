@@ -846,6 +846,7 @@ async function doCast() {
   if (typeof licMiss === 'function' && licMiss(FV.spot)) { const lm = licMiss(FV.spot); toast(`Siin püüdmiseks on vaja kehtivat kaarti „${LIC_N[lm]}“. Metsajärves saab püüda ka ilma kaardita.`, 'bad'); KA.focus = lm; FV.tab = 'kaardid'; renderFV(true); return }
   FV.busy = true; FV.result = null; setPhase('casting');
   try {
+    FV.castBait = FS.bait; FV.castRod = FS.rod;
     const r = await rpc('fish_cast', { p_spot: FV.spot, p_bait: FS.bait });
     FV.cast = r; FV.castAt = performance.now(); FV.biteAt = FV.castAt + r.wait_ms;
     const b = FD.bait[FS.bait]; if (b && b.consumable) FS.baits[b.id] = Math.max(0, ((FS.baits || {})[b.id] || 1) - 1);
