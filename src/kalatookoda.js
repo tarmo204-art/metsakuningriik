@@ -202,11 +202,7 @@ function ktLadu() {
 }
 function ktLett() {
   const P = KTK.d.proc; if (P.ws < 5) return ktLocked(5);
-  const ord = KTK.d.orders || [];
-  let h = `<div class="fv-card"><h2>🍺 Kõrtsi tellimused</h2><p class="lead">Kõrts ja kuningriigi köögid tellivad iga päev sinu tooteid. Tellimus maksab tavahinnast rohkem ja tõstab mainet. Mida kuulsam oled, seda rohkem tellimusi tuleb.</p>
-    <div class="kt-grid">${ord.map(o => `<div class="kt-card ${o.done ? '' : ''}"><div class="kt-row">${matIc(o.mat, 44)}<div><h3>${o.qty} × ${esc(ktMat(o.mat).name)}</h3><small>Laos: ${fmt(ktHave(o.mat))}</small></div></div>
-      <div class="kt-chips"><span class="kt-chip ok">🪙 ${fmt(o.gold)}</span><span class="kt-chip ok">⭐ ${o.rep}</span><span class="kt-chip ok">✨ ${o.xp}</span></div>
-      ${o.done ? '<span class="pill ok">✓ Täidetud</span>' : `<div class="kt-act"><button class="btn sm" type="button" data-kt="order" data-arg="${o.idx}" ${ktHave(o.mat) < o.qty || KTK.busy ? 'disabled' : ''}>📦 Täida tellimus</button></div>`}</div>`).join('')}</div></div>`;
+  let h = `<div class="fv-card"><h2>🤝 Tellimused</h2><p class="lead">Kõrtsi ja teiste klientide tellimused on nüüd <b>Äripartnerite</b> all – seal on 8 ettevõtet, kes ostavad sinu kalu, fileed ja tooteid.</p><button class="btn sm" type="button" data-bz-go="1">🤝 Ava Äripartnerid</button></div>`;
   const sell = KTK.d.catalog.filter(m => ktHave(m.id) > 0), bonus = 1 + 0.05 * P.tier;
   h += `<div class="fv-card"><h2>🏪 Kalalett</h2><p class="lead">Müü fileed, suitsukala ja meisterdatud tooteid. Maine tõstab hindu (praegu +${Math.round((bonus - 1) * 100)}%).</p>
     ${sell.length ? `<div class="kt-grid">${sell.map(m => `<div class="kt-card"><div class="kt-row">${matIc(m.id, 40)}<div><h3>${esc(m.name)} × ${fmt(ktHave(m.id))}</h3><small>${fmt(Math.round(m.price * bonus))} kulda tükk</small></div></div>
