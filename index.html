@@ -14363,6 +14363,7 @@ async function smLoad(silent) {
 function smSet(d) {
   SM.d = d; SM.at = Date.now(); SM.off = Date.parse(d.now) - Date.now();
   if (d.auto_got) smTaken(d.auto_got, true);
+  if (d.gift) toast('🎁 Kingitus suitsuahju avamiseks: 15 lepapuud, 10 kasepuud, 10 soola ja 5 tilli!', 'gold', 'gold');
 }
 function smSel() {
   const D = SM.d; let pid = SM.special || (SM.grp ? SM.grp + ':' + SM.method : null); const pr = pid ? smProd(pid) : null;
@@ -14377,6 +14378,7 @@ function smView() {
     <small class="lead">Suitsuahi · tase ${l}/10</small><h2 style="margin:2px 0 6px">${SM_LV[l - 1]}</h2>
     <div class="sm-lv">${[...Array(10)].map((_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</div>
     <div class="kt-chips" style="margin-top:8px"><span class="kt-chip">🐟 Korraga ${D.cap} kala</span><span class="kt-chip">⏱ Aeg −${(l - 1) * 5 + (smHas('kytte') ? 20 : 0)}%</span><span class="kt-chip">✨ Kvaliteet +${l * 3 + (smHas('temp') ? 10 : 0)}</span></div>
+    <div class="sm-wood">${SM_WOOD.map(w => `<span title="${SM_WNAME[w]}">${matIc(w, 22)}<b class="${smStock(w) ? '' : 'no'}">${smStock(w)}</b><small>${SM_WNAME[w]}</small></span>`).join('')}<button class="btn sm ghost" type="button" data-sm="goshop">🛒 Osta puid</button></div>
     ${l < 10 ? `<p class="lead" style="margin:8px 0 4px">Järgmine: <b>${SM_LV[l]}</b>${nextUnl.length ? ` – avaneb ${nextUnl.join(', ')}` : ''}</p>${ktCost(nx)}<button class="btn sm" type="button" data-sm="lvl" ${SM.busy ? 'disabled' : ''}>🔨 Täienda ahju</button>` : '<p class="lead">🏆 Legendaarne suitsukoda – kõrgeim tase!</p>'}</div></div>`;
   if (B) {
     const pr = smProd(B.product), tot = Date.parse(B.ready_at) - Date.parse(B.started_at), done = Date.parse(B.ready_at) <= Date.now() + (SM.off || 0);
@@ -14405,8 +14407,9 @@ function smBuilder() {
   // 3. puu ja maitseained
   const req = pr.spices || {}, needW = pr.wood;
   h += `<h3 class="sm-step" style="margin-top:12px"><b>${SM.special ? 2 : 3}</b> Küttepuu ja maitseained</h3>
-    <div class="sm-chips">${SM_WOOD.map(w => `<button type="button" class="sm-c ${SM.wood === w ? 'on' : ''} ${needW && needW !== w ? 'lock' : ''}" data-sm="wood" data-arg="${w}" ${needW && needW !== w ? 'disabled' : ''}>${SM_ICON[w]} ${SM_WNAME[w]} <i>${smStock(w)}</i></button>`).join('')}</div>
-    <div class="sm-chips" style="margin-top:6px">${SM_SPICE.map(x => `<button type="button" class="sm-c ${SM.spices.includes(x) ? 'on' : ''} ${req[x] ? 'req' : ''}" data-sm="spice" data-arg="${x}">${SM_ICON[x]} ${SM_WNAME[x]} <i>${smStock(x)}</i></button>`).join('')}</div>
+    <div class="sm-chips">${SM_WOOD.map(w => `<button type="button" class="sm-c ${SM.wood === w ? 'on' : ''} ${needW && needW !== w ? 'lock' : ''}" data-sm="wood" data-arg="${w}" ${needW && needW !== w ? 'disabled' : ''}>${SM_ICON[w]} ${SM_WNAME[w]} <i class="${smStock(w) ? '' : 'no'}">${smStock(w)}</i></button>`).join('')}</div>
+    <div class="sm-chips" style="margin-top:6px">${SM_SPICE.map(x => `<button type="button" class="sm-c ${SM.spices.includes(x) ? 'on' : ''} ${req[x] ? 'req' : ''}" data-sm="spice" data-arg="${x}">${SM_ICON[x]} ${SM_WNAME[x]} <i class="${smStock(x) ? '' : 'no'}">${smStock(x)}</i></button>`).join('')}</div>
+    ${smMissBox(pr)}
     <small class="lead">${needW ? `Retsept vajab puud: <b>${SM_WNAME[needW]}</b>. ` : ''}${Object.keys(req).length ? 'Vaja: ' + Object.entries(req).map(([k, v]) => k === 'maitse' ? '2 maitseainet' : k === 'berries' ? `${v} marja kala kohta (kuningriigist)` : `${SM_WNAME[k]}${v > 1 ? ' ×' + v : ''}`).join(', ') + '. ' : ''}Kulub 1 puu iga 3 kala ja 1 maitseaine iga 5 kala kohta.</small>`;
   // 4. kogus ja käivitus
   const have = SM.special && pr.grp === 'legend' ? D.legend_n : ((D.fish[pr.grp] || {}).n || 0), mx = Math.min(D.cap, have);
@@ -14417,6 +14420,22 @@ function smBuilder() {
       <div class="kt-act" style="margin-top:6px"><span class="kt-step"><button type="button" data-sm="q-" aria-label="Vähem">−</button><b>${SM.qty}</b><button type="button" data-sm="q+" aria-label="Rohkem">+</button></span><small class="lead">sul on ${have} sobivat kala · ahju mahub ${D.cap}</small></div></div></div>
     <button class="btn sm-go" type="button" data-sm="start" ${!have || SM.busy ? 'disabled' : ''}>🔥 Käivita suitsutamine</button></div>`;
   return h;
+}
+// mis puudu on valitud koguse jaoks (puud ja maitseained)
+function smMiss(pr) {
+  const n = SM.qty || 1, req = pr.spices || {}, need = {}, miss = [];
+  need[SM.wood] = Math.ceil(n / 3);
+  SM.spices.forEach(x => { need[x] = (need[x] || 0) + Math.ceil(n / 5) * (req[x] || 1) });
+  Object.keys(req).filter(k => SM_SPICE.includes(k) && !SM.spices.includes(k)).forEach(k => { need[k] = Math.ceil(n / 5) * req[k] });
+  for (const [k, q] of Object.entries(need)) if (smStock(k) < q) miss.push([k, q - smStock(k)]);
+  return miss;
+}
+function smMissBox(pr) {
+  const miss = smMiss(pr); if (!miss.length) return '<div class="sm-okbox">✓ Küttepuud ja maitseained on olemas</div>';
+  const buyable = miss.filter(([k]) => SM_PRICE[k]), cost = buyable.reduce((t, [k, q]) => t + SM_PRICE[k] * q, 0);
+  return `<div class="sm-miss"><span>⚠️ Puudu: ${miss.map(([k, q]) => `<b>${q} × ${SM_WNAME[k]}</b>`).join(', ')}</span>
+    ${buyable.length ? `<button class="btn sm" type="button" data-sm="buymiss" ${SM.busy || (SM.d.gold || 0) < cost ? 'disabled' : ''}>🛒 Osta puuduvad (${fmt(cost)} kulda)</button>` : ''}
+    ${miss.some(([k]) => k === 'marinaad') ? '<small>Erimarinaadi valmistad allpool „Puuriit ja maitseainete riiul“ juures.</small>' : ''}</div>`;
 }
 function smShop() {
   const R = SM.d.res || {};
@@ -14453,6 +14472,7 @@ async function smAct(a, arg, n) {
   if (a === 'grp') { SM.grp = arg; SM.special = null; const p = smProd(arg + ':' + SM.method); if (SM.d.lvl < p.min_lvl || (p.need_upg && !smHas(p.need_upg))) SM.method = 'kuum'; smAuto(); renderFV(true); return }
   if (a === 'special') { SM.special = arg; SM.grp = null; smAuto(); renderFV(true); return }
   if (a === 'method') { SM.method = arg; smAuto(); renderFV(true); return }
+  if (a === 'goshop') { const el = document.querySelector('.sm-shop'), fv = document.getElementById('fishView'); if (el && fv) fv.scrollTo({ top: el.getBoundingClientRect().top + fv.scrollTop - 120, behavior: 'smooth' }); return }
   if (a === 'wood') { SM.wood = arg; renderFV(true); return }
   if (a === 'spice') { SM.spices = SM.spices.includes(arg) ? SM.spices.filter(x => x !== arg) : [...SM.spices, arg]; renderFV(true); return }
   if (a === 'q+' || a === 'q-') { SM.qty = Math.max(1, (SM.qty || 1) + (a === 'q+' ? 1 : -1)); renderFV(true); return }
@@ -14462,6 +14482,10 @@ async function smAct(a, arg, n) {
       const { pid } = smSel(); if (SM.special && SM.special.includes('marjaforell') || (smProd(pid).spices || {}).berries) { if (typeof cloudSave === 'function') await cloudSave(true) }
       const d = await rpc('smoke_start', { p_product: pid, p_qty: SM.qty, p_wood: SM.wood, p_spices: SM.spices }); smSet(d); await refreshFS();
       toast(`🔥 Ahi köeb! ${d.started.qty} × ${d.started.name} valmib umbes ${d.started.minutes >= 60 ? Math.round(d.started.minutes / 6) / 10 + ' tunniga' : d.started.minutes + ' minutiga'}.`, 'good'); if (typeof sfx === 'function') sfx('build');
+    } else if (a === 'buymiss') {
+      const { pr } = smSel(); let d;
+      for (const [k, q] of smMiss(pr).filter(([k]) => SM_PRICE[k])) d = await rpc('smoke_buy', { p_item: k, p_qty: q });
+      if (d) { smSet(d); await refreshFS(); toast('🛒 Puuduvad küttepuud ja maitseained ostetud!', 'good') }
     } else if (a === 'take') { const d = await rpc('smoke_take'); smSet(d); smTaken(d.taken) }
     else if (a === 'lvl' || a === 'upg') {
       if (typeof cloudSave === 'function') await cloudSave(true);
@@ -14479,7 +14503,7 @@ async function smAct(a, arg, n) {
       toast(arg === 'lohu' ? `🪓 Lõhkusid puid: +${n} lepp ja +${n} kask` : arg === 'marinaad' ? '🫙 Erimarinaad valmis!' : `🛒 +${n} ${SM_WNAME[arg]}`, 'good');
     } else if (a === 'sell') { const [pid, q] = arg.split('|'); const d = await rpc('smoke_sell', { p_product: pid, p_quality: +q, p_qty: +n }); smSet(d); await refreshFS(); toast(`🪙 Müüdud ${d.sold.qty} × ${d.sold.name} – ${fmt(d.sold.gold)} kulda`, 'gold', 'gold') }
   } catch (e) { toast(e.message, 'bad') }
-  SM.busy = false; renderFV(true);
+  SM.busy = false; KTK.at = 0; renderFV(true);
 }
 // vali automaatselt nõutud puu ja maitseained, mis laos olemas
 function smAuto() {
@@ -14563,6 +14587,11 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sm-chips{display:flex;flex-wrap:wrap;gap:6px}
 .sm-c{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:999px;border:1px solid rgba(134,205,224,.18);background:rgba(0,0,0,.25);color:#e6efec;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .sm-c i{font-style:normal;font-size:11px;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.1)}
+.sm-c i.no,.sm-wood b.no{background:rgba(220,80,60,.35);color:#ffd0c4}
+.sm-wood{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.sm-wood span{display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 4px;border-radius:999px;background:rgba(0,0,0,.25);font-size:12px}
+.sm-wood b{padding:0 6px;border-radius:999px;background:rgba(255,255,255,.1)}.sm-wood small{color:#a9c4c8}
+.sm-miss{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(220,110,60,.14);border:1px solid rgba(240,140,90,.4)}.sm-miss small{flex-basis:100%;color:#ffd8c0}
+.sm-okbox{margin-top:8px;padding:6px 10px;border-radius:10px;background:rgba(80,200,140,.12);color:#b8f0d0;font-size:13px}
 .sm-c.on{background:#2f9a96;border-color:rgba(130,245,230,.8)}.sm-c.req{box-shadow:inset 0 0 0 1px #e8b65a}.sm-c.lock{opacity:.4;cursor:not-allowed}
 .sm-sum{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22)}
 .sm-sum small{display:block;color:#a9c4c8;font-size:12.5px}
@@ -14600,6 +14629,17 @@ document.head.insertAdjacentHTML('beforeend', `<style>
     marinaad: '<rect x="12" y="14" width="24" height="28" rx="5" fill="rgba(200,120,60,.75)" stroke="#6a3a1a" stroke-width="1.6"/><rect x="14" y="8" width="20" height="7" rx="2" fill="#c89a3a"/><circle cx="20" cy="30" r="3" fill="#8a2a5a"/><circle cx="27" cy="34" r="2.6" fill="#8a2a5a"/><path d="M18 22c4 2 8 0 12 2" stroke="#4a8a3a" stroke-width="2" fill="none"/><path d="M16 18v20" stroke="rgba(255,255,255,.4)" stroke-width="2"/>'
   });
 })();
+// laos alati näha puuriit ja maitseained (ka siis, kui neid on 0)
+{
+  const _ld = ktLadu;
+  ktLadu = function () {
+    const h = _ld.apply(this, arguments); if (!KTK.d || KTK.d.proc.ws < 3) return h;
+    const all = [...SM_WOOD, ...SM_SPICE], smN = k => SM.d ? smStock(k) : ktHave(k);
+    return `<div class="sm-ladu"><h3 style="margin:0 0 6px">🪵 Küttepuud ja 🧂 maitseained</h3><div class="sm-chips">${all.map(k => `<span class="sm-c" style="cursor:default">${matIc(k, 22)} ${SM_WNAME[k]} <i class="${smN(k) ? '' : 'no'}">${smN(k)}</i></span>`).join('')}</div>
+      <button class="btn sm" type="button" data-kt="sub" data-arg="ahi" style="margin-top:8px">🔥 Mine suitsuahju juurde ostma / lõhkuma</button></div>` + h;
+  };
+}
+document.head.insertAdjacentHTML('beforeend', '<style>.sm-ladu{margin-bottom:12px;padding:10px;border-radius:12px;background:rgba(0,0,0,.2)}</style>');
 
 </script>
 </body></html>

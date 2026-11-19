@@ -1636,6 +1636,8 @@ on conflict (id) do update set grp = excluded.grp, method = excluded.method, nam
 create table if not exists public.fisher_smoke (
   user_id uuid primary key references auth.users(id) on delete cascade, lvl int not null default 1, upg text[] not null default '{}'
 );
+-- algpakk: esimesel avamisel saab mängija tasuta küttepuid ja maitseaineid
+alter table public.fisher_smoke add column if not exists starter_at timestamptz;
 create table if not exists public.fisher_smoke_batch (
   id bigserial primary key, user_id uuid not null references auth.users(id) on delete cascade, product text not null references public.fish_smoke_products(id),
   qty int not null, fails int not null default 0, quality int not null, wood text not null, spices text[] not null default '{}',
@@ -5975,7 +5977,15 @@ create or replace function public.fx_smoke_upgs() returns jsonb language sql imm
   {"id":"premium","name":"Premium suitsukamber","descr":"Avab premium-suitsu ja legendaarse suitsukala.","lvl":7,"gold":10000,"mats":{"iidneluu":3,"kuldsoomus":5}}]'::jsonb $$;
 create or replace function public.fx_smoke(u uuid) returns public.fisher_smoke language plpgsql as $$
 declare s public.fisher_smoke;
-begin insert into public.fisher_smoke(user_id) values (u) on conflict do nothing; select * into s from public.fisher_smoke where user_id = u; return s; end $$;
+begin
+  insert into public.fisher_smoke(user_id) values (u) on conflict do nothing;
+  update public.fisher_smoke set starter_at = now() where user_id = u and starter_at is null returning * into s;
+  if found then
+    perform public.fx_mat_add(u, 'lepp', 15); perform public.fx_mat_add(u, 'kask', 10);
+    perform public.fx_mat_add(u, 'sool', 10); perform public.fx_mat_add(u, 'till', 5);
+  end if;
+  select * into s from public.fisher_smoke where user_id = u; return s;
+end $$;
 create or replace function public.fx_smoke_cap(s public.fisher_smoke) returns int language sql immutable as $$
   select floor((3 + 2 * (s.lvl - 1)) * case when 'kamber' = any(s.upg) then 1.5 else 1 end)::int $$;
 -- kalad, mis sobivad selle toote jaoks
@@ -6007,7 +6017,7 @@ begin
   f := fx_fisher(u); p := fx_proc(u); s := fx_smoke(u);
   if 'auto' = any(s.upg) then got := fx_smoke_collect(u); end if;
   select * into sv from saves where user_id = u;
-  return jsonb_build_object('now', now(), 'gold', f.gold, 'ws', p.ws, 'lvl', s.lvl, 'upg', to_jsonb(s.upg), 'cap', fx_smoke_cap(s), 'auto_got', got,
+  return jsonb_build_object('now', now(), 'gift', s.starter_at = now(), 'gold', f.gold, 'ws', p.ws, 'lvl', s.lvl, 'upg', to_jsonb(s.upg), 'cap', fx_smoke_cap(s), 'auto_got', got,
     'next', case when s.lvl < 10 then fx_smoke_lvl_cost(s.lvl) end, 'upgs', fx_smoke_upgs(),
     'res', jsonb_build_object('wood', floor(coalesce((sv.data -> 'res' ->> 'wood')::numeric, 0)), 'stone', floor(coalesce((sv.data -> 'res' ->> 'stone')::numeric, 0)),
       'berries', floor(coalesce((sv.data -> 'res' ->> 'berries')::numeric, 0)), 'kingdom', sv.user_id is not null),
