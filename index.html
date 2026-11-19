@@ -13704,6 +13704,7 @@ function ktClean() {
 }
 function ktStage() {
   const J = KTK.job, P = KTK.d.proc; let obj;
+  if (J.kind === 'clean') return csStage(J, P);
   if (J.kind === 'clean') { const id = (J.payload.ids || [])[0], f = KTK.d.fish.find(x => x.id === +id) || {}; obj = `<canvas data-fl="${f.species || 'ahven'}" data-r="${f.rarity || 1}" data-nobg="1"></canvas>` }
   else { const r = KTK.d.recipes.find(x => x.id === J.payload.recipe) || {}; obj = matIc(r.out_kind === 'inbox' ? 'berries' : r.out_id, 150) }
   const title = J.kind === 'clean' ? `🔪 Puhastad ${(J.payload.ids || []).length} kala` : `🛠 Valmistad: ${esc((KTK.d.recipes.find(x => x.id === J.payload.recipe) || {}).name || '')}`;
@@ -13786,7 +13787,8 @@ function ktView() {
 }
 
 // --- klikkimine ---
-function ktMarker(t) { return (Math.sin(t / 420) + 1) / 2 }
+function ktMarker(t) { const sp = KTK.job && KTK.job.st ? CS_ST[ktCur(KTK.job)].sp : 420; return (Math.sin(t / sp) + 1) / 2 }
+function ktZoneW() { return KTK.job && KTK.job.st ? CS_ST[ktCur(KTK.job)].z : .12 }
 function ktLoop() {
   cancelAnimationFrame(KTK.raf);
   const tick = ts => {
@@ -13794,7 +13796,7 @@ function ktLoop() {
     if (!KTK.job || !m) { KTK.raf = 0; return }
     if (KTK.zone == null) KTK.zone = .5;
     m.style.left = (ktMarker(ts) * 100).toFixed(2) + '%';
-    if (z) { z.style.left = ((KTK.zone - .12) * 100) + '%'; z.style.width = '24%' }
+    if (z) { const w = ktZoneW(); z.style.left = ((KTK.zone - w) * 100) + '%'; z.style.width = (w * 200) + '%' }
     KTK.raf = requestAnimationFrame(tick);
   };
   KTK.raf = requestAnimationFrame(tick);
@@ -13802,14 +13804,16 @@ function ktLoop() {
 function ktHit(ev) {
   const J = KTK.job; if (!J || J.sending) return;
   const now = performance.now(); if (now - (J.last || 0) < 55) return; J.last = now; // kuni ~18 klikki sekundis
-  const pos = ktMarker(now), precise = Math.abs(pos - (KTK.zone == null ? .5 : KTK.zone)) <= .12;
-  J.clicks++; if (precise) { J.precise++; KTK.zone = .15 + Math.random() * .7 }
+  const pos = ktMarker(now), zw = ktZoneW(), precise = Math.abs(pos - (KTK.zone == null ? .5 : KTK.zone)) <= zw;
+  J.clicks++; if (precise) { J.precise++; KTK.zone = zw + .03 + Math.random() * (1 - 2 * zw - .06) }
+  let stDone = null;
+  if (J.st) { const i = ktCur(J), S0 = J.st[i]; S0.clicks++; if (precise) S0.precise++; if (S0.clicks >= S0.need && i < J.st.length - 1) stDone = i; csUpdate(J) }
   const st = document.getElementById('ktStage'), kn = document.getElementById('ktKnife'), ob = document.getElementById('ktObj');
   if (kn) { kn.classList.remove('cut'); void kn.offsetWidth; kn.classList.add('cut'); setTimeout(() => kn.classList.remove('cut'), 110) }
   if (ob) { ob.classList.add('hit'); setTimeout(() => ob.classList.remove('hit'), 80) }
   if (st) {
     const r = st.getBoundingClientRect(), x = ev && ev.clientX ? ev.clientX - r.left : r.width / 2, y = ev && ev.clientY ? ev.clientY - r.top : r.height / 2;
-    const cols = J.kind === 'clean' ? ['#cfe4f0', '#a8c8dc', '#e0f0f8', '#f4a58a'] : ['#e8b060', '#c8d0d0', '#ffe08a'];
+    const cols = J.st ? CS_ST[Math.min(J.st.length - 1, ktCur(J, true))].cols : ['#e8b060', '#c8d0d0', '#ffe08a'];
     for (let i = 0; i < (precise ? 7 : 4); i++) { const p = document.createElement('span'); p.className = 'pt'; p.style.left = x + 'px'; p.style.top = y + 'px'; p.style.background = cols[i % cols.length];
       p.style.setProperty('--dx', (Math.random() * 120 - 60) + 'px'); p.style.setProperty('--dy', (-30 - Math.random() * 70) + 'px'); p.style.setProperty('--r', (Math.random() * 360) + 'deg'); st.appendChild(p); setTimeout(() => p.remove(), 720) }
     if (precise) { const f = document.createElement('span'); f.className = 'pf'; f.textContent = 'Täpne!'; st.appendChild(f); setTimeout(() => f.remove(), 620) }
@@ -13819,13 +13823,14 @@ function ktHit(ev) {
   if (pg) pg.style.width = Math.min(100, J.clicks / J.need * 100).toFixed(1) + '%';
   if (hn) hn.textContent = `${Math.min(J.clicks, J.need)}/${J.need}`;
   if (ac) ac.textContent = `Täpsus: ${Math.round(J.precise / J.clicks * 100)}%`;
+  if (stDone != null) csStageDone(J, stDone);
   if (J.clicks >= J.need) ktFinish();
 }
 async function ktFinish() {
   const J = KTK.job; if (!J || J.sending) return; J.sending = true;
   const minMs = J.need / 16 * 1000 - (Date.now() - J.t0); if (minMs > 0) await new Promise(r => setTimeout(r, minMs + 150));
   try {
-    const d = await rpc('proc_finish', { p_clicks: J.clicks, p_precise: J.precise });
+    const d = await rpc('proc_finish', { p_clicks: J.clicks, p_precise: J.precise, p_stages: J.st ? J.st.map(x => x.clicks ? +(x.precise / x.clicks).toFixed(3) : null) : null });
     KTK.job = null; ktSet(d); await refreshFS(); if (d.result && d.result.kind === 'craft' && d.result.res && Object.keys(d.result.res).length && S && S.res) {
       for (const [k, q] of Object.entries(d.result.res)) S.res[k] = Math.max(0, (S.res[k] || 0) - q * (d.result.times || 1)); save(); if (typeof cloudSave === 'function') cloudSave(true) }
     ktkResult(d.result);
@@ -13839,6 +13844,8 @@ function ktkResult(r) {
   showModal(() => `<div class="kt-res"><h2 style="margin:0">${r.kind === 'clean' ? '🔪 Puhastus valmis!' : '🛠 Valmis!'}</h2>
     ${Q ? `<span class="kt-qb" style="background:${Q[1]}">${Q[0]} kvaliteet</span>` : ''}
     ${r.kind === 'clean' && r.q && r.q.length > 1 ? `<small class="lead">Kalade kvaliteedid: ${r.q.map(q => KT_Q[q - 1][0]).join(', ')}</small>` : ''}
+    ${r.stages ? `<div class="cs-res">${CS_ST.map((c, i) => `<span><i>${c.ic}</i>${c.n}<b>${Math.round(r.stages[i] * 100)}%</b></span>`).join('')}</div>` : ''}
+    ${r.gall ? '<p style="margin:0;color:#ffb4a0;font-weight:700">💥 Hooletu rookimine – sapipõis lõhkes ja osa fileest läks raisku!</p>' : ''}
     <div class="kt-got">${got.map(([k, n], i) => `<div class="${['kuldsoomus', 'iidneluu', 'filee_hea'].includes(k) ? 'rare' : ''}" style="animation-delay:${i * 80}ms">${matIc(r.out_kind === 'inbox' ? 'berries' : k, 44)}<b>+${fmt(n)}</b><small>${esc(nm(k))}</small></div>`).join('')}</div>
     <p class="lead" style="margin:0">✨ +${r.xp} oskuse kogemust · ⭐ +${r.rep} mainet${r.kind === 'clean' ? ` · 🎯 täpsus ${Math.round(r.acc * 100)}%` : ''}</p>
     ${r.lvlup ? `<p style="margin:0;font-weight:900;color:#ffe08a">🎉 Kalatöötlemise oskus tõusis ${r.lvlup}. tasemele!</p>` : ''}
@@ -13937,6 +13944,97 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-kt-g
     if (n) b.kalurimaja = (b.kalurimaja || 0) + n; return b;
   };
 }
+
+/* ---------- Detailne kalapuhastus: soomustamine → rookimine → pea ja uimed → fileerimine ---------- */
+const CS_ST = [
+  { k: 'soom', n: 'Soomustamine', ic: '🪮', tool: 'scaler', hint: 'Kraabi soomused maha – sabast pea poole.', mat: 'soomus', z: .14, sp: 430, share: .25, cols: ['#cfe4f0', '#a8c8dc', '#e8f4fa'] },
+  { k: 'rook', n: 'Rookimine', ic: '🔪', tool: 'knife', hint: 'Lõika kõht lahti ja võta sisikond välja. Ettevaatust sapipõiega!', mat: 'jaatmed', z: .12, sp: 400, share: .2, cols: ['#a83a32', '#7a4a2a', '#c86a50'] },
+  { k: 'pea', n: 'Pea ja uimed', ic: '🪓', tool: 'cleaver', hint: 'Lõika pea ja uimed ühe kindla liigutusega ära.', mat: 'luu', z: .13, sp: 380, share: .15, cols: ['#f2ead8', '#d8c8a8', '#e07a6a'] },
+  { k: 'fil', n: 'Fileerimine', ic: '🐟', tool: 'fillet', hint: 'Lõika filee mööda selgroogu – nii lähedalt luule kui saad.', mat: 'filee', z: .09, sp: 340, share: .4, cols: ['#f4a58a', '#ffd6c8', '#f2ead8'] }
+];
+function csInit(J) {
+  if (J.st) return; const N = J.need, n = N >= 4 ? CS_ST.map(s => Math.max(1, Math.round(N * s.share))) : [N, 0, 0, 0].map((x, i) => i < N ? 1 : 0);
+  let diff = N - n.reduce((a, b) => a + b, 0); n[3] += diff; if (n[3] < 1 && N >= 4) { n[0] += n[3] - 1; n[3] = 1 }
+  J.st = n.map(need => ({ need, clicks: 0, precise: 0 }));
+  // juba tehtud klikid (nt pärast lehe uuendamist) jagatakse etappide vahel
+}
+function ktCur(J, any) { if (!J.st) return 0; for (let i = 0; i < J.st.length; i++) if (J.st[i].clicks < J.st[i].need) return i; return J.st.length - 1 }
+function csP(J, i) { const s = J.st[i]; return s.need ? Math.min(1, s.clicks / s.need) : 1 }
+function csTool(t, tier) {
+  const blade = ['#b8c0c8', '#dfe6ee', '#e0a060', '#ffd04a', '#8af0e8'][Math.max(0, Math.min(4, tier - 1))];
+  if (t === 'scaler') return `<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect x="22" y="6" width="22" height="20" rx="3" fill="${blade}" stroke="#4a5058" stroke-width="1.5"/><path d="M25 26v5M29 26v5M33 26v5M37 26v5M41 26v5" stroke="#4a5058" stroke-width="2"/><rect x="29" y="30" width="8" height="30" rx="4" fill="#6a4228" stroke="#3a2210" stroke-width="1.2"/></svg>`;
+  if (t === 'cleaver') return `<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><path d="M10 8h34v26H10z" fill="${blade}" stroke="#4a5058" stroke-width="1.5"/><circle cx="38" cy="14" r="2.6" fill="#4a5058"/><path d="M10 33h34" stroke="#fff" stroke-width="1.2" opacity=".6"/><rect x="40" y="16" width="20" height="8" rx="4" fill="#6a4228" stroke="#3a2210" stroke-width="1.2"/></svg>`;
+  if (t === 'fillet') return `<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><path d="M6 54 C20 40 38 22 58 6 C52 16 40 30 14 56 Z" fill="${blade}" stroke="#4a5058" stroke-width="1.3"/><rect x="0" y="52" width="16" height="6" rx="3" transform="rotate(-40 8 55)" fill="#2a2a2a" stroke="#111" stroke-width="1"/></svg>`;
+  return knifeSvg(tier);
+}
+const CS_FIL = '<svg viewBox="0 0 120 50" aria-hidden="true"><path d="M4 30C14 10 50 4 100 14c12 3 16 8 10 14-20 16-70 22-106 2z" fill="#f4a58a" stroke="#c8705a" stroke-width="2"/><path d="M20 26c20-6 44-10 70-8M18 32c22-4 48-8 76-10" stroke="#ffd6c8" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+const CS_SKEL = '<svg viewBox="0 0 160 50" aria-hidden="true"><path d="M20 25h118" stroke="#f2ead8" stroke-width="3.5" stroke-linecap="round"/><g stroke="#f2ead8" stroke-width="2.2" stroke-linecap="round"><path d="M34 25l-6-14M34 25l-6 14M50 25l-5-16M50 25l-5 16M66 25l-4-16M66 25l-4 16M82 25l-3-15M82 25l-3 15M98 25l-2-13M98 25l-2 13M114 25l-2-10M114 25l-2 10"/></g><path d="M138 25l16-12v24z" fill="#f2ead8"/></svg>';
+function csStage(J, P) {
+  csInit(J);
+  const id = (J.payload.ids || [])[0], f = KTK.d.fish.find(x => x.id === +id) || {}, sp = f.species || 'ahven', i = ktCur(J), C = CS_ST[i];
+  const steps = CS_ST.map((s, k) => { const st = J.st[k], done = st.clicks >= st.need, acc = st.clicks ? Math.round(st.precise / st.clicks * 100) : 0;
+    return `<li class="${done ? 'done' : k === i ? 'on' : ''}"><span>${done ? '✓' : s.ic}</span><b>${s.n}</b>${done ? `<small>${acc}%</small>` : ''}</li>` }).join('');
+  const n = (J.payload.ids || []).length;
+  return `<div class="fv-card"><h2 style="margin-bottom:6px">🔪 Puhastad ${n === 1 ? esc((FD.sp[sp] || {}).name || 'kala') : n + ' kala'}</h2>
+    <ol class="cs-steps" aria-label="Tööetapid">${steps}</ol>
+    <p class="lead cs-hint" id="csHint"><b>${C.ic} ${C.n}:</b> ${C.hint}</p>
+    <div class="kt-stage" id="ktStage" role="button" tabindex="0" aria-label="${C.n} (klikka või vajuta tühikut)">
+      <div class="obj cs" id="ktObj" data-st="${i}" style="--p0:${csP(J, 0)};--p1:${csP(J, 1)};--p2:${csP(J, 2)};--p3:${csP(J, 3)}">
+        <div class="cs-fish"><canvas class="cs-body" data-fl="${sp}" data-r="${f.rarity || 1}" data-nobg="1"></canvas><canvas class="cs-head" data-fl="${sp}" data-r="${f.rarity || 1}" data-nobg="1"></canvas>
+          <svg class="cs-cut" viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true"><path class="belly" pathLength="100" d="M48 66 C80 76 120 76 150 64"/><path class="spine" pathLength="100" d="M44 50 L168 50"/></svg></div>
+        <div class="cs-out"><span class="fl a">${CS_FIL}</span><span class="fl b">${CS_FIL}</span><span class="sk">${CS_SKEL}</span></div>
+        <span class="cs-bucket" title="Jäätmeämber">${matIc('jaatmed', 46)}</span>
+      </div>
+      <span class="knife" id="ktKnife">${csTool(C.tool, P.knife)}</span><span class="hint" id="ktHint">${J.clicks}/${J.need}</span></div>
+    <div style="display:grid;gap:8px;margin-top:10px"><div class="kt-prec" aria-hidden="true"><span class="z" id="ktZone"></span><span class="m" id="ktMark"></span></div>
+    <div class="kt-prog" role="progressbar" aria-valuemin="0" aria-valuemax="${J.need}" aria-valuenow="${J.clicks}"><i id="ktProg" style="width:${(J.clicks / J.need * 100).toFixed(1)}%"></i></div>
+    <div class="kt-act" style="justify-content:space-between"><small class="lead" id="ktAcc">Selle etapi täpsus: ${J.st[i].clicks ? Math.round(J.st[i].precise / J.st[i].clicks * 100) : 0}%</small><button class="btn sm ghost" type="button" data-kt="cancel">Katkesta</button></div></div></div>`;
+}
+function csUpdate(J) {
+  const ob = document.getElementById('ktObj'); if (!ob) return;
+  for (let k = 0; k < 4; k++) ob.style.setProperty('--p' + k, csP(J, k).toFixed(3));
+  const i = ktCur(J), ac = document.getElementById('ktAcc');
+  if (ac) setTimeout(() => { const S0 = J.st[ktCur(J)]; ac.textContent = `Selle etapi täpsus: ${S0.clicks ? Math.round(S0.precise / S0.clicks * 100) : 0}%` }, 0);
+}
+function csStageDone(J, i) {
+  const s = J.st[i], acc = Math.round(s.precise / Math.max(1, s.clicks) * 100), st = document.getElementById('ktStage');
+  if (st) { const b = document.createElement('span'); b.className = 'cs-done'; b.innerHTML = `✓ ${CS_ST[i].n} tehtud · täpsus ${acc}%`; st.appendChild(b); setTimeout(() => b.remove(), 1300) }
+  if (typeof sfx === 'function') sfx('chime');
+  // järgmise etapi tööriist ja juhend
+  setTimeout(() => { if (KTK.job === J) renderFV(true) }, 420);
+}
+document.head.insertAdjacentHTML('beforeend', `<style>
+.cs-res{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;width:100%}.cs-res span{display:grid;justify-items:center;gap:1px;padding:6px 4px;border-radius:10px;background:rgba(0,0,0,.22);font-size:11.5px;color:#a9c4c8}.cs-res i{font-style:normal;font-size:16px}.cs-res b{color:#fff;font-size:14px}
+.cs-steps{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0;margin:4px 0 8px}
+.cs-steps li{display:grid;justify-items:center;gap:2px;padding:7px 4px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(134,205,224,.14);text-align:center;opacity:.6}
+.cs-steps li span{font-size:18px;line-height:1}.cs-steps li b{font-size:12.5px}.cs-steps li small{font-size:11px;color:#9ff0b8;font-weight:800}
+.cs-steps li.on{opacity:1;background:linear-gradient(180deg,#2f9a96,#1d6a6c);border-color:rgba(130,245,230,.75);box-shadow:0 0 14px rgba(70,208,198,.3)}
+.cs-steps li.done{opacity:1;border-color:rgba(127,224,160,.45);background:rgba(127,224,160,.08)}
+.cs-hint{margin:0 0 8px;font-size:14px}
+.kt-stage .obj.cs{width:min(80vw,380px);aspect-ratio:2/1;position:relative}
+.cs-fish{position:absolute;inset:0}
+.cs-fish canvas{position:absolute;inset:0;width:100%!important;height:100%!important;filter:drop-shadow(0 8px 10px rgba(0,0,0,.45))}
+/* soomustamine: kala muutub siledamaks ja heledamaks */
+.cs-body,.cs-head{filter:saturate(calc(1 - var(--p0) * .5)) brightness(calc(1 + var(--p0) * .14)) drop-shadow(0 8px 10px rgba(0,0,0,.45))!important;transition:clip-path .15s,transform .2s,opacity .2s}
+/* pea ja uimed: pea lõigatakse eest ära */
+.cs-body{clip-path:inset(0 0 0 calc(var(--p2) * 24%));opacity:calc(1 - var(--p3) * .9)}
+.cs-head{clip-path:inset(0 76% 0 0);transform:translate(calc(var(--p2) * -26px), calc(var(--p2) * 14px)) rotate(calc(var(--p2) * -14deg));opacity:calc(1 - var(--p3))}
+/* lõikejooned: kõht (rookimine) ja selgroog (fileerimine) */
+.cs-cut{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.cs-cut path{fill:none;stroke-linecap:round;stroke-dasharray:100}
+.cs-cut .belly{stroke:#b8322a;stroke-width:2.4;stroke-dashoffset:calc(100 - var(--p1) * 100);opacity:calc(1 - var(--p3))}
+.cs-cut .spine{stroke:#fff3dc;stroke-width:1.8;stroke-dashoffset:calc(100 - var(--p3) * 100);opacity:calc(var(--p3) * 1.4)}
+/* fileerimine: kaks fileed ja luustik tulevad nähtavale */
+.cs-out{position:absolute;inset:0;pointer-events:none}
+.cs-out .fl,.cs-out .sk{position:absolute;left:50%;width:56%;opacity:var(--p3);transition:transform .2s}
+.cs-out svg{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4))}
+.cs-out .fl.a{top:6%;transform:translate(-50%,calc(var(--p3) * -16px)) rotate(calc(var(--p3) * -4deg))}
+.cs-out .fl.b{top:46%;transform:translate(-50%,calc(var(--p3) * 16px)) scaleY(-1) rotate(calc(var(--p3) * -4deg))}
+.cs-out .sk{top:32%;width:62%;transform:translate(-50%,0);opacity:calc(var(--p3) * 1.6 - .6)}
+.cs-bucket{position:absolute;right:-30%;bottom:-6%;opacity:calc(.35 + var(--p1) * .65);transform:scale(calc(.8 + var(--p1) * .25))}
+.cs-done{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(20,60,40,.92);color:#bff5cf;font-weight:900;font-size:14px;box-shadow:0 0 16px rgba(127,224,160,.4);animation:ktIn .4s cubic-bezier(.2,1.4,.4,1) both;pointer-events:none;white-space:nowrap}
+@media (max-width:600px){.cs-bucket{right:-14%;bottom:-22%}.cs-bucket svg{width:34px;height:34px}.cs-steps li b{font-size:11px}.cs-steps li{padding:6px 2px}}
+</style>`);
 
 </script>
 </body></html>

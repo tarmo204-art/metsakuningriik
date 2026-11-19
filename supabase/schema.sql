@@ -5672,10 +5672,13 @@ begin
 end $$;
 
 -- töö lõpp: server kontrollib, et klikke on piisavalt ja et need ei tulnud inimvõimetult kiiresti
-create or replace function public.proc_finish(p_clicks int, p_precise int) returns jsonb language plpgsql security definer set search_path = public as $$
+drop function if exists public.proc_finish(int, int);
+-- p_stages: iga tööetapi täpsus (soomustamine, rookimine, pea ja uimed, fileerimine) – mõjutab vastava materjali saaki
+create or replace function public.proc_finish(p_clicks int, p_precise int, p_stages numeric[] default null) returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); p fisher_proc; lv int; j fisher_proc_job; c fish_catches; s fish_species; r fish_recipes; acc numeric; fr numeric; v numeric;
   sc numeric; qt int; mult numeric; fil int; hea int; luu int; jae int; soo int; ks int; il int; got jsonb := '{}'; qs int[] := '{}'; v_xp int := 0; v_rep int := 0;
   k text; sv saves; have numeric; times int; levels int[]; lv2 int; nrare int := 0; nahv int := 0; best int := 0; outq int;
+  a1 numeric; a2 numeric; a3 numeric; a4 numeric; gall boolean := false;
 begin
   perform fx_fisher(u); p := fx_proc(u); lv := fx_proc_lvl(p.xp);
   select * into j from fisher_proc_job where user_id = u for update;
@@ -5683,6 +5686,10 @@ begin
   if coalesce(p_clicks, 0) < j.clicks then raise exception 'Töö pole veel valmis'; end if;
   if extract(epoch from now() - j.started_at) < j.clicks / 16.0 then raise exception 'Nii kiiresti ei jõua keegi klikkida – proovi uuesti'; end if;
   acc := least(1, greatest(0, coalesce(p_precise, 0)::numeric / greatest(1, p_clicks)));
+  -- etappide täpsus ei saa olla parem kui kogutäpsus lubab (keskmine ei tohi ületada üldist täpsust)
+  a1 := least(1, greatest(0, coalesce(p_stages[1], acc))); a2 := least(1, greatest(0, coalesce(p_stages[2], acc)));
+  a3 := least(1, greatest(0, coalesce(p_stages[3], acc))); a4 := least(1, greatest(0, coalesce(p_stages[4], acc)));
+  if (a1 + a2 + a3 + a4) / 4 > acc + 0.15 then a1 := acc; a2 := acc; a3 := acc; a4 := acc; end if;
   delete from fisher_proc_job where user_id = u;
   if j.kind = 'clean' then
     for c in select * from fish_catches where id in (select (jsonb_array_elements_text(j.payload -> 'ids'))::bigint) and user_id = u and status = 'kept' for update loop
@@ -5693,9 +5700,14 @@ begin
       sc := lv * 1.5 + p.knife * 6 + p.kit * 4 + acc * 30 + fr * 15 + random() * 10 + case when p.rarekit and c.rarity >= 4 then 10 else 0 end + case when lv >= 20 then 8 else 0 end;
       qt := case when sc >= 80 then 5 when sc >= 65 then 4 when sc >= 50 then 3 when sc >= 35 then 2 else 1 end;
       mult := (array[1, 1.1, 1.25, 1.4, 1.6])[qt] * case when lv >= 10 then 1.2 else 1 end * case when p.ws >= 6 then 1.15 else 1 end;
-      fil := greatest(1, floor(v * 0.55 / 6 * mult + random())::int);
-      luu := floor(v * 0.12 / 2 * mult + random())::int; jae := greatest(1, floor(v * 0.13 * mult + random())::int); soo := floor(v * 0.10 / 3 * mult + random())::int;
-      hea := case when qt >= 3 then floor(fil * (array[0, 0, 0.3, 0.5, 0.7])[qt])::int else 0 end; fil := fil - hea;
+      -- iga etapi täpsus mõjutab oma materjali: soomustamine → soomused, rookimine → jäätmed, pea ja uimed → luud, fileerimine → filee
+      fil := greatest(1, floor(v * 0.55 / 6 * mult * (0.8 + 0.4 * a4) + random())::int);
+      luu := floor(v * 0.12 / 2 * mult * (0.7 + 0.6 * a3) + random())::int; jae := greatest(1, floor(v * 0.13 * mult * (0.7 + 0.6 * a2) + random())::int);
+      soo := floor(v * 0.10 / 3 * mult * (0.7 + 0.6 * a1) + random())::int;
+      -- hooletu rookimine: sapipõis lõhkes ja osa fileest läks raisku
+      if a2 < 0.25 and random() < 0.6 then fil := greatest(1, round(fil * 0.85)::int); gall := true; end if;
+      hea := case when qt >= 3 then floor(fil * least(0.9, (array[0, 0, 0.3, 0.5, 0.7])[qt] + case when a4 >= 0.8 then 0.15 else 0 end))::int
+        when qt = 2 and a4 >= 0.8 then floor(fil * 0.15)::int else 0 end; fil := fil - hea;
       if random() < p.kit * 0.1 then soo := soo + greatest(1, soo / 2); end if;
       ks := 0; il := 0;
       if c.rarity >= 3 then ks := floor(0.25 * (c.rarity - 2) * case when lv >= 15 then 1.5 else 1 end + random())::int; end if;
@@ -5748,6 +5760,7 @@ begin
   update fisher_proc set xp = fisher_proc.xp + v_xp, rep = fisher_proc.rep + v_rep where user_id = u;
   lv2 := fx_proc_lvl(p.xp + v_xp);
   return proc_state() || jsonb_build_object('result', jsonb_build_object('kind', j.kind, 'got', got, 'q', to_jsonb(qs), 'best', best, 'xp', v_xp, 'rep', v_rep, 'acc', round(acc, 2),
+    'stages', case when j.kind = 'clean' then jsonb_build_array(round(a1, 2), round(a2, 2), round(a3, 2), round(a4, 2)) end, 'gall', gall,
     'lvlup', case when lv2 > lv then lv2 end, 'recipe', r.id, 'out_kind', r.out_kind, 'res', case when j.kind = 'craft' then r.res end, 'times', times));
 end $$;
 create or replace function public.proc_cancel() returns jsonb language plpgsql security definer set search_path = public as $$
