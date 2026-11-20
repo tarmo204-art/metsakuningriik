@@ -14843,11 +14843,11 @@ function kiPanel(r) {
     rod ? kiCell('fishing-rod', KI_COL.varustus, 'Püügivahend', esc(rod)) : '',
     inInv ? kiCell('coins', KI_COL.raha, 'Väärtus', fmt(estPrice(r.catch_id)) + ' kulda', m ? `<span class="ki-ac">${luc(m.mult >= 1 ? 'trending-up' : 'trending-down')}turg ×${String(m.mult).replace('.', ',')}${m.sold ? ` · täna müüdud ${m.sold}` : ''}</span>` : '', KI_COL.raha) : ''
   ].join('');
-  const badges = [`<span class="ki-b" style="--ic:#7ec8e3">${luc('zap')}+${fmt(r.xp || 0)} kogemust${r.x2 ? ' ×2' : ''}</span>`, r.new_species ? `<span class="ki-b" style="--ic:#8ff0c8">${luc('sparkles')}Esmaleid – uus liik kalaraamatus</span>` : '',
+  const badges = [r.new_species ? `<span class="ki-b" style="--ic:#8ff0c8">${luc('sparkles')}Esmaleid – uus liik kalaraamatus</span>` : '',
     r.giant ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Rekordsuurus</span>` : r.record ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Isiklik rekord</span>` : ''].join('');
   const act = (k, ic, t, s, dis) => `<button type="button" class="ki-a" data-ki="${k}" data-arg="${r.catch_id}" ${dis ? 'disabled' : ''}>${luc(ic)}<b>${t}</b><small>${s}</small></button>`;
   return `<div class="ki">
-    <div class="ki-h"><span class="ki-sp">${luc('fish')}${I[0] ? `<i>${esc(I[0])}</i>` : esc(sp.name)}</span>${I[3] ? `<span class="ki-b" style="--ic:#c58cff">${luc('sparkles')}Muinasjutuline liik</span>` : ''}${badges}</div>
+    ${I[3] || badges ? `<div class="ki-h">${I[3] ? `<span class="ki-b" style="--ic:#c58cff">${luc('sparkles')}Muinasjutuline liik</span>` : ''}${badges}</div>` : ''}
     <h4>Sinu saak</h4>
     <div class="ki-g">${cells}</div>
     <h4>${luc('book-open')}Kala tutvustus</h4><p>${esc(I[1] || sp.descr)}</p>
