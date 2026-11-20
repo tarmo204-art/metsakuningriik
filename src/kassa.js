@@ -11,13 +11,23 @@ function kassaShow() {
 }
 function kassaSync() {
   clearTimeout(KASSA.t);
-  KASSA.t = setTimeout(async () => { try { await refreshFS(); kassaShow() } catch (e) { } }, 250);
+  KASSA.t = setTimeout(async () => { try { await refreshFS(); kassaShow() } catch (e) { } }, 30);
 }
 function kassaInstall() {
   const _rpc = rpc, SKIP = /^fish_(state|cast|reel|bite|hook|strike|odds|market$)|_state$|_list$|_info$|^get_/;
   rpc = async function (fn, args) {
     const r = await _rpc.apply(this, arguments);
-    if (typeof FV !== 'undefined' && FV.open && !SKIP.test(fn) && /buy|upgrade|repair|crew|build|shop|order|craft|deliver|transfer|sell|collect|send|pay|hire|unlock|learn|start/.test(fn)) kassaSync();
+    if (typeof FV !== 'undefined' && FV.open && FS && !SKIP.test(fn) && /buy|upgrade|repair|crew|build|shop|order|craft|deliver|transfer|sell|collect|send|pay|hire|unlock|learn|start|rush|fuse|enchant|license|duel|hall|offer/.test(fn)) {
+      // summa vahetatakse kohe vastuse põhjal (ei oota järgmist päringut)
+      try {
+        if (r && typeof r === 'object') {
+          if (fn === 'fish_shop' && r.cost > 0) FS.gold = Math.max(0, FS.gold - r.cost);
+          else if (typeof r.gold === 'number' && r.level !== undefined) FS.gold = r.gold;
+        }
+        kassaShow();
+      } catch (e) { }
+      kassaSync();
+    }
     return r;
   };
 }

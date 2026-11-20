@@ -1411,7 +1411,7 @@ async function fShop(kind, id, qty) {
     else if (r.repaired) toast(`Õng on parandatud (−${r.cost} kulda).`, 'good', 'fish');
     else if (r.repairing) toast(`Meister Mart võttis õnge parandusse. See on valmis kell ${new Date(r.ready).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' })}. Seni võid püüda mõne teise oma õngega.`, 'info', 'fish');
     else if (r.transferred) { toast(`${fmt(r.transferred)} kulda saadeti kuningriigi varakambrisse.`, 'good', 'gold'); claimInbox() }
-    await refreshFS(); FV.oddsKey = ''; await loadOdds();
+    await refreshFS(); FV.busy = false; renderFV(true); FV.oddsKey = ''; await loadOdds();
   } catch (e) { toast(e.message, 'bad') }
   FV.busy = false; renderFV(true);
 }
