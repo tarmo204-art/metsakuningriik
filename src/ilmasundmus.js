@@ -33,17 +33,17 @@ function wvCard() {
   const w = wvData(), e = w && w.cur; if (!e) return '';
   const t = wvNow(), I = WV_INFO[e.kind]; if (!I || t >= Date.parse(e.end)) return '';
   const warn = t < Date.parse(e.start), a = Date.parse(warn ? e.warn : e.start), b = Date.parse(warn ? e.start : e.end);
-  if (WV.min[e.id + (warn ? 'w' : '')]) return `<button type="button" class="wv-pill wv-${e.kind}${warn ? ' warn' : ''}" data-wv="max" data-arg="${e.id + (warn ? 'w' : '')}" style="--wc:${I.col}">${luc(I.ic)}<b>${warn ? 'Torm tuleb' : I.n}</b><span data-wvt="${b}">${wvClock(b - t)}</span></button>`;
+  if (WV.min[e.id + (warn ? 'w' : '')]) return `<button type="button" class="wv-pill wv-${e.kind}${warn ? ' warn' : ''}" data-wv="max" data-arg="${e.id + (warn ? 'w' : '')}" style="--wc:${I.col}">${luc(I.ic)}<b>${warn ? (I.wn || 'Torm tuleb') : I.n}</b><span data-wvt="${b}">${wvClock(b - t)}</span></button>`;
   const fx = warn ? I.wfx : I.ofx, title = warn ? I.warn : e.kind === 'parv' ? `${I.on} ${wvSpot(e.spot)}` : I.on;
   const here = e.kind !== 'parv' || FV.spot === e.spot, sp = e.kind === 'parv' && FD.spot[e.spot], can = sp && FS.level >= sp.min_level;
-  const sub = warn ? `Torm jõuab kohale <b data-wvt="${b}">${wvClock(b - t)}</b> pärast` : e.kind === 'parv' ? (here ? 'Oled õiges kohas – viska õng!' : `Parv toitub kohas <b>${esc(wvSpot(e.spot))}</b>`) : 'Kõigil kalameestel üle kuningriigi';
+  const sub = warn ? `${I.wsub || 'Torm jõuab kohale'} <b data-wvt="${b}">${wvClock(b - t)}</b> pärast` : e.kind === 'parv' ? (here ? 'Oled õiges kohas – viska õng!' : `Parv toitub kohas <b>${esc(wvSpot(e.spot))}</b>`) : (I.osub || 'Kõigil kalameestel üle kuningriigi');
   const R = 26, C = 2 * Math.PI * R, p = Math.max(0, Math.min(1, (t - a) / (b - a)));
   return `<section class="wv-card wv-${e.kind}${warn ? ' warn' : ''}" style="--wc:${I.col}" aria-live="polite">
-    <div class="wv-bg" aria-hidden="true">${e.kind === 'torm' ? '<i class="wv-rain"></i><i class="wv-flash"></i>' : e.kind === 'udu' ? '<i class="wv-fog"></i><i class="wv-fog b"></i>' : '<i class="wv-rip"></i><i class="wv-rip b"></i><i class="wv-rip c"></i>'}</div>
-    <div class="wv-ring" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${R}" class="tr"/><circle cx="32" cy="32" r="${R}" class="pr" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * p).toFixed(1)}" data-wvr="${a}|${b}|${C.toFixed(1)}"/></svg><span>${luc(warn ? 'cloud-lightning' : I.ic)}</span></div>
+    <div class="wv-bg" aria-hidden="true">${I.art ? levHtml(warn ? 'right dim' : 'right') : e.kind === 'torm' ? '<i class="wv-rain"></i><i class="wv-flash"></i>' : e.kind === 'udu' ? '<i class="wv-fog"></i><i class="wv-fog b"></i>' : '<i class="wv-rip"></i><i class="wv-rip b"></i><i class="wv-rip c"></i>'}</div>
+    <div class="wv-ring" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${R}" class="tr"/><circle cx="32" cy="32" r="${R}" class="pr" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * p).toFixed(1)}" data-wvr="${a}|${b}|${C.toFixed(1)}"/></svg><span>${luc(warn ? (I.wic || 'cloud-lightning') : I.ic)}</span></div>
     <div class="wv-tx"><h3>${esc(title)}</h3><p>${sub}</p>
       <div class="wv-fx">${fx.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>
-    <div class="wv-side"><b class="wv-time" data-wvt="${b}">${wvClock(b - t)}</b><small>${warn ? 'tormini' : 'lõpuni'}</small>
+    <div class="wv-side"><b class="wv-time" data-wvt="${b}">${wvClock(b - t)}</b><small>${warn ? (I.wleft || 'tormini') : 'lõpuni'}</small>
       ${e.kind === 'parv' && !here ? (can ? `<button class="btn sm" type="button" data-fa="spot" data-arg="${e.spot}">Mine sinna</button>` : `<small class="wv-lock">Avaneb ${sp ? sp.min_level : ''}. tasemel</small>`) : ''}</div>
     <button type="button" class="wv-min" data-wv="min" data-arg="${e.id + (warn ? 'w' : '')}" aria-label="Pane kokku">${luc('chevron-up')}</button>
   </section>`;
@@ -52,7 +52,7 @@ function wvCard() {
 function wvSummary() {
   const w = wvData(), l = w && w.last; if (!l || !l.n || WV.seenLast === l.id) return '';
   const I = WV_INFO[l.kind], b = l.best && FD.sp[l.best.species];
-  return `<section class="wv-sum" style="--wc:${I.col}">${luc(I.ic)}<p><b>${I.n} möödus.</b> Püüdsid sel ajal ${l.n} ${l.n === 1 ? 'kala' : 'kala'}${b ? `, parim oli <b>${esc(b.name.toLowerCase())}</b> (${fKg(+l.best.weight)})` : ''}.</p><button type="button" class="wv-min" data-wv="seen" data-arg="${l.id}" aria-label="Sulge">${luc('x')}</button></section>`;
+  return `<section class="wv-sum" style="--wc:${I.col}">${luc(I.ic)}<p><b>${I.done || I.n + ' möödus.'}</b> Püüdsid sel ajal ${l.n} ${l.n === 1 ? 'kala' : 'kala'}${b ? `, parim oli <b>${esc(b.name.toLowerCase())}</b> (${fKg(+l.best.weight)})` : ''}.</p><button type="button" class="wv-min" data-wv="seen" data-arg="${l.id}" aria-label="Sulge">${luc('x')}</button></section>`;
 }
 // „Tulemas“: järgmised sündmused
 function wvUpcoming(head) {
@@ -93,7 +93,8 @@ setInterval(() => {
   if (ph !== WV.lastPhase) {
     if (e && !WV.toasted[ph]) {
       WV.toasted[ph] = 1; const I = WV_INFO[e.kind];
-      if (ph.endsWith('w')) toast(`Torm on tulekul! Kalad söövad enne tormi ahnelt – kasuta võimalust.`, 'gold', 'fish');
+      if (e.kind === 'valitseja') toast(ph.endsWith('w') ? 'Vesi tumeneb kõikjal… Sügavuste Valitseja ärkab 2 minuti pärast!' : 'Sügavuste Valitseja on ärganud! 4 minutit võib ta näkata igas püügikohas.', 'gold', 'fish');
+      else if (ph.endsWith('w')) toast(`Torm on tulekul! Kalad söövad enne tormi ahnelt – kasuta võimalust.`, 'gold', 'fish');
       else if (ph.endsWith('o') && e.kind === 'parv' && FD.spot[e.spot] && FS.level >= FD.spot[e.spot].min_level) toast(`Kalaparv kohas ${wvSpot(e.spot)}! 90 sekundit näkkab 2× kiiremini.`, 'gold', 'fish');
       else if (ph.endsWith('o') && e.kind === 'udu') toast('Udu laskus vee kohale. Uduhõbe ja Udukala tulevad välja!', 'info', 'fish');
     }
@@ -114,7 +115,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .wv-fog.b{animation-duration:19s;animation-direction:alternate-reverse;opacity:.7}
 .wv-rip{position:absolute;left:18%;top:55%;width:60px;height:22px;margin:-11px -30px;border-radius:50%;border:2px solid rgba(120,240,220,.45);opacity:0;animation:wvRip 2.4s ease-out infinite}
 .wv-rip.b{left:62%;top:40%;animation-delay:.8s}.wv-rip.c{left:84%;top:72%;animation-delay:1.6s}
-.wv-ring{position:relative;width:64px;height:64px}.wv-ring svg{width:64px;height:64px;transform:rotate(-90deg)}
+.wv-ring{position:relative;width:64px;height:64px}.wv-ring > svg{width:64px;height:64px;transform:rotate(-90deg)}
 .wv-ring .tr{fill:rgba(0,0,0,.25);stroke:rgba(255,255,255,.1);stroke-width:5}.wv-ring .pr{fill:none;stroke:var(--wc);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 1s linear;filter:drop-shadow(0 0 4px var(--wc))}
 .wv-ring span{position:absolute;inset:0;display:grid;place-items:center;color:#fff}.wv-ring .lu{width:26px;height:26px}
 .wv-torm.warn .wv-ring span{animation:wvPulse 1.2s ease-in-out infinite}
@@ -139,6 +140,6 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 @keyframes wvFog{from{transform:translateX(-8%)}to{transform:translateX(8%)}}
 @keyframes wvRip{0%{opacity:.8;transform:scale(.3)}100%{opacity:0;transform:scale(1.6)}}
 @keyframes wvPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
-@media (max-width:560px){.wv-card{grid-template-columns:auto minmax(0,1fr);padding:14px 44px 14px 14px;gap:12px}.wv-side{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;text-align:left}.wv-side .btn{margin-left:auto}.wv-time{font-size:24px}.wv-ring,.wv-ring svg{width:54px;height:54px}.wv-tx h3{font-size:17px}}
+@media (max-width:560px){.wv-card{grid-template-columns:auto minmax(0,1fr);padding:14px 44px 14px 14px;gap:12px}.wv-side{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;text-align:left}.wv-side .btn{margin-left:auto}.wv-time{font-size:24px}.wv-ring,.wv-ring > svg{width:54px;height:54px}.wv-tx h3{font-size:17px}}
 @media (prefers-reduced-motion:reduce){.wv-card,.wv-rain,.wv-flash,.wv-fog,.wv-rip,.wv-ring span{animation:none!important}.wv-flash,.wv-rip{display:none}}
 </style>`);

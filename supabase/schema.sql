@@ -1343,6 +1343,21 @@ update public.fish_species s set baits = v.b::text[], times = v.t::text[], max_l
 ) as v(id, b, t, ln, ag, e, a, bd) where s.id = v.id;
 
 -- ---------------------------------------------------------------------
+-- 2z5c. Sügavuste Valitseja – müütiline olend, kes võib ilmuda igas veekogus
+--   Tavalise püügi ajal teda ei tule (event = 'valitseja'). Ta tõuseb ainult ilmasündmuse
+--   „Valitseja ärkab“ ajal (vt fx_wev_slot) – siis võib ta näkata igas püügikohas – või
+--   kohtab teda Sadama laevastik retkel ükskõik millises piirkonnas.
+-- ---------------------------------------------------------------------
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather,event) values
+ ('sygavvalitseja','Sügavuste Valitseja',6,90,420,3200,1800,'{metsajarv,jogi,udulaht,kuninglik,meri,jaa,salajane,saarestik,avameri,sugavik,kuningatiik}',20,false,false,10,
+  '{"s":"e","c":["#16344f","#06111d","#5fe0ff","#2a6a92"],"g":"#5fe0ff","fx":"abyss"}',
+  'Müütiline sügavuste valitseja: tume madu, kelle kehal helendavad sinised spiraalmärgid. Ta tõuseb vaid siis, kui vesi kõikjal korraga tumeneb.',110,null,'valitseja')
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w, price=excluded.price, xp=excluded.xp,
+  spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty, look=excluded.look, descr=excluded.descr, sort=excluded.sort, event=excluded.event;
+update public.fish_species set baits = '{valgus,haldjatolm,kuldvobler}', times = '{öö,õhtu,hommik,päev}', max_len = 1400, max_age = 999, real = false,
+  element = 'vesi', arch = 'eel', body = 'angerjas' where id = 'sygavvalitseja';
+
+-- ---------------------------------------------------------------------
 -- 2z6. Kala vanus: liigipõhine kasvumudel (von Bertalanffy) ja iga kala individuaalne vanus
 --   Igal liigil on oma kasvumudel fish_species veergudes (g_*). Tühjad väärtused täidetakse
 --   liigi andmete põhjal (max_len, max_age); päris kaladel on kalateaduse põhised väärtused.
@@ -2269,7 +2284,10 @@ begin
   elsif roll < 1.5 * chm + 5 then kind := 'junk'; junk := (array['saabas','purk','kepp','pudel','karp','karp'])[1 + floor(random() * 6)::int];
   else
     -- erisündmused: haid merel (Haide väljakutse), säga öösel jõel ja Kuninglikul järvel (Sägaööd)
-    if ev = 'hai' and p_spot = any(array['meri','saarestik','avameri','sugavik']) and random() < 0.12 then
+    if f.level >= 20 and public.fx_wev(now()) ->> 'kind' = 'valitseja' and public.fx_wev(now()) ->> 'phase' = 'on' and random() < 0.03 then
+      -- Sügavuste Valitseja võib näkata igas püügikohas, kui ta on ärganud
+      select * into s from fish_species where id = 'sygavvalitseja'; evb := true;
+    elsif ev = 'hai' and p_spot = any(array['meri','saarestik','avameri','sugavik']) and random() < 0.12 then
       select * into s from fish_species where id = case when p_spot <> 'meri' and f.level >= 20 and random() < 0.22 then 'heeringahai' else 'ogahai' end;
       if s.min_level > f.level then s := null; end if;
     elsif ev = 'saga' and p_spot = any(array['jogi','kuninglik']) and f.level >= 16 and random() < (case when night then 0.18 else 0.06 end) then
@@ -5363,8 +5381,12 @@ create or replace function public.fx_wev_slot(n bigint) returns jsonb language p
 declare h int := abs(hashtext('wev' || n::text)) % 100; o int := 240 + abs(hashtext('wevo' || n::text)) % 1200;
   t0 timestamptz := to_timestamp(n * 1800); k text; sp text;
 begin
-  k := case when h < 20 then 'torm' when h < 38 then 'udu' when h < 68 then 'parv' else null end;
+  k := case when h < 20 then 'torm' when h < 38 then 'udu' when h < 68 then 'parv' when h < 72 then 'valitseja' else null end;
   if k is null then return null; end if;
+  -- Sügavuste Valitseja ärkab (harva, umbes 2 korda ööpäevas): 2 min vesi tumeneb, siis 4 min võib ta näkata igas püügikohas
+  if k = 'valitseja' then
+    return jsonb_build_object('id', 'valitseja-' || n, 'kind', 'valitseja', 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o + 120), 'end', t0 + make_interval(secs => o + 360));
+  end if;
   -- kui suur ilm on niigi torm/udu, siis sama sündmust ei korrata – tuleb kalaparv
   if (k = 'torm' and public.fx_weather_at(t0) = 'torm') or (k = 'udu' and public.fx_weather_at(t0) = 'udu') then k := 'parv'; end if;
   if k = 'torm' then
@@ -5711,6 +5733,17 @@ begin
       a := fx_fl_log(a, 'timer', format('Boss põgenes sügavusse. Tal on alles %s / %s elu – tule tagasi!', hp - dmg, r.boss ->> 'hp'));
     end if;
   end if;
+  -- väga harva: Sügavuste Valitseja tõuseb laeva kõrvale (igas piirkonnas)
+  if v.kind <> 'boss' and random() < 0.04 then
+    ch := true; evs := evs || 'valitseja'::text;
+    a := a || jsonb_build_object('choice', jsonb_build_object('ev', 'valitseja', 'title', 'Sügavuste Valitseja!',
+      'text', 'Vesi muutus mustaks ja laeva kõrvale tõusis hiiglaslik madu, kelle kehal helendavad sinised märgid. Ta vaatab kaptenit ja ootab.',
+      'opts', jsonb_build_array(
+        jsonb_build_object('id', 'austa', 't', 'Anna talle andam', 'd', 'Ta võtab osa saagist ja võib vastu kinkida midagi haruldast'),
+        jsonb_build_object('id', 'voitle', 't', 'Esita väljakutse', 'd', 'Väga ohtlik! Ainult tugeva kaitsega laev võib ta võita'),
+        jsonb_build_object('id', 'pogene', 't', 'Pööra laev ümber', 'd', 'Osa saagist kukub kiirustades üle parda'))));
+    a := fx_fl_log(a, 'crown', 'Sügavuste Valitseja tõusis veest! Kapten ootab sinu otsust.', 'choice');
+  end if;
   -- juhuslikud sündmused (1–2, kõige rohkem üks valikuga)
   pool := array['torm','torm','kirst','vrakk','saar','koletis','haruldane','kaart'];
   for i in 1 .. (1 + case when random() < 0.4 then 1 else 0 end) loop
@@ -5789,6 +5822,28 @@ begin
       a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 18 + r.diff * 4)); a := fx_fl_lose_fish(a, 0.3);
       a := fx_fl_log(a, 'triangle-alert', 'Koletis oli liiga tugev. Laev sai pihta ja osa saagist läks kaotsi. Parem kaitsesüsteem aitaks.', 'bad');
     end if;
+  elsif ev = 'valitseja' and c = 'austa' then
+    a := fx_fl_lose_fish(a, 0.4);
+    i := round(400 * r.diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+    a := fx_fl_add(a, 'items', 'mustparl', 1); a := fx_fl_add(a, 'baits', 'valgus', 3 + r.diff);
+    a := fx_fl_log(a, 'crown', format('Valitseja võttis andami vastu ja vajus vaikselt sügavusse. Laeva kõrvale jäi ujuma %s kulda, must pärl ja helendavad söödad.', i), 'epic');
+  elsif ev = 'valitseja' and c = 'voitle' then
+    if (st ->> 'kaitse')::numeric * (0.6 + random() * 0.8) >= 34 + 2 * r.diff then
+      i := round(1500 * r.diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      a := fx_fl_add(a, 'mats', 'kuldsoomus', 3); a := fx_fl_add(a, 'items', 'mustparl', 2);
+      if random() < 0.5 then
+        a := jsonb_set(a, '{fish}', (a -> 'fish') || jsonb_build_array(jsonb_build_object('species', 'sygavvalitseja', 'rarity', 6, 'weight', round((90 + random() * 330)::numeric, 2), 'boss', true)));
+        a := fx_fl_log(a, 'crown', format('Uskumatu! Meeskond võitis Sügavuste Valitseja ja vedas ta pardale! Lisaks %s kulda ja kuldseid soomuseid.', i), 'epic');
+      else
+        a := fx_fl_log(a, 'swords', format('Võit! Valitseja taganes sügavusse ja jättis maha %s kulda, kuldseid soomuseid ja mustad pärlid.', i), 'epic');
+      end if;
+    else
+      a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 30)); a := fx_fl_lose_fish(a, 0.5);
+      a := fx_fl_log(a, 'triangle-alert', 'Valitseja oli liiga võimas. Tema saba tabas laeva (−30%) ja pool saagist läks kaotsi. Tugevam kaitse aitaks.', 'bad');
+    end if;
+  elsif ev = 'valitseja' then
+    a := fx_fl_lose_fish(a, 0.15); a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 6));
+    a := fx_fl_log(a, 'wind', 'Laev pööras ümber ja põgenes. Valitseja vaatas järele, aga ei järgnenud.');
   elsif ev = 'koletis' then
     a := fx_fl_lose_fish(a, 0.3); a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 4));
     a := fx_fl_log(a, 'wind', 'Laev põgenes täispurjes. Kiirustades kukkus osa saagist üle parda.');
