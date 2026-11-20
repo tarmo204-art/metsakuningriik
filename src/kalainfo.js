@@ -161,12 +161,12 @@ function kiPanel(r) {
     kiCell('star', rc, 'Haruldus', rn, '', rc),
     kiCell('heart-pulse', KI_COL.tervis, 'Tervis', fr >= 100 ? 'Värske' : fr + '% värske', fr >= 100 ? 'äsja püütud' : 'kala hakkab vananema'),
     kiCell('map-pin', KI_COL.koht, 'Püügikoht', esc(spot)),
-    kiCell('clock', KI_COL.aeg, 'Püügiaeg', time, day),
+    kiCell('clock', KI_COL.aeg, 'Püügiaeg', time, r.best ? 'parim aeg sellele kalale' : day),
     bait ? kiCell('bug', KI_COL.varustus, 'Sööt', esc(bait), r.fav ? 'lemmiksööt' : '') : '',
     rod ? kiCell('fishing-rod', KI_COL.varustus, 'Püügivahend', esc(rod)) : '',
     inInv ? kiCell('coins', KI_COL.raha, 'Väärtus', fmt(estPrice(r.catch_id)) + ' kulda', m ? `<span class="ki-ac">${luc(m.mult >= 1 ? 'trending-up' : 'trending-down')}turg ×${String(m.mult).replace('.', ',')}${m.sold ? ` · täna müüdud ${m.sold}` : ''}</span>` : '', KI_COL.raha) : ''
   ].join('');
-  const badges = [r.new_species ? `<span class="ki-b" style="--ic:#8ff0c8">${luc('sparkles')}Esmaleid – uus liik kalaraamatus</span>` : '',
+  const badges = [`<span class="ki-b" style="--ic:#7ec8e3">${luc('zap')}+${fmt(r.xp || 0)} kogemust${r.x2 ? ' ×2' : ''}</span>`, r.new_species ? `<span class="ki-b" style="--ic:#8ff0c8">${luc('sparkles')}Esmaleid – uus liik kalaraamatus</span>` : '',
     r.giant ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Rekordsuurus</span>` : r.record ? `<span class="ki-b" style="--ic:#ffd27a">${luc('trophy')}Isiklik rekord</span>` : ''].join('');
   const act = (k, ic, t, s, dis) => `<button type="button" class="ki-a" data-ki="${k}" data-arg="${r.catch_id}" ${dis ? 'disabled' : ''}>${luc(ic)}<b>${t}</b><small>${s}</small></button>`;
   return `<div class="ki">
@@ -190,7 +190,8 @@ function kiPanel(r) {
     // asenda lühikirjeldus põhjaliku tutvustusega (kirjeldus on nüüd paneelis)
     const sp = FD.sp[r.species], short = `<p class="lead" style="font-size:12.5px">${esc(sp.descr)}</p>`;
     const bio = r.age != null ? r : (FS.inventory || []).find(x => x.id === r.catch_id), ag = fAge(sp, +r.weight, bio && bio.age != null ? bio : null), ai = KI_AGE[ag.i] || KI_AGE[2];
-    return h.replace(/<span class="age-chip"[^>]*>[^<]*<\/span>/, `<span class="age-chip ki-chip" style="--ac:${ai[1]}">${luc(ai[0])}${ag.name} · ${fAgeTxt(ag.years)}</span>`).replace(short, '').replace(fSize(sp, +r.weight), fKg(+r.weight) + (bio && bio.len != null ? ' · ' + fLenTxt(+bio.len) : '')).replace(/(<div class="acts">)/, kiPanel(r) + '<div class="ki-more">Veel võimalusi</div>$1');
+    // pealkirja all olev rida (vanus, kaal, pikkus, kogemus, lemmiksööt…) on kõik allpool infopaneelis – võtame selle ära
+    return h.replace(/<span class="age-chip"[^>]*>[^<]*<\/span>/, '').replace(/<p class="lead">[^<]*kogemust[\s\S]*?<\/p>/, '').replace(short, '').replace(/(<div class="acts">)/, kiPanel(r) + '<div class="ki-more">Veel võimalusi</div>$1');
   };
 }
 document.addEventListener('click', e => {
