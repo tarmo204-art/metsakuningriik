@@ -244,6 +244,14 @@ function sdRoute(found, n) {
 }
 function sdBuoy(f, i, col) { return f ? `<g class="sd-node on"><path d="M0 -16 v10" stroke="#3a2a1a" stroke-width="1.4"/><path d="M0 -16 l9 3 -9 3z" fill="${col}"/><ellipse cx="0" cy="0" rx="7" ry="3" fill="#0006"/><path d="M-6 -1 Q0 -12 6 -1Z" fill="#d84a2a" stroke="#fff" stroke-width="1"/><text y="-19" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" stroke="#0008" stroke-width="2" paint-order="stroke">${i}</text></g>`
   : `<g class="sd-node"><circle r="8" fill="rgba(12,24,28,.7)" stroke="rgba(255,255,255,.55)" stroke-dasharray="2 2"/><text y="3.5" text-anchor="middle" font-size="10" font-weight="800" fill="#e6efec">?</text></g>` }
+// laeva asukoht kaardil: sõidab sadamast sihtpaigani ja tagasi
+function sdBoatPos(spec, t) {
+  const [a, b, k, nf] = spec.split('|'), p = Math.max(0, Math.min(1, (t - +a) / (+b - +a)));
+  const pts = SD_PTS, target = k === 'boss' ? 4 : k === 'avasta' ? Math.min(3, +nf + 1) : Math.max(1, Math.min(3, +nf || 1));
+  const q = p < .5 ? p * 2 : (1 - p) * 2, f = q * target, i = Math.min(target - 1, Math.floor(f)), r = f - i, A = pts[i], B = pts[Math.min(4, i + 1)];
+  const x = A[0] + (B[0] - A[0]) * r, y = A[1] + (B[1] - A[1]) * r - 4;
+  return `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${p < .5 ? 1 : -1} 1)`;
+}
 function sdBoatMark() { return `<g transform="translate(-12 -20)"><path d="M-14 19 q8 2 14 0" stroke="rgba(255,255,255,.55)" stroke-width="1.2" fill="none" class="sd-foam"/><path d="M2 16 Q12 20 22 16 L20 21 Q12 23 4 21Z" fill="#5a3418" stroke="#2a1608" stroke-width=".8"/><path d="M12 2 v14" stroke="#3a2010" stroke-width="1.3"/><path d="M12 3 Q18 9 19 15 H12Z" fill="#f6efdc" stroke="#b8a888" stroke-width=".6"/><path d="M11 5 Q7 10 6 15 H11Z" fill="#ece2c8" stroke="#b8a888" stroke-width=".6"/><path d="M12 2 l5 1.5 -5 1.5z" fill="#c8302a"/></g>` }
 
 async function sdLoad(silent) {
@@ -316,7 +324,7 @@ function sdMap() {
   sites.forEach((st, i) => { const [x, y] = pts[i + 1]; ext += `<g transform="translate(${x} ${y})">${sdBuoy(found.includes(st.id), i + 1, RA)}</g>` });
   const [bx, by] = pts[4];
   ext += `<g transform="translate(${bx} ${by})" class="sd-node boss ${R.boss_dead ? 'dead' : allFound ? 'on' : ''}">${allFound && !R.boss_dead ? '<circle r="18" fill="none" stroke="#e4574a" stroke-width="2" class="sd-whirl" stroke-dasharray="6 5"/>' : ''}<circle r="12" fill="${R.boss_dead ? '#3a3a3a' : allFound ? '#8a1a14' : 'rgba(12,24,28,.75)'}" stroke="#ffd27a" stroke-width="1.6"/><g transform="translate(-7 -7) scale(.58)" stroke="#fff" fill="none" stroke-width="2">${LU[R.boss_dead ? 'crown' : 'skull']}</g></g>`;
-  atSea.forEach((s, i) => { const v = s.voyage, a = Date.parse(v.started_at), b = Date.parse(v.ready_at); ext += `<g class="sd-boat" data-sdb="${a}|${b}|${v.kind}|${found.length}" style="--d:${i}">${sdBoatMark()}</g>` });
+  atSea.forEach((s, i) => { const v = s.voyage, a = Date.parse(v.started_at), b = Date.parse(v.ready_at); ext += `<g class="sd-boat" data-sdb="${a}|${b}|${v.kind}|${found.length}" transform="${sdBoatPos(`${a}|${b}|${v.kind}|${found.length}`, sdNow())}">${sdBoatMark()}</g>` });
   let h = `<div class="sd-regs">${D.regions.map(r => `<button type="button" class="sd-rg ${r.id === SD.region ? 'on' : ''} ${r.open ? '' : 'lock'}" data-sd="reg" data-arg="${r.id}" style="--ra:${(SD_REG[r.id] || {}).a}">${r.open ? '' : luc('lock')}<b>${r.ord}. ${esc(r.name)}</b>${r.boss_dead ? `<small>${luc('crown')} võidetud</small>` : r.open ? `<small>${r.found.length}/${r.sites.length} paika</small>` : '<small>suletud</small>'}</button>`).join('')}</div>`;
   h += `<div class="fv-card sd-region" style="--ra:${RC.a}"><div class="sd-sc">${sdScene(R.id, open ? ext : '')}${open ? '' : `<div class="sd-locked">${luc('lock')}<b>Suletud piirkond</b><span>Võida enne „${esc((D.regions.find(x => x.ord === R.ord - 1) || {}).boss ? D.regions.find(x => x.ord === R.ord - 1).boss.name : '')}“ eelmises piirkonnas. Vaja ka laeva: ${esc((D.types.find(t => t.rank === R.min_rank) || {}).name || '')} või tugevam.</span></div>`}
     <div class="sd-rt"><h2>${esc(R.name)}</h2><span class="sd-diff" title="Raskus">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= R.diff ? 'on' : ''}"></i>`).join('')}</span></div></div>
@@ -443,13 +451,7 @@ setInterval(() => {
   document.querySelectorAll('[data-sdp]').forEach(el => { const [a, b] = el.dataset.sdp.split('|').map(Number); el.style.width = Math.min(100, (t - a) / (b - a) * 100).toFixed(1) + '%' });
   document.querySelectorAll('[data-sdm]').forEach(el => { const [a, b] = el.dataset.sdm.split('|').map(Number); el.style.left = Math.min(100, (t - a) / (b - a) * 100).toFixed(1) + '%' });
   // kaardil: laev sõidab sadamast sihtkohta ja tagasi
-  document.querySelectorAll('[data-sdb]').forEach(el => {
-    const [a, b, k, nf] = el.dataset.sdb.split('|'), p = Math.max(0, Math.min(1, (t - +a) / (+b - +a)));
-    const pts = SD_PTS, target = k === 'boss' ? 4 : k === 'avasta' ? Math.min(3, +nf + 1) : Math.max(1, Math.min(3, +nf || 1));
-    const q = p < .5 ? p * 2 : (1 - p) * 2, f = q * target, i = Math.min(target - 1, Math.floor(f)), r = f - i, A = pts[i], B = pts[Math.min(4, i + 1)];
-    const x = A[0] + (B[0] - A[0]) * r, y = A[1] + (B[1] - A[1]) * r - 4;
-    el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${p < .5 ? 1 : -1} 1)`);
-  });
+  document.querySelectorAll('[data-sdb]').forEach(el => el.setAttribute('transform', sdBoatPos(el.dataset.sdb, t)));
   if (back && FV.open && FV.tab === 'sadam') renderFV(true);
 }, 1000);
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -486,7 +488,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sd-rg b{font-size:13px}.sd-rg small{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#a9c4c8}.sd-rg small .lu{width:13px;height:13px;color:#ffd27a}.sd-rg > .lu{width:14px;height:14px;color:#a9c4c8}
 .sd-rg.on{background:color-mix(in srgb,var(--ra) 22%,#0c1d24);border-color:var(--ra)}.sd-rg.lock{opacity:.6}
 .sd-region{border-color:color-mix(in srgb,var(--ra) 40%,transparent)}
-.sd-sc{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:16/9;max-height:360px;width:100%}.sd-scene{width:100%;height:100%;display:block}
+.sd-sc{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:16/9;width:100%;max-width:820px;margin:0 auto}.sd-sc .sd-scene{position:absolute;inset:0}.sd-scene{width:100%;height:100%;display:block}
 .sd-rt{position:absolute;left:14px;top:10px;display:grid;gap:4px}.sd-rt h2{margin:0;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .sd-diff{display:flex;gap:3px}.sd-diff i{width:16px;height:5px;border-radius:3px;background:rgba(255,255,255,.25)}.sd-diff i.on{background:var(--ra)}
 .sd-locked{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:6px;padding:20px;text-align:center;background:rgba(6,14,18,.62);backdrop-filter:blur(3px)}.sd-locked .lu{width:30px;height:30px;color:#ffd27a}.sd-locked span{color:#cfe0e4;max-width:44ch}
