@@ -5,7 +5,7 @@
    retked serveri taimeriga, juhuslikud sündmused (osa valikuga), logiraamat ja auhinnad.
    Kõik arvutused ja auhinnad teeb server (fleet_* funktsioonid).
    ===================================================================== */
-const SD = { d: null, at: 0, loading: false, busy: false, sub: 'laevad', ship: null, region: 'metsajarv', res: null, off: 0 };
+const SD = { back: new Set(), d: null, at: 0, loading: false, busy: false, sub: 'laevad', ship: null, region: 'metsajarv', res: null, off: 0 };
 const SD_SUBS = [['laevad', 'ship', 'Laevad'], ['kaart', 'map', 'Merekaart'], ['tookoda', 'wrench', 'Laevatöökoda'], ['meeskond', 'users', 'Meeskond'], ['logi', 'scroll-text', 'Logiraamat']];
 const SD_STATS = [['spd', 'gauge', 'Kiirus'], ['vast', 'shield-check', 'Vastupidavus'], ['cap', 'package', 'Lastiruum'], ['avast', 'compass', 'Avastamisoskus'], ['kaitse', 'shield', 'Kaitsevõime'], ['pyuk', 'fish', 'Kalapüük']];
 const SD_KIND = { avasta: ['Avastusretk', 'compass', 'Otsi piirkonnast uus paik. Avastamisoskus aitab.'], pyuk: ['Püügiretk', 'fish', 'Laev püüab võrkudega kala. Lastiruum ja võrgud loevad.'], boss: ['Bossi jaht', 'skull', 'Rünnak piirkonna bossile. Kaitsevõime ja vastupidavus loevad.'] };
@@ -275,6 +275,7 @@ function sdStatsHtml(st, prev) {
 function sdVoyageBar(s) {
   const v = s.voyage; if (!v) return '';
   const a = Date.parse(v.started_at), b = Date.parse(v.ready_at), t = sdNow(), done = t >= b, R = sdReg(v.region);
+  if (done) SD.back.add(String(b));
   return `<div class="sd-voy ${done ? 'done' : ''}" style="--ra:${(SD_REG[v.region] || {}).a || '#7ec8e3'}">
     <div class="sd-vt">${luc(SD_KIND[v.kind][1])}<span><b>${SD_KIND[v.kind][0]}</b> · ${esc(R.name || '')}</span><b class="sd-vtime" data-sdt="${b}">${done ? 'Tagasi!' : sdLeft(b - t)}</b></div>
     <div class="sd-track"><i data-sdp="${a}|${b}" style="width:${Math.min(100, (t - a) / (b - a) * 100).toFixed(1)}%"></i><span class="sd-mini" data-sdm="${a}|${b}" style="left:${Math.min(100, (t - a) / (b - a) * 100).toFixed(1)}%">${luc('ship')}</span></div>
@@ -438,7 +439,7 @@ if (typeof FT_SVG !== 'undefined') FT_SVG.sadam = LU.anchor;
 // taimerid ja laevade liikumine kaardil
 setInterval(() => {
   const t = sdNow(); let back = false;
-  document.querySelectorAll('[data-sdt]').forEach(el => { const ms = +el.dataset.sdt - t; el.textContent = ms <= 0 ? 'Tagasi!' : sdLeft(ms); if (ms <= 0 && !el.dataset.done) { el.dataset.done = 1; back = true } });
+  document.querySelectorAll('[data-sdt]').forEach(el => { const ms = +el.dataset.sdt - t; el.textContent = ms <= 0 ? 'Tagasi!' : sdLeft(ms); if (ms <= 0 && !SD.back.has(el.dataset.sdt)) { SD.back.add(el.dataset.sdt); back = true } });
   document.querySelectorAll('[data-sdp]').forEach(el => { const [a, b] = el.dataset.sdp.split('|').map(Number); el.style.width = Math.min(100, (t - a) / (b - a) * 100).toFixed(1) + '%' });
   document.querySelectorAll('[data-sdm]').forEach(el => { const [a, b] = el.dataset.sdm.split('|').map(Number); el.style.left = Math.min(100, (t - a) / (b - a) * 100).toFixed(1) + '%' });
   // kaardil: laev sõidab sadamast sihtkohta ja tagasi
