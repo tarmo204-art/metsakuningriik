@@ -1312,6 +1312,37 @@ do $$ declare t text; begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 2z5b. Müütilised kalad (10 uut liiki, igaühel eriline välimus: look.fx)
+--   Ilmuvad teemakohastes püügikohtades eritingimustel (ilm, öö, talv) ja Sadama piirkondades.
+-- ---------------------------------------------------------------------
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather) values
+ ('aikeseangerjas','Äikeseangerjas',5,1,6,360,250,'{jogi,kuninglik,meri}',22,false,false,9,'{"s":"e","c":["#3a4a8a","#141a3a","#c8d0ff","#ffe060"],"g":"#fff080","fx":"spark"}','Tormiga tõusev angerjas, kelle kehast käivad elektrisähvatused.',96,'{torm}'),
+ ('vikerkaarekuningas','Vikerkaarekuningas',5,3,14,420,280,'{jogi,kuninglik,salajane}',26,false,false,9,'{"s":"n","c":["#ff8a6a","#6a4ac8","#fff4e0","#4ad0e8"],"b":"#a0f080","g":"#ffd0f0","fx":"rainbow"}','Kalade kuningas, kelle soomused muudavad pidevalt värvi.',97,'{vihm,paike}'),
+ ('kummitusforell','Kummitusforell',4,0.5,4,160,120,'{metsajarv,jogi,udulaht}',14,true,false,7,'{"s":"n","c":["#d8e8f0","#8aa4b8","#ffffff","#b8d0e0"],"g":"#e0f0ff","fx":"ghost"}','Läbipaistva kehaga forell, keda näeb ainult öösiti.',85,null),
+ ('rubiinahven','Rubiinahven',4,0.3,2,150,115,'{metsajarv,kuninglik}',12,false,false,7,'{"s":"n","c":["#d8303a","#7a0e1a","#ffd0d0","#ff6a6a"],"st":5,"g":"#ff5a6a","fx":"ruby"}','Ahven, kelle soomused on punased nagu vääriskivid.',86,'{paike}'),
+ ('kuldnesaga','Kuldne säga',5,15,90,450,300,'{jogi,kuninglik,sugavik}',30,true,false,9,'{"s":"l","c":["#e8b84a","#8a5a10","#fff0c0","#d89a2a"],"g":"#ffe08a","fx":"goldw"}','Hiiglaslik säga, kelle vurrud on puhtast kullast.',98,null),
+ ('tahehaug','Tähehaug',5,3,16,380,260,'{metsajarv,jogi,jaa}',24,true,false,9,'{"s":"l","c":["#2a3a6a","#0e1838","#a8b8e8","#4a5a9a"],"g":"#b8c8ff","fx":"stars"}','Öine haug, kelle täpid helendavad nagu tähed.',99,null),
+ ('myrgikuningas','Mürgikuningas',5,2,10,400,270,'{udulaht,salajane,sugavik}',32,false,false,9,'{"s":"n","c":["#5a8a2a","#1a3a0e","#c8f08a","#3a6a1a"],"sp":1,"g":"#8aff4a","fx":"toxic"}','Soode ohtlik valitseja, keda ümbritseb roheline mürgiaura.',100,'{udu}'),
+ ('ajakala','Ajakala',6,0.5,3,900,500,'{salajane,sugavik}',38,true,false,10,'{"s":"d","c":["#e8d8a8","#7a6a4a","#fff8e0","#c8b078"],"g":"#fff0b0","fx":"clock"}','Müstiline kala, kelle ümber keerlevad kellasümbolid. Öeldakse, et ta peatab hetkeks aja.',105,null),
+ ('merihunt','Kuninglik merihunt',6,4,20,850,480,'{avameri,sugavik,meri}',34,false,false,10,'{"s":"n","c":["#4a6a9a","#1a2a4a","#c8d8f0","#2a4a7a"],"sp":1,"g":"#7ab0ff","fx":"crown"}','Mere valitseja, kelle pead ehib sinine kuninglik kroon.',106,null),
+ ('kristallangerjas','Kristallangerjas',5,1,5,370,255,'{jaa,sugavik,salajane}',28,false,false,9,'{"s":"e","c":["#d8f4ff","#7ac0e0","#ffffff","#a8e0f8"],"g":"#c8f0ff","fx":"crystal"}','Läbipaistev angerjas, kelle keha on nagu kristall.',101,null)
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w,
+  price=excluded.price, xp=excluded.xp, spots=excluded.spots, min_level=excluded.min_level, night_only=excluded.night_only, difficulty=excluded.difficulty,
+  look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
+update public.fish_species s set baits = v.b::text[], times = v.t::text[], max_len = v.ln, max_age = v.ag, real = false, element = v.e, arch = v.a, body = v.bd from (values
+ ('aikeseangerjas','{valgus,krevett}','{õhtu,öö}',150,40,'välk','eel','angerjas'),
+ ('vikerkaarekuningas','{haldjatolm,valgus}','{päev}',120,50,'valgus','salmon','haug'),
+ ('kummitusforell','{haldjatolm,vagel}','{öö}',70,25,'vari','salmon','haug'),
+ ('rubiinahven','{hobelant,uss}','{päev}',50,30,'tuli','perch','ahven'),
+ ('kuldnesaga','{kuldvobler,krevett}','{öö}',260,90,'valgus','catfish','angerjas'),
+ ('tahehaug','{valgus,hobelant}','{öö}',140,40,'valgus','pike','haug'),
+ ('myrgikuningas','{kalasoot,vagel}','{hommik,õhtu}',100,60,'loodus','monster','karp'),
+ ('ajakala','{haldjatolm}','{öö}',60,999,'valgus','angel','karp'),
+ ('merihunt','{krevett,kuldvobler}','{päev,õhtu}',160,120,'vesi','monster','karp'),
+ ('kristallangerjas','{valgus,haldjatolm}','{öö}',130,80,'jää','eel','angerjas')
+) as v(id, b, t, ln, ag, e, a, bd) where s.id = v.id;
+
+-- ---------------------------------------------------------------------
 -- 2z6. Kala vanus: liigipõhine kasvumudel (von Bertalanffy) ja iga kala individuaalne vanus
 --   Igal liigil on oma kasvumudel fish_species veergudes (g_*). Tühjad väärtused täidetakse
 --   liigi andmete põhjal (max_len, max_age); päris kaladel on kalateaduse põhised väärtused.
@@ -1420,35 +1451,35 @@ create table if not exists public.fleet_regions (
 );
 insert into public.fleet_regions (id,name,ord,descr,diff,min_rank,minutes,food,spot,species,res,sites,boss) values
  ('metsajarv','Metsajärv',1,'Kodune metsajärv kuuskede vahel. Rahulik vesi, kuid sügavamal ujub vana kuningas.',1,1,10,10,'metsajarv',
-  '{ahven,sarg,haug,latikas,kiisk,linask,koha,angerjas,kristallahven,kuldahven}',
+  '{ahven,sarg,haug,latikas,kiisk,linask,koha,angerjas,kristallahven,kuldahven,rubiinahven,kummitusforell}',
   '{"mats":{"luu":[2,6],"soomus":[1,3]},"items":{"karp":0.5,"merevaik":0.15},"baits":{"mais":[3,8]}}',
   '[{"id":"pilliroog","name":"Pilliroo laht","descr":"Tihe pilliroog, kus haugid varitsevad.","find":{"gold":200,"items":{"karp":3}}},
     {"id":"vanapaat","name":"Uppunud kaluripaat","descr":"Vana paadi vrakk järve põhjas.","find":{"gold":350,"items":{"parl":1},"baits":{"soomuslant":5}}},
     {"id":"kuuskesaar","name":"Kuuskede saareke","descr":"Pisike saar keset järve, kus keegi pole käinud.","find":{"gold":500,"items":{"merevaik":2}}}]',
   '{"id":"vanahaug","name":"Metsajärve Vanahaug","descr":"Sajandivanune hiidhaug, kes on murdnud tuhat õnge.","hp":400,"atk":20,"fish":"joekuningas","reward":{"gold":3000,"items":{"ruun":2},"mats":{"kuldsoomus":2},"baits":{"haldjatolm":5}}}'),
  ('sugavjarv','Sügavjärv',2,'Tume ja külm järv, mille põhja pole keegi näinud. Sügavuses elavad suured kalad.',2,1,20,18,'kuninglik',
-  '{latikas,koha,saga,luts,angerjas,siig,tuur,laternkala,kirveskala}',
+  '{latikas,koha,saga,luts,angerjas,siig,tuur,laternkala,kirveskala,kuldnesaga,merihunt}',
   '{"mats":{"luu":[4,10],"soomus":[2,5],"iidneluu":[0,1]},"items":{"parl":0.4,"merevaik":0.3,"koopakristall":0.1},"baits":{"valgus":[2,5]}}',
   '[{"id":"kaljusein","name":"Kaljune kallas","descr":"Järsk kalju, mille all algab sügavik.","find":{"gold":700,"items":{"koopakristall":1}}},
     {"id":"voorikoobas","name":"Veealune koobas","descr":"Koobas, kust paistab nõrk helendus.","find":{"gold":900,"items":{"parl":2},"baits":{"valgus":5}}},
     {"id":"sugavik","name":"Põhjatu auk","descr":"Järve sügavaim koht. Siit kostab kummalisi hääli.","find":{"gold":1200,"items":{"mustparl":1}}}]',
   '{"id":"sugavsaga","name":"Sügavuste Säga","descr":"Paadisuurune säga, kes elab järve sügavaimas augus.","hp":900,"atk":30,"fish":"saga","reward":{"gold":8000,"items":{"mustparl":2,"kristall":1},"mats":{"iidneluu":2},"baits":{"valgus":10}}}'),
  ('udusoo','Udusoo järv',3,'Soode keskel olev järv, mida katab alati udu. Siin elavad kalad, keda mujal ei näe.',3,2,35,28,'udulaht',
-  '{linask,koger,vingerjas,mudamaim,hink,udukala,uduhobe,haldjakala,hallhaug}',
+  '{linask,koger,vingerjas,mudamaim,hink,udukala,uduhobe,haldjakala,hallhaug,myrgikuningas,kummitusforell}',
   '{"mats":{"soomus":[3,7],"kuldsoomus":[0,1]},"items":{"ruun":0.25,"parl":0.4},"baits":{"haldjatolm":[1,3]}}',
   '[{"id":"turbasaar","name":"Õõtsuv turbasaar","descr":"Saar, mis kõigub jalge all.","find":{"gold":1500,"items":{"ruun":1}}},
     {"id":"virvatuli","name":"Virvatulede laht","descr":"Siin tantsivad öösel virvatuled.","find":{"gold":1800,"baits":{"haldjatolm":6}}},
     {"id":"nõiaonn","name":"Vana nõia onn","descr":"Kaldal seisab ammu mahajäetud onn täis kummalisi purke.","find":{"gold":2500,"items":{"kristall":1,"ruun":1}}}]',
   '{"id":"uduvaim","name":"Udusoo Vaim","descr":"Udust koosnev hiiglaslik kala, keda näeb vaid hetkeks.","hp":1600,"atk":40,"fish":"hallhaug","reward":{"gold":15000,"items":{"kristall":2,"ruun":3},"mats":{"kuldsoomus":4},"baits":{"haldjatolm":10}}}'),
  ('kulmajarv','Külmajärv',4,'Põhjas asuv jäine järv, kus ka suvel ujuvad jäätükid. Siin peab laev olema tugev.',4,3,55,40,'jaa',
-  '{siig,raabis,paalia,luts,harjus,jaaahven,jaahaug,virmaliskala,igijaavaim}',
+  '{siig,raabis,paalia,luts,harjus,jaaahven,jaahaug,virmaliskala,igijaavaim,kristallangerjas,tahehaug}',
   '{"mats":{"kuldsoomus":[1,2],"iidneluu":[0,2]},"items":{"kristall":0.25,"koopakristall":0.4},"baits":{"kuldvobler":[0,1]}}',
   '[{"id":"jaamagi","name":"Jäämägi","descr":"Hiiglaslik jäämägi, mille sees on külmunud vanad asjad.","find":{"gold":3000,"items":{"koopakristall":3}}},
     {"id":"virmalisrand","name":"Virmaliste rand","descr":"Rand, mille kohal säravad iga öö virmalised.","find":{"gold":3500,"items":{"kristall":1}}},
     {"id":"jaapalee","name":"Jääpalee varemed","descr":"Ammu unustatud kuninga jääst palee.","find":{"gold":5000,"items":{"kristall":2,"sormus":1}}}]',
   '{"id":"jaakuningas","name":"Jääkuningas","descr":"Jäisest soomusest hiidkala, kelle hingeõhk külmutab vee.","hp":2600,"atk":55,"fish":"igijaavaim","reward":{"gold":25000,"items":{"soomus":1,"kristall":2},"mats":{"kuldsoomus":6},"baits":{"kuldvobler":1}}}'),
  ('tulejarv','Tulejärv',5,'Vulkaani kraatris olev kuum järv. Vesi auravad ja põhjas hõõgub laava.',5,4,80,60,'salajane',
-  '{paikesekarp,kuldkala,valgukala,tormihaug,vikerkaarekala,jarvelohe,sugavusedraakon}',
+  '{paikesekarp,kuldkala,valgukala,tormihaug,vikerkaarekala,jarvelohe,sugavusedraakon,aikeseangerjas,vikerkaarekuningas,ajakala}',
   '{"mats":{"kuldsoomus":[2,4],"iidneluu":[1,2]},"items":{"mustparl":0.3,"kristall":0.35,"soomus":0.05},"baits":{"draakonilant":[0,1]}}',
   '[{"id":"laavasild","name":"Laavasild","descr":"Jahtunud laavast kaar üle järve.","find":{"gold":8000,"items":{"mustparl":2}}},
     {"id":"tulesaar","name":"Tulesaar","descr":"Saar, kus kuumad allikad purskavad taevasse.","find":{"gold":10000,"items":{"kristall":2}}},
