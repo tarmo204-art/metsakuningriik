@@ -80,7 +80,7 @@ async function onPing() {
   if (ON.seen) {
     const fresh = (d.players || []).filter(p => !ON.seen.has(p.id));
     if (fresh.length) {
-      toast(fresh.length === 1 ? `🟢 ${fresh[0].name} tuli mängu` : `🟢 ${fresh.length} mängijat tuli mängu`, 'info');
+      // sõprade tulekut näeb sõprade nimekirjas – hüpikteadet ei näita
       const c = ON.el; if (c) { c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop') }
     }
   }

@@ -235,7 +235,7 @@ function lifeTick(dt, silent) {
   if (!S) return; const L = ensureLife(); lifeAcc += dt;
   if (lifeAcc < 1) return; lifeAcc = 0;
   const now = Date.now();
-  if (RATES && RATES.residents > 0 && L.req.length < 3 && now >= L.nextReq) { newRequest(); L.nextReq = now + rnd(6, 12) * 60000; if (!silent) toastOnce('req', `${L.req[L.req.length - 1].who} palub abi. Vaata elanike soove vahekaardil Kuningriik.`, 'info') }
+  if (RATES && RATES.residents > 0 && L.req.length < 3 && now >= L.nextReq) { newRequest(); L.nextReq = now + rnd(6, 12) * 60000; }
   const exp = L.req.filter(q => now > q.until); if (exp.length) { L.req = L.req.filter(q => now <= q.until); L.happy = Math.max(0, L.happy - 5 * exp.length) }
   if (S.res.food < 1 && RATES && RATES.residents > 0) L.happy = Math.max(0, L.happy - .05);
   else if (L.happy < 60) L.happy = Math.min(60, L.happy + .01);
@@ -253,7 +253,7 @@ function lifeTick(dt, silent) {
       }
       if (!L.ev.fires.length) endEvent(false);
     }
-    if (L.ev && now > L.ev.until) { if (L.ev.k === 'saadik' && !silent) toast('Saadik ei jõudnud kingitust ära oodata ja lahkus.', 'info'); endEvent(false) }
+    if (L.ev && now > L.ev.until) { endEvent(false) }
   } else if (!silent && S.level >= 2 && now >= L.nextEv) {
     const night = typeof skyState === 'function' && skyState().dark > .5;
     const opts = ['laat', 'saadik', 'muusik', 'hirv', 'tuli'].filter(k => k !== 'laat' || S.buildings.some(b => b.type === 'turg'));

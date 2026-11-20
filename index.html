@@ -224,7 +224,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .toast::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tc)}
 .toast .tic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--tc) 55%,#fff 10%),color-mix(in srgb,var(--tc) 35%,#000 40%));box-shadow:0 0 0 2px color-mix(in srgb,var(--tc) 40%,transparent),0 0 16px color-mix(in srgb,var(--tc) 35%,transparent)}
 .toast .tic i{font-style:normal;font-weight:900;font-size:18px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}.toast .tic .ic{width:22px;height:22px}
-.toast .ttx{display:grid;gap:2px;min-width:0}.toast .tt{font-weight:700;color:#f4f0e2}.toast .tb{font-size:12.8px;color:#b9cbbd}
+.toast .ttx{display:grid;gap:2px;min-width:0}.toast .tt{font-weight:700;color:#f4f0e2}.toast .tcnt{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;background:rgba(255,255,255,.14);font-size:12px}.toast .tb{font-size:12.8px;color:#b9cbbd}
 .toast .tnum{color:color-mix(in srgb,var(--tc) 75%,#fff);font-weight:800;white-space:nowrap}
 .toast .tx{align-self:start;width:24px;height:24px;border:0;border-radius:50%;background:rgba(255,255,255,.07);color:#cfd8cf;font-size:16px;line-height:1;cursor:pointer;padding:0}.toast .tx:hover{background:rgba(255,255,255,.16)}
 .toast .tbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--tc);opacity:.75;transform-origin:left;animation:toastBar linear forwards}
@@ -843,7 +843,7 @@ const rewardText = r => Object.keys(r).map(k => '+' + fmt(r[k]) + ' ' + (RES[k] 
 /* manual gathering, capped by storage */
 function addRes(k, amt, x, y) {
   const cap = RATES.cap;
-  if (k !== 'gold' && S.res[k] >= cap) { floatText(x, y, 'Ladu täis', '#ff8a78'); toastOnce('full', 'Ladu on täis. Ehita elumaju, turg või loss, et laomahtu suurendada, või müü kaupa turul.', 'bad'); return 0 }
+  if (k !== 'gold' && S.res[k] >= cap) { floatText(x, y, 'Ladu täis', '#ff8a78'); toastOnce('full', 300000, 'Ladu on täis. Ehita elumaju, turg või loss, et laomahtu suurendada, või müü kaupa turul.', 'bad'); return 0 }
   const before = S.res[k];
   S.res[k] = k === 'gold' ? S.res[k] + amt : Math.min(cap, S.res[k] + amt);
   const got = S.res[k] - before;
@@ -864,11 +864,11 @@ function tick(dt, silent) {
     const se = season(); if (!S.seenSeasons.includes(se.k)) S.seenSeasons.push(se.k);
     if (!silent) {
       if ((dayNum() - 1) % 3 === 0) { toast(`Algas ${se.n.toLowerCase()}! ${se.fx[0].toUpperCase() + se.fx.slice(1)}.`, 'gold', 'fame'); groundKey = '' }
-      else toast(`Päev ${dayNum()} algab. Linnud laulavad.`, 'info', 'fame');
+      // päeva algus on näha kellast – eraldi teadet ei näita
       if (!S.merchant && S.level >= 2 && Math.random() < .6) spawnMerchant();
     }
   }
-  if (S.merchant && S.time >= S.merchant.until) { S.merchant = null; if (!silent) toast('Rändkaupmees pani vankri kinni ja sõitis edasi.', 'info') }
+  if (S.merchant && S.time >= S.merchant.until) { S.merchant = null; }
   if (S.time >= S.weather.until) newWeather();
 
   const now = Date.now();
@@ -915,7 +915,7 @@ function newWeather() {
   for (const k of ws) { r -= wt(k); if (r <= 0) { pickW = k; break } }
   if (pickW === S.weather.t) { const alt = ws.filter(k => wt(k) > 0 && k !== pickW); if (alt.length) pickW = pick(alt) }
   S.weather = { t: pickW, until: S.time + rnd(150, 300) };
-  if (!SILENT) toast('Ilm muutus: ' + WEATHER[pickW].n.toLowerCase() + '. ' + WEATHER_FX[pickW] + '.', 'info');
+  if (!SILENT) info('Ilm muutus: ' + WEATHER[pickW].n.toLowerCase() + '. ' + WEATHER_FX[pickW] + '.');
 }
 function onNightfall() {
   if (SILENT) return;
@@ -924,7 +924,7 @@ function onNightfall() {
     S.raid = { n: ri(2, 3) };
     toast('Hundid hiilivad Kodumetsa! Mine sinna ja peleta nad minema enne südaööd, muidu varastavad nad toitu.', 'bad');
     if (S.view === 'kodu') spawnRaid();
-  } else toast('Öö laskub metsa üle. Tulikärbsed süttivad.', 'info');
+  }
 }
 function onMidnight() {
   if (SILENT || !S.raid) { S.raid = null; return }
@@ -2212,25 +2212,33 @@ const isMobile = () => matchMedia('(max-width:900px)').matches;
 const toastSeen = {};
 function toast(msg, kind = 'info', icon) {
   if (SILENT) { silentLog.push(msg); return }
-  const box = $('#toasts'); const el = document.createElement('div');
+  // emotikon teksti alguses kordaks ikooni – võtame selle ära, et kõik teated oleksid ühes stiilis
+  msg = String(msg).replace(/^(?:[\p{Extended_Pictographic}\u2B00-\u2BFF\u2190-\u21FF][\uFE0F\u200D]*)+\s*/u, '');
+  const box = $('#toasts');
+  // sama teade juba ekraanil → ei tee uut, vaid näitab kordade arvu ja pikendab aega
+  const same = [...box.children].find(t => t.dataset.msg === msg && !t.classList.contains('out'));
+  if (same && same._bump) { same._bump(); return }
+  const el = document.createElement('div'); el.dataset.msg = msg;
   // pealkiri = esimene lause, ülejäänu väiksemalt; preemiad (+50 kulda) esile tõstetud
   const m = String(msg), cut = m.search(/[!?.](\s|$)/), hasBody = cut > 0 && cut < m.length - 3 && cut < 90;
   const title = hasBody ? m.slice(0, cut + 1) : m, body = hasBody ? m.slice(cut + 1).trim() : '';
   const fmtT = t => esc(t).replace(/([+−-]\d[\d\s,.]*(?:\s?(?:kulda|kuulsust|kogemust|puitu|kivi|marju|toitu|vett|aardekaart|kg))?)/g, '<b class="tnum">$1</b>');
   const sym = { good: '✓', bad: '!', info: 'i', gold: '★' }[kind] || 'i';
-  const dur = Math.min(11000, 5500 + m.length * 45);
+  // lühem ekraaniaeg: tavateated 3,5–6 s, tähtsad ja hoiatused kuni 8 s (hiirega peale minnes jääb ootele)
+  const dur = kind === 'gold' || kind === 'bad' ? Math.min(8000, 4500 + m.length * 35) : Math.min(6000, 3500 + m.length * 30);
   el.className = 'toast ' + kind;
   el.innerHTML = `<span class="tic">${icon && ICON[icon] ? ic(icon) : `<i>${sym}</i>`}</span><span class="ttx"><span class="tt">${fmtT(title)}</span>${body ? `<span class="tb">${fmtT(body)}</span>` : ''}</span><button class="tx" type="button" aria-label="Sulge teade">×</button><span class="tbar" style="animation-duration:${dur}ms"></span>`;
-  box.appendChild(el); while (box.children.length > (isMobile() ? 3 : 4)) box.firstChild.remove();
+  box.appendChild(el); while (box.children.length > (isMobile() ? 2 : 3)) box.firstChild.remove();
   let left = dur, t0 = Date.now(), timer = null;
   const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 450) };
   const arm = () => { t0 = Date.now(); timer = setTimeout(close, left) };
   el.addEventListener('pointerenter', () => { clearTimeout(timer); left -= Date.now() - t0; el.classList.add('hold') });
   el.addEventListener('pointerleave', () => { el.classList.remove('hold'); arm() });
   el.querySelector('.tx').addEventListener('click', e => { e.stopPropagation(); close() });
+  let cnt = 1; el._bump = () => { cnt++; let b = el.querySelector('.tcnt'); if (!b) { b = document.createElement('b'); b.className = 'tcnt'; el.querySelector('.tt').append(' ', b) } b.textContent = '×' + cnt; clearTimeout(timer); left = dur; arm() };
   arm();
 }
-function toastOnce(key, msg, kind) { const n = Date.now(); if (toastSeen[key] && n - toastSeen[key] < 20000) return; toastSeen[key] = n; toast(msg, kind) }
+function toastOnce(key, a, b, c) { const cd = typeof a === 'number' ? a : 20000, [msg, kind] = typeof a === 'number' ? [b, c] : [a, b]; const n = Date.now(); if (toastSeen[key] && n - toastSeen[key] < cd) return; toastSeen[key] = n; toast(msg, kind) }
 function info(msg) { const el = $('#mapInfo'); if (el) el.textContent = msg; UI.infoT = Date.now() }
 function flashSave() { const d = $('#saveDot'); if (!d) return; d.classList.add('on'); setTimeout(() => d.classList.remove('on'), 700) }
 
@@ -3204,7 +3212,7 @@ function lifeTick(dt, silent) {
   if (!S) return; const L = ensureLife(); lifeAcc += dt;
   if (lifeAcc < 1) return; lifeAcc = 0;
   const now = Date.now();
-  if (RATES && RATES.residents > 0 && L.req.length < 3 && now >= L.nextReq) { newRequest(); L.nextReq = now + rnd(6, 12) * 60000; if (!silent) toastOnce('req', `${L.req[L.req.length - 1].who} palub abi. Vaata elanike soove vahekaardil Kuningriik.`, 'info') }
+  if (RATES && RATES.residents > 0 && L.req.length < 3 && now >= L.nextReq) { newRequest(); L.nextReq = now + rnd(6, 12) * 60000; }
   const exp = L.req.filter(q => now > q.until); if (exp.length) { L.req = L.req.filter(q => now <= q.until); L.happy = Math.max(0, L.happy - 5 * exp.length) }
   if (S.res.food < 1 && RATES && RATES.residents > 0) L.happy = Math.max(0, L.happy - .05);
   else if (L.happy < 60) L.happy = Math.min(60, L.happy + .01);
@@ -3222,7 +3230,7 @@ function lifeTick(dt, silent) {
       }
       if (!L.ev.fires.length) endEvent(false);
     }
-    if (L.ev && now > L.ev.until) { if (L.ev.k === 'saadik' && !silent) toast('Saadik ei jõudnud kingitust ära oodata ja lahkus.', 'info'); endEvent(false) }
+    if (L.ev && now > L.ev.until) { endEvent(false) }
   } else if (!silent && S.level >= 2 && now >= L.nextEv) {
     const night = typeof skyState === 'function' && skyState().dark > .5;
     const opts = ['laat', 'saadik', 'muusik', 'hirv', 'tuli'].filter(k => k !== 'laat' || S.buildings.some(b => b.type === 'turg'));
@@ -3655,7 +3663,10 @@ function ambientTick() {
   const _ar = addRes; addRes = function (k, amt, x, y) { const got = _ar(k, amt, x, y); if (got > 0) sfx({ wood: 'chop', stone: 'stone', berries: 'pick', food: 'pick', water: 'water', gold: 'coin' }[k] || 'pick'); return got };
   const _fb = finishBuild; finishBuild = function (b) { _fb(b); if (!SILENT) sfx('build') };
   const _lu = onLevelUp; onLevelUp = function (a, b) { _lu(a, b); if (!SILENT) setTimeout(() => sfx('levelup'), 150) };
-  const _to = toast; toast = function (msg, kind, icon) { const r = _to(msg, kind, icon); if (kind === 'gold') sfx('chime'); else if (kind === 'bad') sfx('bad'); return r };
+  // teadete heli: kõlin kõige rohkem kord 12 sekundi jooksul, veaheli kord 5 sekundi jooksul – et mäng ei kõliseks pidevalt
+  const _to = toast; let lastCh = 0, lastBad = 0;
+  toast = function (msg, kind, icon) { const r = _to(msg, kind, icon), n = Date.now(); if (SILENT) return r;
+    if (kind === 'gold' && n - lastCh > 12000) { lastCh = n; sfx('chime') } else if (kind === 'bad' && n - lastBad > 5000) { lastBad = n; sfx('bad') } return r };
   if (typeof tryTame === 'function') { const _tt = tryTame; tryTame = function (a) { const r = _tt(a); if (a && a.deer) sfx('deer'); else if (a && !a.folk) sfx('animal'); return r } }
   if (typeof startEvent === 'function') { const _se = startEvent; startEvent = function (k) { _se(k); sfx(k === 'tuli' ? 'bad' : 'event') } }
   if (typeof fireAt === 'function') { const _fa = fireAt; fireAt = function (x, y) { const n = S.life.ev && S.life.ev.fires ? S.life.ev.fires.length : 0; const r = _fa(x, y); if (r && (!S.life.ev || !S.life.ev.fires || S.life.ev.fires.length < n)) sfx('hiss'); return r } }
@@ -5610,7 +5621,7 @@ async function loadNews(silent) {
     const newer = fresh.filter(n => n.id > NEWS.last);
     NEWS.list = fresh; if (fresh.length) NEWS.last = Math.max(NEWS.last, fresh[0].id);
     NEWS.unread = fresh.filter(n => n.id > NEWS.seen && !n.me).length;
-    if (!first && silent) newer.filter(n => !n.me && !n.bot).slice(0, 2).forEach(n => toast('Kuningriigi uudis: ' + newsText(n).replace(/<[^>]+>/g, ''), 'gold', 'fish'));
+    // uued uudised näeb Uudiste vahelehel (märk menüüs) – hüpikteadet ei näita
     if (FV.open) renderFV(); else if (typeof renderPanel === 'function' && S && UI.tab === 'edetabel') renderPanel(true);
   } catch (e) { }
 }
@@ -7776,7 +7787,7 @@ setInterval(() => {
   const on = kumaOn();
   if (KUMA.was !== null && on !== KUMA.was && CL.user) {
     if (on) { toast('Õhtukuma algas! Kuni kella 22-ni annab kalapüük topelt kogemust.', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
-    else toast('Õhtukuma lõppes. Homme kell 19 tuleb uuesti!', 'info');
+    // lõppemisest teadet ei näita
     if (FV.open) { if (typeof refreshFS === 'function') refreshFS().then(() => renderFV(true)); else renderFV(true) }
   }
   KUMA.was = on;
@@ -11056,7 +11067,7 @@ async function onPing() {
   if (ON.seen) {
     const fresh = (d.players || []).filter(p => !ON.seen.has(p.id));
     if (fresh.length) {
-      toast(fresh.length === 1 ? `🟢 ${fresh[0].name} tuli mängu` : `🟢 ${fresh.length} mängijat tuli mängu`, 'info');
+      // sõprade tulekut näeb sõprade nimekirjas – hüpikteadet ei näita
       const c = ON.el; if (c) { c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop') }
     }
   }

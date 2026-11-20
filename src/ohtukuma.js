@@ -97,7 +97,7 @@ setInterval(() => {
   const on = kumaOn();
   if (KUMA.was !== null && on !== KUMA.was && CL.user) {
     if (on) { toast('Õhtukuma algas! Kuni kella 22-ni annab kalapüük topelt kogemust.', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
-    else toast('Õhtukuma lõppes. Homme kell 19 tuleb uuesti!', 'info');
+    // lõppemisest teadet ei näita
     if (FV.open) { if (typeof refreshFS === 'function') refreshFS().then(() => renderFV(true)); else renderFV(true) }
   }
   KUMA.was = on;

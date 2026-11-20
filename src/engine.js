@@ -158,7 +158,7 @@ const rewardText = r => Object.keys(r).map(k => '+' + fmt(r[k]) + ' ' + (RES[k] 
 /* manual gathering, capped by storage */
 function addRes(k, amt, x, y) {
   const cap = RATES.cap;
-  if (k !== 'gold' && S.res[k] >= cap) { floatText(x, y, 'Ladu täis', '#ff8a78'); toastOnce('full', 'Ladu on täis. Ehita elumaju, turg või loss, et laomahtu suurendada, või müü kaupa turul.', 'bad'); return 0 }
+  if (k !== 'gold' && S.res[k] >= cap) { floatText(x, y, 'Ladu täis', '#ff8a78'); toastOnce('full', 300000, 'Ladu on täis. Ehita elumaju, turg või loss, et laomahtu suurendada, või müü kaupa turul.', 'bad'); return 0 }
   const before = S.res[k];
   S.res[k] = k === 'gold' ? S.res[k] + amt : Math.min(cap, S.res[k] + amt);
   const got = S.res[k] - before;
@@ -179,11 +179,11 @@ function tick(dt, silent) {
     const se = season(); if (!S.seenSeasons.includes(se.k)) S.seenSeasons.push(se.k);
     if (!silent) {
       if ((dayNum() - 1) % 3 === 0) { toast(`Algas ${se.n.toLowerCase()}! ${se.fx[0].toUpperCase() + se.fx.slice(1)}.`, 'gold', 'fame'); groundKey = '' }
-      else toast(`Päev ${dayNum()} algab. Linnud laulavad.`, 'info', 'fame');
+      // päeva algus on näha kellast – eraldi teadet ei näita
       if (!S.merchant && S.level >= 2 && Math.random() < .6) spawnMerchant();
     }
   }
-  if (S.merchant && S.time >= S.merchant.until) { S.merchant = null; if (!silent) toast('Rändkaupmees pani vankri kinni ja sõitis edasi.', 'info') }
+  if (S.merchant && S.time >= S.merchant.until) { S.merchant = null; }
   if (S.time >= S.weather.until) newWeather();
 
   const now = Date.now();
@@ -230,7 +230,7 @@ function newWeather() {
   for (const k of ws) { r -= wt(k); if (r <= 0) { pickW = k; break } }
   if (pickW === S.weather.t) { const alt = ws.filter(k => wt(k) > 0 && k !== pickW); if (alt.length) pickW = pick(alt) }
   S.weather = { t: pickW, until: S.time + rnd(150, 300) };
-  if (!SILENT) toast('Ilm muutus: ' + WEATHER[pickW].n.toLowerCase() + '. ' + WEATHER_FX[pickW] + '.', 'info');
+  if (!SILENT) info('Ilm muutus: ' + WEATHER[pickW].n.toLowerCase() + '. ' + WEATHER_FX[pickW] + '.');
 }
 function onNightfall() {
   if (SILENT) return;
@@ -239,7 +239,7 @@ function onNightfall() {
     S.raid = { n: ri(2, 3) };
     toast('Hundid hiilivad Kodumetsa! Mine sinna ja peleta nad minema enne südaööd, muidu varastavad nad toitu.', 'bad');
     if (S.view === 'kodu') spawnRaid();
-  } else toast('Öö laskub metsa üle. Tulikärbsed süttivad.', 'info');
+  }
 }
 function onMidnight() {
   if (SILENT || !S.raid) { S.raid = null; return }

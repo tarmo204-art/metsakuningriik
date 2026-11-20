@@ -101,7 +101,10 @@ function ambientTick() {
   const _ar = addRes; addRes = function (k, amt, x, y) { const got = _ar(k, amt, x, y); if (got > 0) sfx({ wood: 'chop', stone: 'stone', berries: 'pick', food: 'pick', water: 'water', gold: 'coin' }[k] || 'pick'); return got };
   const _fb = finishBuild; finishBuild = function (b) { _fb(b); if (!SILENT) sfx('build') };
   const _lu = onLevelUp; onLevelUp = function (a, b) { _lu(a, b); if (!SILENT) setTimeout(() => sfx('levelup'), 150) };
-  const _to = toast; toast = function (msg, kind, icon) { const r = _to(msg, kind, icon); if (kind === 'gold') sfx('chime'); else if (kind === 'bad') sfx('bad'); return r };
+  // teadete heli: kõlin kõige rohkem kord 12 sekundi jooksul, veaheli kord 5 sekundi jooksul – et mäng ei kõliseks pidevalt
+  const _to = toast; let lastCh = 0, lastBad = 0;
+  toast = function (msg, kind, icon) { const r = _to(msg, kind, icon), n = Date.now(); if (SILENT) return r;
+    if (kind === 'gold' && n - lastCh > 12000) { lastCh = n; sfx('chime') } else if (kind === 'bad' && n - lastBad > 5000) { lastBad = n; sfx('bad') } return r };
   if (typeof tryTame === 'function') { const _tt = tryTame; tryTame = function (a) { const r = _tt(a); if (a && a.deer) sfx('deer'); else if (a && !a.folk) sfx('animal'); return r } }
   if (typeof startEvent === 'function') { const _se = startEvent; startEvent = function (k) { _se(k); sfx(k === 'tuli' ? 'bad' : 'event') } }
   if (typeof fireAt === 'function') { const _fa = fireAt; fireAt = function (x, y) { const n = S.life.ev && S.life.ev.fires ? S.life.ev.fires.length : 0; const r = _fa(x, y); if (r && (!S.life.ev || !S.life.ev.fires || S.life.ev.fires.length < n)) sfx('hiss'); return r } }

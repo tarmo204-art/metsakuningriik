@@ -1187,7 +1187,7 @@ async function loadNews(silent) {
     const newer = fresh.filter(n => n.id > NEWS.last);
     NEWS.list = fresh; if (fresh.length) NEWS.last = Math.max(NEWS.last, fresh[0].id);
     NEWS.unread = fresh.filter(n => n.id > NEWS.seen && !n.me).length;
-    if (!first && silent) newer.filter(n => !n.me && !n.bot).slice(0, 2).forEach(n => toast('Kuningriigi uudis: ' + newsText(n).replace(/<[^>]+>/g, ''), 'gold', 'fish'));
+    // uued uudised näeb Uudiste vahelehel (märk menüüs) – hüpikteadet ei näita
     if (FV.open) renderFV(); else if (typeof renderPanel === 'function' && S && UI.tab === 'edetabel') renderPanel(true);
   } catch (e) { }
 }
