@@ -758,7 +758,7 @@ function fvHeader() {
     <div class="fv-top" style="gap:14px"><div class="fv-lvl"><div class="fv-badge" style="position:relative"><b>${FS.level}</b><small>tase</small>${stars ? `<span class="fv-star" title="Prestiižitähed">★${stars}</span>` : ''}</div><div style="display:grid;gap:3px;min-width:0">
       <b style="font-size:15px">${FS.title ? esc(FS.title) : 'Kalur'}</b><div class="fv-xp${max ? ' star' : ''}"><i style="width:${pct.toFixed(1)}%"></i></div>
       <small class="num" style="color:#9cb8c4">${FS.level >= 50 && !max ? 'Maksimaalne tase!' : max ? `<span title="Pärast 50. taset koguneb kogemus prestiižitähtedeks. Iga täht annab kulda, eseme ja +1% kalade müügihinda (kuni +30%).">★ ${fmt(have)} / ${fmt(need)} tähekogemust · järgmise täheni ${fmt(need - have)}${stars ? ` · müük +${Math.round((FS.star_bonus || 0) * 100)}%` : ''}</span>` : `${fmt(FS.xp)} / ${fmt(need)} kogemust · järgmise tasemeni ${fmt(need - FS.xp)}`}</small></div></div>
-      <div class="chips" style="margin-left:auto">${weatherChips()}</div></div>
+      ${typeof wvUpcoming === 'function' ? wvUpcoming(true) : ''}</div>
     <div class="fv-stats">
       <div class="fv-stat"><small>Püütud kalu</small><b class="num">${fmt(FS.total)}</b></div>
       <div class="fv-stat"><small>Suurim kala</small><b>${big}</b></div>

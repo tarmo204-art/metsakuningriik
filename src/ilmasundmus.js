@@ -55,7 +55,7 @@ function wvSummary() {
   return `<section class="wv-sum" style="--wc:${I.col}">${luc(I.ic)}<p><b>${I.n} möödus.</b> Püüdsid sel ajal ${l.n} ${l.n === 1 ? 'kala' : 'kala'}${b ? `, parim oli <b>${esc(b.name.toLowerCase())}</b> (${fKg(+l.best.weight)})` : ''}.</p><button type="button" class="wv-min" data-wv="seen" data-arg="${l.id}" aria-label="Sulge">${luc('x')}</button></section>`;
 }
 // „Tulemas“: järgmised sündmused
-function wvUpcoming() {
+function wvUpcoming(head) {
   const w = wvData(), t = wvNow(), L = [];
   ((w && w.next) || []).forEach(e => { const I = WV_INFO[e.kind]; if (I) L.push({ at: Date.parse(e.warn), ic: e.kind === 'torm' ? 'cloud-lightning' : I.ic, col: I.col, n: e.kind === 'parv' ? `Kalaparv · ${wvSpot(e.spot)}` : I.n, rel: 1 }) });
   if (typeof KT !== 'undefined' && KT.d) { const s = Date.parse(KT.d.active ? KT.d.next : KT.d.start); if (s > t && s - t < 36 * 3600e3) L.push({ at: s, ic: 'trophy', col: '#f2b552', n: 'Kalatund' }) }
@@ -63,11 +63,11 @@ function wvUpcoming() {
   if (typeof EV !== 'undefined' && EV.d && EV.d.next && EV.d.next.starts && !EV.d.event) { const s = Date.parse(EV.d.next.starts), I = typeof EV_INFO !== 'undefined' && EV_INFO[EV.d.next.kind]; if (s > t && s - t < 4 * 864e5) L.push({ at: s, ic: 'swords', col: I ? I.col : '#4ac0e8', n: I ? I.n : 'Nädalavahetuse sündmus', day: 1 }) }
   const list = L.filter(x => x.at > t).sort((a, b) => a.at - b.at).slice(0, 5); if (!list.length) return '';
   const when = x => x.day ? new Date(x.at).toLocaleDateString('et-EE', { weekday: 'long' }) + ' ' + wvAt(x.at) : x.at - t < 3600e3 ? wvIn(x.at - t) : 'kell ' + wvAt(x.at);
-  return `<div class="wv-next"><span class="wv-nh">${luc('calendar-clock')}Tulemas</span>${list.map(x => `<span class="wv-ni" style="--wc:${x.col}">${luc(x.ic)}<b>${esc(x.n)}</b><small${x.rel && x.at - t < 3600e3 ? ` data-wvin="${x.at}"` : ''}>${when(x)}</small></span>`).join('')}</div>`;
+  return `<div class="wv-next${head ? ' hd' : ''}"><span class="wv-nh">${luc('calendar-clock')}Tulemas</span>${list.map(x => `<span class="wv-ni" style="--wc:${x.col}">${luc(x.ic)}<b>${esc(x.n)}</b><small>${x.at - t < 864e5 ? `<span class="wv-cd" data-wvt="${x.at}">${wvClock(x.at - t)}</span>${x.rel ? '' : ` · ${wvAt(x.at)}`}` : when(x)}</small></span>`).join('')}</div>`;
 }
 {
   const _tp = tabPuuk;
-  tabPuuk = function () { let s = ''; try { s = wvCard() + wvSummary() + wvUpcoming() } catch (e) { } return s + _tp() };
+  tabPuuk = function () { let s = ''; try { s = wvCard() + wvSummary() } catch (e) { } return s + _tp() };
   // FS värskenemise aeg kellaaja nihke jaoks
   if (typeof refreshFS === 'function') { const _r = refreshFS; refreshFS = async function () { const r = await _r.apply(this, arguments); if (FS) FS._wvAt = Date.now(); return r } }
 }
@@ -127,9 +127,11 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .wv-sum{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:11px 46px 11px 14px;margin-bottom:12px;border-radius:14px;background:color-mix(in srgb,var(--wc) 14%,#0c1d24);border:1px solid color-mix(in srgb,var(--wc) 35%,transparent)}
 .wv-sum > .lu{width:22px;height:22px;color:var(--wc)}.wv-sum p{margin:0;color:#dfeaec}.wv-sum .wv-min{top:50%;margin-top:-15px}
 .wv-next{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:2px 2px 8px;margin-bottom:8px;scrollbar-width:thin}
+.wv-next.hd{flex:0 1 auto;margin:0 0 0 auto;padding:2px 0;min-width:0;max-width:100%}
+@media (max-width:760px){.wv-next.hd{margin:4px 0 0;flex-basis:100%}}
 .wv-nh{display:inline-flex;align-items:center;gap:5px;flex:none;font-weight:800;font-size:13px;color:#cfe0e4;margin-right:2px}.wv-nh .lu{width:16px;height:16px;color:#7ec8e3}
 .wv-ni{flex:none;display:inline-grid;grid-template-columns:auto auto;column-gap:6px;align-items:center;padding:5px 11px 5px 8px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid color-mix(in srgb,var(--wc) 30%,transparent)}
-.wv-ni .lu{grid-row:span 2;width:18px;height:18px;color:var(--wc)}.wv-ni b{font-size:12.5px;color:#eef6f7;white-space:nowrap}.wv-ni small{font-size:11.5px;color:#a9c4c8;white-space:nowrap}
+.wv-ni .lu{grid-row:span 2;width:18px;height:18px;color:var(--wc)}.wv-ni b{font-size:12.5px;color:#eef6f7;white-space:nowrap}.wv-ni .wv-cd{font-variant-numeric:tabular-nums;font-weight:800;color:#eef6f7}.wv-ni small{font-size:11.5px;color:#a9c4c8;white-space:nowrap}
 @keyframes wvIn{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes wvRain{from{transform:translate(0,-20px)}to{transform:translate(-6px,0)}}
 @keyframes wvFlash{0%,86%,100%{opacity:0}87%{opacity:1}89%{opacity:.1}91%{opacity:.8}94%{opacity:0}}
