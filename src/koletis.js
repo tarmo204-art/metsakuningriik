@@ -19,7 +19,7 @@ const KO = { hits: [], last: null, hitT: -9, snow: null, fry: null };
 function koPaint(root) {
   const cv2 = root.querySelector('#ktBossCv'); if (KT.anim) { clearInterval(KT.anim); KT.anim = null } if (!cv2) return;
   const box = cv2.closest('.kt-boss');
-  const w = cv2.clientWidth || 600, h = cv2.clientHeight || 270, dpr = Math.min(2, devicePixelRatio || 1) * 1.5; cv2.width = w * dpr; cv2.height = h * dpr;
+  const w = cv2.clientWidth || 600, h = cv2.clientHeight || 270, dpr = Math.min(innerWidth < 700 ? 1.5 : 2.5, (devicePixelRatio || 1) * (innerWidth < 700 ? 1 : 1.5)); cv2.width = w * dpr; cv2.height = h * dpr;
   const c = cv2.getContext('2d');
   const B = KT.d && KT.d.boss, dead = !!(B && B.killed_at), frac = B ? Math.max(0, B.hp / Math.max(1, B.max_hp)) : 1, rage = !dead && frac < .35;
   if (box) box.classList.toggle('rage', rage);
@@ -31,8 +31,11 @@ function koPaint(root) {
   if (!KO.fry) KO.fry = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: .15 + Math.random() * .7, s: .6 + Math.random() * .6, v: .05 + Math.random() * .06, p: i }));
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const draw = () => {
+  let vis = true;
+  if (window.IntersectionObserver) { const io = new IntersectionObserver(es => { vis = es[0].isIntersecting }); io.observe(cv2) }
+  const draw = (force) => {
     if (!cv2.isConnected) { clearInterval(KT.anim); KT.anim = null; return }
+    if (force !== true && (!vis || document.hidden || (typeof scrBusy === 'function' && scrBusy()))) return;
     const t = reduce ? 1 : performance.now() / 1000, sp = rage ? 1.6 : 1;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     // raputus löögi järel
@@ -60,7 +63,7 @@ function koPaint(root) {
     const vg = c.createRadialGradient(w / 2, h / 2, h * .3, w / 2, h / 2, w * .75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, rage ? 'rgba(40,0,0,.7)' : 'rgba(0,0,0,.65)');
     c.fillStyle = vg; c.fillRect(-20, -20, w + 40, h + 40);
   };
-  draw(); if (!reduce) KT.anim = setInterval(draw, 40);
+  draw(true); if (!reduce) KT.anim = setInterval(draw, innerWidth < 700 ? 66 : 40);
 }
 
 function koWater(c, w, h, t, dead, rage) {

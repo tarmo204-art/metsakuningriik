@@ -495,9 +495,11 @@ setInterval(() => {
   if (!running || !S) return;
   const now = performance.now(); const dt = (now - logicT) / 1000; logicT = now;
   if (dt > 10) { const g = catchUp(dt); if (Object.keys(g.diff).length) showOffline(g, dt) } else tick(dt, false);
-  hudUpdate();
+  // kalapüügi vaade katab kogu ekraani: tagaplaani numbreid pole vaja iga hetk uuendada (telefonis jääks kerimine muidu nõksuma)
+  const fvOn = typeof FV !== 'undefined' && FV.open;
+  if (!fvOn) hudUpdate();
   panelT += dt; saveT += dt;
-  if (panelT >= 1) { panelT = 0; renderTabs(); renderPanel(); renderModal() }
+  if (panelT >= 1) { panelT = 0; if (!fvOn) { renderTabs(); renderPanel() } renderModal() }
   if (saveT >= 10) { saveT = 0; save() }
 }, 250);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save() });

@@ -801,6 +801,7 @@ function frame(ts) {
   const dt = Math.min(.1, (ts - lastFrame) / 1000 || 0); lastFrame = ts; tnow = ts / 1000;
   updateEnts(dt);
   if (typeof updateLife === 'function') updateLife(dt);
+  if (typeof FV !== 'undefined' && FV.open) return; // kalapüügi vaade on peal – kuningriiki pole vaja joonistada
   buildGround();
   const c = cx, s = TS, sky = skyState(), night = sky.dark;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
