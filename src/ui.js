@@ -24,7 +24,7 @@ function toast(msg, kind = 'info', icon) {
   const dur = kind === 'gold' || kind === 'bad' ? Math.min(8000, 4500 + m.length * 35) : Math.min(6000, 3500 + m.length * 30);
   el.className = 'toast ' + kind;
   el.innerHTML = `<span class="tic">${icon && ICON[icon] ? ic(icon) : `<i>${sym}</i>`}</span><span class="ttx"><span class="tt">${fmtT(title)}</span>${body ? `<span class="tb">${fmtT(body)}</span>` : ''}</span><button class="tx" type="button" aria-label="Sulge teade">×</button><span class="tbar" style="animation-duration:${dur}ms"></span>`;
-  box.appendChild(el); while (box.children.length > (isMobile() ? 2 : 3)) box.firstChild.remove();
+  box.appendChild(el); while (box.children.length > (isMobile() ? 2 : 3)) (([...box.children].find(t => !t.classList.contains('epic') && t !== el)) || box.firstChild).remove();
   let left = dur, t0 = Date.now(), timer = null;
   const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 450) };
   const arm = () => { t0 = Date.now(); timer = setTimeout(close, left) };
