@@ -229,7 +229,7 @@ async function openFishView(tab) {
   FV.open = true; if (tab) FV.tab = tab;
   $('#fishView').hidden = false; document.body.style.overflow = 'hidden';
   if (FS && FD.loaded) renderFV(true); else $('#fvIn').innerHTML = '<div class="fv-card"><p class="lead">Laadin kalapüüki…</p></div>'; // teist korda avades näed kohe vana pilti, värske tuleb taustal
-  try { await loadFD(); await refreshFS(); await loadOdds(); FV.market = await rpc('fish_market').catch(() => null); FV.comps = null; FV.orders = null; loadSide() } catch (e) { $('#fvIn').innerHTML = `<div class="fv-card"><h2>Kalapüüki ei saanud avada</h2><p class="lead">${esc(e.message)}</p><div><button class="btn" type="button" data-fa="close">Tagasi kuningriiki</button></div></div>`; return }
+  try { await loadFD(); await refreshFS(); if (FV.open) renderFV(true); /* leht ilmub kohe, ülejäänu laeb samal ajal */ await Promise.all([loadOdds(), rpc('fish_market').catch(() => null).then(m => { FV.market = m })]); FV.comps = null; FV.orders = null; loadSide() } catch (e) { $('#fvIn').innerHTML = `<div class="fv-card"><h2>Kalapüüki ei saanud avada</h2><p class="lead">${esc(e.message)}</p><div><button class="btn" type="button" data-fa="close">Tagasi kuningriiki</button></div></div>`; return }
   renderFV(true);
   requestAnimationFrame(sceneLoop);
 }
@@ -649,9 +649,25 @@ function drawJunk(c, S, id, t) {
   c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(.6, S * .006); c.strokeRect(-r * .8, -r * .1, r * 1.6, r * .7);
 }
 function drawGear(c, x, y, S, kind, id, t = 1, ex) { c.save(); c.translate(x, y); if (kind === 'rod') drawRod(c, S, id, t, ...(ex || [])); else if (kind === 'boat') drawBoat(c, S, id, t); else if (kind === 'bait') drawBait(c, S, id, t); else if (kind === 'item') drawItem(c, S, id, t); else drawJunk(c, S, id, t); c.restore() }
+// Pildid, mis on ekraanist kaugel all, joonistatakse alles siis, kui mängija nendeni kerib – nii avaneb pikk leht kohe.
+const LZ = { io: null, fn: new WeakMap(), on: new Set() };
+function lazyPaint(list, one) {
+  LZ.on.forEach(cv => { if (!cv.isConnected) { LZ.io.unobserve(cv); LZ.on.delete(cv) } });
+  const vh = innerHeight || 800, m = list.map(cv => { const r = cv.getBoundingClientRect(); return [cv.clientWidth, cv.clientHeight, r.top, r.width] });
+  list.forEach((cv, i) => {
+    const [w, h, top, rw] = m[i];
+    if (!rw || !window.IntersectionObserver || top < vh * 1.5) { LZ.fn.delete(cv); return one(cv, w, h) }
+    if (!LZ.io) LZ.io = new IntersectionObserver(es => {
+      const go = es.filter(e => e.isIntersecting && LZ.fn.has(e.target)), sz = go.map(e => [e.target.clientWidth, e.target.clientHeight]);
+      go.forEach((e, k) => { const f = LZ.fn.get(e.target); LZ.fn.delete(e.target); LZ.io.unobserve(e.target); LZ.on.delete(e.target); try { f(e.target, sz[k][0], sz[k][1]) } catch (er) { console.warn(er) } });
+    }, { rootMargin: '600px 0px' });
+    LZ.fn.set(cv, one); LZ.io.observe(cv); LZ.on.add(cv);
+  });
+}
 function paintGear(root) {
-  root.querySelectorAll('canvas[data-gear]').forEach(cv2 => {
-    const w = cv2.clientWidth || 56, h = cv2.clientHeight || 44, d = Math.min(3, (devicePixelRatio || 1) * 1.5); cv2.width = w * d; cv2.height = h * d;
+  // mõõdud loetakse enne joonistamist kõigilt korraga – muidu peab brauser iga pildi järel kogu lehe uuesti paigutama (pikk Saak/Kalaraamat avanes aeglaselt)
+  lazyPaint([...root.querySelectorAll('canvas[data-gear]')], (cv2, w0, h0) => {
+    const w = w0 || 56, h = h0 || 44, d = Math.min(3, (devicePixelRatio || 1) * 1.5); cv2.width = w * d; cv2.height = h * d;
     const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); const [kind, id, ...ex] = cv2.dataset.gear.split(':'); if (cv2.classList.contains('wscv') || cv2.classList.contains('boatcv')) { animGear.add(cv2) }
     if (!cv2.classList.contains('gi')) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
     drawGear(c, w / 2, h / 2, Math.min(w, h * (kind === 'rod' ? 1.15 : 1)), kind, id, 1, kind === 'rod' ? [+ex[0] || 0, ex[1] || '', +ex[2] || 0] : null);
@@ -732,8 +748,9 @@ function drawBoat(c, S, id, t) {
 }
 
 function paintFishCanvases(root) {
-  root.querySelectorAll('canvas[data-fl]').forEach(cv2 => {
-    const w = cv2.clientWidth || 140, h = cv2.clientHeight || 60, d = 2; cv2.width = w * d; cv2.height = h * d;
+  // mõõdud loetakse enne joonistamist kõigilt korraga – muidu peab brauser iga pildi järel kogu lehe uuesti paigutama (pikk Saak/Kalaraamat avanes aeglaselt)
+  lazyPaint([...root.querySelectorAll('canvas[data-fl]')], (cv2, w0, h0) => {
+    const w = w0 || 140, h = h0 || 60, d = 2; cv2.width = w * d; cv2.height = h * d;
     const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
     const r = +cv2.dataset.r || 1, col = (RAR2[r] || RAR2[1])[1];
     if (!cv2.dataset.nobg) { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#24566a'); g.addColorStop(1, '#122e3a'); c.fillStyle = g; c.fillRect(0, 0, w, h) }
