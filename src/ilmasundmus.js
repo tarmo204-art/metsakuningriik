@@ -127,7 +127,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .wv-sum{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:11px 46px 11px 14px;margin-bottom:12px;border-radius:14px;background:color-mix(in srgb,var(--wc) 14%,#0c1d24);border:1px solid color-mix(in srgb,var(--wc) 35%,transparent)}
 .wv-sum > .lu{width:22px;height:22px;color:var(--wc)}.wv-sum p{margin:0;color:#dfeaec}.wv-sum .wv-min{top:50%;margin-top:-15px}
 .wv-next{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:2px 2px 8px;margin-bottom:8px;scrollbar-width:thin}
-.wv-next.hd{flex:0 1 auto;margin:0 0 0 auto;padding:2px 0;min-width:0;max-width:100%}
+.wv-next.hd{flex:1 1 320px;justify-content:safe flex-end;contain:inline-size;margin:0 0 0 auto;padding:2px 0;min-width:0;max-width:100%}
+@media (max-width:760px){.wv-next.hd{justify-content:flex-start}}
 @media (max-width:760px){.wv-next.hd{margin:4px 0 0;flex-basis:100%}}
 .wv-nh{display:inline-flex;align-items:center;gap:5px;flex:none;font-weight:800;font-size:13px;color:#cfe0e4;margin-right:2px}.wv-nh .lu{width:16px;height:16px;color:#7ec8e3}
 .wv-ni{flex:none;display:inline-grid;grid-template-columns:auto auto;column-gap:6px;align-items:center;padding:5px 11px 5px 8px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid color-mix(in srgb,var(--wc) 30%,transparent)}
