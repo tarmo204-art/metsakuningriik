@@ -21,12 +21,3 @@ function scrFlush() {
     SCR.pending = false; return _r.apply(this, arguments);
   };
 }
-// kerimise ajal peatatakse kalapüügi lehe kaunistuste animatsioonid (pealkirja tilgad, vilkuvad täpid, kuma-riba),
-// et telefon saaks kogu jõu kerimisele anda; kohe pärast kerimist liiguvad need edasi
-document.head.insertAdjacentHTML('beforeend', `<style>#fishView.scr-on *,#fishView.scr-on *::before,#fishView.scr-on *::after{animation-play-state:paused!important}</style>`);
-{
-  let t = 0;
-  const on = () => { const fv = document.getElementById('fishView'); if (!fv) return; if (!fv.classList.contains('scr-on')) fv.classList.add('scr-on'); clearTimeout(t); t = setTimeout(function off() { if (scrBusy()) { t = setTimeout(off, 300); return } fv.classList.remove('scr-on') }, 750) };
-  document.addEventListener('touchmove', e => { if (e.target.closest && e.target.closest('#fishView')) on() }, { passive: true, capture: true });
-  document.addEventListener('scroll', e => { if (e.target && e.target.id === 'fishView') on() }, { passive: true, capture: true });
-}

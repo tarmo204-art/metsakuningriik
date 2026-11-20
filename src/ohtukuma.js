@@ -24,10 +24,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kx2{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;font:800 12px system-ui;color:#3a1408;vertical-align:middle;
   background:linear-gradient(180deg,#ffe2a0,#f09a4a);box-shadow:0 0 10px rgba(255,170,90,.55)}
 .fv-xp.kuma{box-shadow:0 0 12px rgba(255,170,90,.45)}
-.fv-xp.kuma i{background:linear-gradient(90deg,#f09a4a,#ffe2a0,#f09a4a);background-size:200% 100%;animation:kumaFlow 2.4s linear infinite}
+.fv-xp.kuma i{background:#f09a4a;overflow:hidden;position:relative}.fv-xp.kuma i::before{content:'';position:absolute;top:0;bottom:0;left:0;width:200%;background:linear-gradient(90deg,#f09a4a,#ffe2a0,#f09a4a,#ffe2a0,#f09a4a);animation:kumaFlow 2.4s linear infinite;will-change:transform}
 @keyframes kumaSun{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.05)}}
 @keyframes kumaRise{0%{transform:translate(0,0);opacity:0}12%{opacity:.9}100%{transform:translate(var(--dx),-120px);opacity:0}}
-@keyframes kumaFlow{from{background-position:0 0}to{background-position:-200% 0}}
+@keyframes kumaFlow{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media (max-width:560px){.kuma-b{padding:14px}.kuma-b h2{font-size:22px}.kuma-x{font-size:42px}}
 @media (prefers-reduced-motion:reduce){.kuma-b::before,.kuma-sp,.fv-xp.kuma i{animation:none!important}.kuma-sp{display:none}}
 </style>`);

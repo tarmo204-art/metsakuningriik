@@ -133,10 +133,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
   filter:drop-shadow(0 1px 0 #3a2006) drop-shadow(0 -1px 0 #3a2006) drop-shadow(1px 0 0 #3a2006) drop-shadow(-1px 0 0 #3a2006) drop-shadow(0 3px 4px rgba(0,0,0,.55)) drop-shadow(0 0 12px rgba(255,190,90,.3))}
 #fvIn .ui-leap{position:relative;width:84px;height:62px;flex:none;margin:-10px 0 -8px}
 #fvIn .ui-leap .fl{position:absolute;inset:0;transform:scaleX(-1)}
-#fvIn .ui-leap canvas{position:absolute;left:6px;top:0;width:76px;height:42px;transform-origin:50% 60%;animation:uiLeap 3.4s cubic-bezier(.45,.05,.4,1) infinite;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
-#fvIn .ui-leap svg{position:absolute;left:4px;bottom:0;width:78px;height:30px;overflow:visible}
-#fvIn .ui-leap .dr{animation:uiDrop 3.4s ease-out infinite;transform-box:fill-box;transform-origin:center}
-#fvIn .ui-leap .rp{animation:uiRipple 3.4s ease-out infinite;transform-box:fill-box;transform-origin:center}
+#fvIn .ui-leap canvas{position:absolute;left:6px;top:0;width:76px;height:42px;transform-origin:50% 60%;will-change:transform;animation:uiLeap 3.4s cubic-bezier(.45,.05,.4,1) infinite;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+#fvIn .ui-leap svg{position:absolute;left:4px;bottom:0;width:78px;height:30px;overflow:visible;will-change:transform,opacity}
+#fvIn .ui-leap .dr{animation:uiDrop 3.4s ease-out infinite}
+#fvIn .ui-leap .rp{animation:uiRipple 3.4s ease-out infinite;transform-origin:44% 80%}
 @keyframes uiLeap{0%,100%{transform:translate(4px,12px) rotate(38deg)}45%{transform:translate(-2px,-4px) rotate(16deg)}72%{transform:translate(-6px,4px) rotate(-6deg)}}
 @keyframes uiDrop{0%,100%{opacity:.95;transform:translateY(0)}45%{opacity:.55;transform:translateY(-5px)}75%{opacity:.9;transform:translateY(1px)}}
 @keyframes uiRipple{0%,100%{opacity:.8;transform:scale(1)}50%{opacity:.35;transform:scale(1.18)}}
@@ -235,8 +235,8 @@ document.addEventListener('click', e => {
 }, true);
 
 // pealkiri: hüppav kala (mängu enda kalajoonistus) ja kuldne „Kalapüük“
-const UI_SPLASH = '<svg viewBox="0 0 78 30" aria-hidden="true"><ellipse class="rp" cx="34" cy="24" rx="26" ry="4.5" fill="none" stroke="rgba(150,230,240,.55)" stroke-width="1.6"/><ellipse class="rp" cx="34" cy="24" rx="15" ry="2.6" fill="none" stroke="rgba(220,250,255,.75)" stroke-width="1.3"/>'
-  + '<g class="dr" fill="rgba(200,245,255,.9)"><path d="M14 22c-3-4-2-9 1-12 0 4 2 7 3 9z"/><path d="M52 21c3-4 2-8-1-11 0 4-1 6-3 8z"/><circle cx="22" cy="9" r="1.6"/><circle cx="47" cy="7" r="1.4"/><circle cx="9" cy="14" r="1.1"/><circle cx="58" cy="13" r="1.1"/><path d="M28 23c-1-5 1-9 4-11-1 4-1 7 0 10z"/><path d="M40 23c1-5-1-8-3-10 1 4 1 6 0 9z"/></g></svg>';
+const UI_SPLASH = '<svg class="rp" viewBox="0 0 78 30" aria-hidden="true"><ellipse cx="34" cy="24" rx="26" ry="4.5" fill="none" stroke="rgba(150,230,240,.55)" stroke-width="1.6"/><ellipse cx="34" cy="24" rx="15" ry="2.6" fill="none" stroke="rgba(220,250,255,.75)" stroke-width="1.3"/>'
+  + '</svg><svg class="dr" viewBox="0 0 78 30" aria-hidden="true"><g fill="rgba(200,245,255,.9)"><path d="M14 22c-3-4-2-9 1-12 0 4 2 7 3 9z"/><path d="M52 21c3-4 2-8-1-11 0 4-1 6-3 8z"/><circle cx="22" cy="9" r="1.6"/><circle cx="47" cy="7" r="1.4"/><circle cx="9" cy="14" r="1.1"/><circle cx="58" cy="13" r="1.1"/><path d="M28 23c-1-5 1-9 4-11-1 4-1 7 0 10z"/><path d="M40 23c1-5-1-8-3-10 1 4 1 6 0 9z"/></g></svg>';
 function uiTitle(root) {
   const h1 = root.querySelector('.fv-top > h1'); if (!h1 || h1.closest('.ui-title')) return;
   const wrap = document.createElement('div'); wrap.className = 'ui-title'; h1.replaceWith(wrap);

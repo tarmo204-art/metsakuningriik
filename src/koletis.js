@@ -35,7 +35,7 @@ function koPaint(root) {
   if (window.IntersectionObserver) { const io = new IntersectionObserver(es => { vis = es[0].isIntersecting }); io.observe(cv2) }
   const draw = (force) => {
     if (!cv2.isConnected) { clearInterval(KT.anim); KT.anim = null; return }
-    if (force !== true && (!vis || document.hidden || (typeof scrBusy === 'function' && scrBusy()))) return;
+    if (force !== true && (!vis || document.hidden)) return;
     const t = reduce ? 1 : performance.now() / 1000, sp = rage ? 1.6 : 1;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     // raputus löögi järel
