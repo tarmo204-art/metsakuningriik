@@ -13661,7 +13661,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .kt-step button{border:0;background:none;color:#e6efec;font:inherit;font-weight:800;width:30px;height:30px;cursor:pointer;border-radius:50%}
 .kt-step b{min-width:26px;text-align:center}
 .kt-fresh{font-size:11.5px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(127,224,160,.15);color:#9ff0b8}
-.kt-fresh.mid{background:rgba(255,201,74,.15);color:#ffe08a}.kt-fresh.old{background:rgba(255,120,90,.15);color:#ffb4a0}
+.kt-fresh.mid{background:rgba(255,201,74,.15);color:#ffe08a}.kt-fresh.old{background:rgba(255,120,90,.15);color:#ffb4a0}.kt-fresh.onpic{position:absolute;left:12px;top:12px;font-size:11px;padding:2px 6px;background:rgba(8,24,30,.82);box-shadow:inset 0 0 0 1px currentColor;pointer-events:none}
 .kt-stage{position:relative;overflow:hidden;border-radius:18px;min-height:260px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;
   background:radial-gradient(120% 90% at 50% 0%,rgba(255,230,180,.16),transparent 60%),repeating-linear-gradient(90deg,#7a5432 0 38px,#6e4a2b 38px 40px,#82593a 40px 78px,#6a4628 78px 80px);
   box-shadow:inset 0 0 0 3px #4a2e18,inset 0 10px 30px rgba(0,0,0,.35),0 10px 24px rgba(0,0,0,.35);display:grid;place-items:center}
@@ -13972,7 +13972,7 @@ const KT_IMG = {};
     if (FV.open && FV.tab === 'saak' && FS && FS.inventory) document.querySelectorAll('#fvIn .fcell[data-arg]').forEach(el => {
       const c = FS.inventory.find(x => x.id === +el.dataset.arg); if (!c || c.fresh == null || c.trophy || el.querySelector('.kt-fresh')) return;
       const p = Math.round(+c.fresh * 100); if (p >= 100) return;
-      el.insertAdjacentHTML('beforeend', `<span class="kt-fresh ${p >= 75 ? 'mid' : 'old'}" style="position:absolute;left:6px;bottom:6px" title="Kala on kaotanud värskust – puhasta või müü see varsti">⏳ ${p}%</span>`);
+      el.insertAdjacentHTML('beforeend', `<span class="kt-fresh onpic ${p >= 75 ? 'mid' : 'old'}" title="Kala on kaotanud värskust – puhasta või müü see varsti">⏳ ${p}%</span>`);
     });
     return r;
   };
