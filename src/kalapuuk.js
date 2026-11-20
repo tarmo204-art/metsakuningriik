@@ -650,18 +650,25 @@ function drawJunk(c, S, id, t) {
 }
 function drawGear(c, x, y, S, kind, id, t = 1, ex) { c.save(); c.translate(x, y); if (kind === 'rod') drawRod(c, S, id, t, ...(ex || [])); else if (kind === 'boat') drawBoat(c, S, id, t); else if (kind === 'bait') drawBait(c, S, id, t); else if (kind === 'item') drawItem(c, S, id, t); else drawJunk(c, S, id, t); c.restore() }
 // Pildid, mis on ekraanist kaugel all, joonistatakse alles siis, kui mängija nendeni kerib – nii avaneb pikk leht kohe.
-const LZ = { io: null, fn: new WeakMap(), on: new Set() };
-function lazyPaint(list, one) {
+const LZ = { io: null, fn: new WeakMap(), on: new Set(), cache: new Map() };
+// juba kord joonistatud kalapilt jäetakse meelde: kui leht uueneb, pannakse sama pilt kohe tagasi (ei vilgu)
+function lzDo(cv, w, h, one, key) {
+  const k = key ? key(cv, w, h) : null, src = k && LZ.cache.get(k);
+  if (src) { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); return }
+  one(cv, w, h);
+  if (k && cv.width) { if (LZ.cache.size > 600) LZ.cache.clear(); LZ.cache.set(k, cv) }
+}
+function lazyPaint(list, one, key) {
   LZ.on.forEach(cv => { if (!cv.isConnected) { LZ.io.unobserve(cv); LZ.on.delete(cv) } });
   const vh = innerHeight || 800, m = list.map(cv => { const r = cv.getBoundingClientRect(); return [cv.clientWidth, cv.clientHeight, r.top, r.width] });
   list.forEach((cv, i) => {
     const [w, h, top, rw] = m[i];
-    if (!rw || !window.IntersectionObserver || top < vh * 1.5) { LZ.fn.delete(cv); return one(cv, w, h) }
+    if (!rw || !window.IntersectionObserver || top < vh * 1.5 || (key && LZ.cache.has(key(cv, w, h)))) { LZ.fn.delete(cv); return lzDo(cv, w, h, one, key) }
     if (!LZ.io) LZ.io = new IntersectionObserver(es => {
       const go = es.filter(e => e.isIntersecting && LZ.fn.has(e.target)), sz = go.map(e => [e.target.clientWidth, e.target.clientHeight]);
-      go.forEach((e, k) => { const f = LZ.fn.get(e.target); LZ.fn.delete(e.target); LZ.io.unobserve(e.target); LZ.on.delete(e.target); try { f(e.target, sz[k][0], sz[k][1]) } catch (er) { console.warn(er) } });
-    }, { rootMargin: '600px 0px' });
-    LZ.fn.set(cv, one); LZ.io.observe(cv); LZ.on.add(cv);
+      go.forEach((e, k) => { const [f, kf] = LZ.fn.get(e.target); LZ.fn.delete(e.target); LZ.io.unobserve(e.target); LZ.on.delete(e.target); try { lzDo(e.target, sz[k][0], sz[k][1], f, kf) } catch (er) { console.warn(er) } });
+    }, { rootMargin: '700px 0px' });
+    LZ.fn.set(cv, [one, key]); LZ.io.observe(cv); LZ.on.add(cv);
   });
 }
 function paintGear(root) {
@@ -760,7 +767,7 @@ function paintFishCanvases(root) {
     if (cv2.dataset.unk === '1') { c.filter = 'brightness(0)'; c.globalAlpha = .85 }
     drawLook(c, w / 2, h / 2, L, sp && sp.look, 0, 1, junk);
     c.filter = 'none'; c.globalAlpha = 1;
-  });
+  }, (cv, w, h) => FD.sp[cv.dataset.fl] ? ['f', cv.dataset.fl, cv.dataset.r, cv.dataset.nobg, cv.dataset.unk, cv.dataset.junk, w, h].join('|') : null);
 }
 
 /* ---------- vaate kujundus ---------- */
