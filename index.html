@@ -15221,7 +15221,7 @@ function sdShip(type, parts, o) {
     ekspeditsioon: { L: 208, fb: 30, sr: 12, br: 14, bs: 42, hull: ['#7a4e2a', '#3e2412'], stripe: '#d8a84a', masts: [[.33, 122, 'sq', 2], [.62, 132, 'sq', 2]], jibs: 2, spank: 1, house: 1 },
     kuninglik: { L: 228, fb: 40, sr: 26, br: 18, bs: 46, hull: ['#5a2a1a', '#2a100a'], stripe: '#e8b65a', masts: [[.25, 128, 'sq', 3], [.5, 150, 'sq', 3], [.74, 132, 'sq', 3]], jibs: 3, spank: 1, castle: 1, gold: 1 }
   }[type] || {};
-  const uid = 'sh' + Math.random().toString(36).slice(2, 7), W = 330, wl = 168, x0 = (W - C.L) / 2 - 8, x1 = x0 + C.L, mid = (x0 + x1) / 2;
+  const uid = 'sh' + type.slice(0, 3) + Object.entries(parts || {}).map(([k, v]) => k[0] + v).join('') + (o.sail ? 's' : ''), W = 330, wl = 168, x0 = (W - C.L) / 2 - 8, x1 = x0 + C.L, mid = (x0 + x1) / 2;
   const dk = wl - C.fb, yS = dk - C.sr, yB = dk - C.br, keel = wl + 14 + C.fb * .25;
   // tekijoon (sheer): ahter kõrgem, keskelt madalam, vöör tõuseb
   const deckY = x => { const t = (x - x0) / (x1 - x0); return (1 - t) * (1 - t) * yS + 2 * t * (1 - t) * (dk + 4) + t * t * yB };
@@ -15336,7 +15336,7 @@ function sdSpruce(x, base, h, col, snow) { const w = h * .34; let d = ''; for (l
   return `<path d="${d}" fill="${col}"/><rect x="${x - .8}" y="${base - 2}" width="1.6" height="4" fill="#2a1a0c"/>${snow ? `<path d="M${x - w * .35} ${base - h * .62} L${x} ${base - h * .9} L${x + w * .35} ${base - h * .62}Z" fill="#f4fbff" opacity=".9"/>` : ''}` }
 function sdForest(rnd, y, n, hmin, hmax, col, x0, x1, snow) { let s = ''; for (let i = 0; i < n; i++) { const x = x0 + rnd() * (x1 - x0); s += sdSpruce(x, y + rnd() * 3, hmin + rnd() * (hmax - hmin), col, snow) } return s }
 function sdScene(id, extra) {
-  const u = 'sc' + id + Math.random().toString(36).slice(2, 5), rnd = sdRand({ metsajarv: 11, sugavjarv: 23, udusoo: 37, kulmajarv: 41, tulejarv: 53 }[id] || 7), W = 320, H = 180, WL = 112;
+  const u = 'sc' + id, rnd = sdRand({ metsajarv: 11, sugavjarv: 23, udusoo: 37, kulmajarv: 41, tulejarv: 53 }[id] || 7), W = 320, H = 180, WL = 112;
   const T = {
     metsajarv: { sky: ['#f6d8a8', '#9fd0c8', '#4f8e94'], sun: ['#fff1c8', 70, 70], far: '#6f9ea0', mid: '#3d6e62', near: '#1f4636', water: ['#5aa6a6', '#1f5a64', '#0c2c34'] },
     sugavjarv: { sky: ['#1a2a4a', '#2c4570', '#7a8fb0'], sun: ['#e8eef8', 250, 38], far: '#3a4e70', mid: '#26344e', near: '#151d2e', water: ['#2a4a7a', '#122444', '#050c1c'] },
