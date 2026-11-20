@@ -15328,21 +15328,84 @@ function sdShip(type, parts, o) {
   const minY = Math.min(0, Math.floor(Math.min(...topOf.map(t => t[1])) - 16));
   return s.replace('__VB__', `0 ${minY} ${W} ${210 - minY}`);
 }
-/* ---------- piirkonna maastik ---------- */
+/* ---------- piirkonna maastik: kihiline vaade (taevas, kauged mäed, mets, kallas, peegeldus vees) ---------- */
+const SD_PTS = [[34, 152], [102, 130], [170, 148], [238, 126], [292, 144]];
+function sdRand(seed) { let x = seed; return () => (x = (x * 16807) % 2147483647) / 2147483647 }
+function sdRidge(rnd, y0, amp, step, w) { let d = `M-10 ${y0}`, x = -10; while (x < w + 10) { x += step * (.6 + rnd() * .8); d += ` L${x.toFixed(1)} ${(y0 - amp * (.3 + rnd() * .7)).toFixed(1)}` } return d + ` L${w + 10} ${y0 + 40} L-10 ${y0 + 40}Z` }
+function sdSpruce(x, base, h, col, snow) { const w = h * .34; let d = ''; for (let k = 0; k < 4; k++) { const t = base - h * (k * .22), ww = w * (1 - k * .2); d += `M${(x - ww).toFixed(1)} ${t.toFixed(1)} L${x} ${(t - h * .38).toFixed(1)} L${(x + ww).toFixed(1)} ${t.toFixed(1)}Z ` }
+  return `<path d="${d}" fill="${col}"/><rect x="${x - .8}" y="${base - 2}" width="1.6" height="4" fill="#2a1a0c"/>${snow ? `<path d="M${x - w * .35} ${base - h * .62} L${x} ${base - h * .9} L${x + w * .35} ${base - h * .62}Z" fill="#f4fbff" opacity=".9"/>` : ''}` }
+function sdForest(rnd, y, n, hmin, hmax, col, x0, x1, snow) { let s = ''; for (let i = 0; i < n; i++) { const x = x0 + rnd() * (x1 - x0); s += sdSpruce(x, y + rnd() * 3, hmin + rnd() * (hmax - hmin), col, snow) } return s }
 function sdScene(id, extra) {
-  const R = SD_REG[id] || SD_REG.metsajarv, u = 'sc' + id;
-  let land = '', fx = '';
-  if (id === 'metsajarv') land = [...Array(14)].map((_, i) => { const x = i * 24 - 6, h = 30 + (i * 37 % 26); return `<path d="M${x} 112 l12 -${h} l12 ${h}z" fill="#1d4a3a"/>` }).join('');
-  if (id === 'sugavjarv') land = `<path d="M0 112 L0 40 L40 30 L70 60 L100 46 L100 112z" fill="#1a2438"/><path d="M220 112 L230 50 L270 36 L320 70 L320 112z" fill="#141c2e"/>`;
-  if (id === 'udusoo') { land = [...Array(30)].map((_, i) => `<path d="M${i * 11} 116 q2 -${16 + i % 5 * 4} ${4 - i % 3} -${26 + i % 4 * 5}" stroke="#4a5a3a" stroke-width="2" fill="none"/>`).join(''); fx = `<rect x="-40" y="50" width="400" height="40" fill="rgba(220,230,220,.25)" class="sd-fog"/><rect x="-60" y="80" width="420" height="30" fill="rgba(220,230,220,.18)" class="sd-fog b"/>` }
-  if (id === 'kulmajarv') { land = `<path d="M0 112 L30 40 L60 70 L100 20 L150 80 L190 50 L240 90 L290 30 L320 60 L320 112z" fill="#e8f4fb"/><path d="M100 20 L112 40 L92 44z M290 30 L300 46 L282 48z" fill="#fff"/>`; fx = [...Array(14)].map((_, i) => `<circle cx="${i * 23 + 8}" cy="${(i * 31) % 100}" r="1.6" fill="#fff" class="sd-snow" style="animation-delay:${i * .37}s"/>`).join('') + `<path d="M60 130 l30 -6 l24 4 l-12 6z M210 140 l26 -4 l18 6 l-20 4z" fill="#f4fbff" opacity=".9"/>` }
-  if (id === 'tulejarv') { land = `<path d="M90 112 L140 30 L180 30 L230 112z" fill="#2a0c06"/><path d="M140 30 L160 44 L180 30" fill="#ff7a2a" class="sd-lava"/><path d="M0 112 L40 80 L70 112z M260 112 L300 70 L320 112z" fill="#1a0604"/>`; fx = [...Array(12)].map((_, i) => `<circle cx="${130 + i * 6}" cy="40" r="1.8" fill="#ffb04a" class="sd-ember" style="animation-delay:${i * .3}s;--dx:${(i % 2 ? 1 : -1) * (6 + i * 3)}px"/>`).join('') + `<path d="M40 150 q30 -6 60 0 M180 160 q40 -8 80 0" stroke="#ffb04a" stroke-width="2" fill="none" opacity=".7"/>` }
-  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" class="sd-scene" aria-hidden="true"><defs>
-    <linearGradient id="${u}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${R.sky[0]}"/><stop offset="1" stop-color="${R.sky[1]}"/></linearGradient>
-    <linearGradient id="${u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${R.water[0]}"/><stop offset="1" stop-color="${R.water[1]}"/></linearGradient></defs>
-    <rect width="320" height="120" fill="url(#${u}a)"/>${land}<rect y="110" width="320" height="70" fill="url(#${u}b)"/>
-    <path d="M0 118 q20 -3 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="rgba(255,255,255,.18)" fill="none"/>${fx}${extra || ''}</svg>`;
+  const u = 'sc' + id + Math.random().toString(36).slice(2, 5), rnd = sdRand({ metsajarv: 11, sugavjarv: 23, udusoo: 37, kulmajarv: 41, tulejarv: 53 }[id] || 7), W = 320, H = 180, WL = 112;
+  const T = {
+    metsajarv: { sky: ['#f6d8a8', '#9fd0c8', '#4f8e94'], sun: ['#fff1c8', 70, 70], far: '#6f9ea0', mid: '#3d6e62', near: '#1f4636', water: ['#5aa6a6', '#1f5a64', '#0c2c34'] },
+    sugavjarv: { sky: ['#1a2a4a', '#2c4570', '#7a8fb0'], sun: ['#e8eef8', 250, 38], far: '#3a4e70', mid: '#26344e', near: '#151d2e', water: ['#2a4a7a', '#122444', '#050c1c'] },
+    udusoo: { sky: ['#c8ccc0', '#9aa496', '#6a7468'], sun: ['#f4f0e0', 200, 60], far: '#8a9686', mid: '#5c6a58', near: '#2e3a2c', water: ['#6a7a64', '#38463a', '#1a241c'] },
+    kulmajarv: { sky: ['#14284a', '#3c6a96', '#a8d0e8'], sun: ['#ffffff', 60, 40], far: '#c8dcec', mid: '#9ab8d0', near: '#e8f2fa', water: ['#8ac0dc', '#3a7aa0', '#123a58'] },
+    tulejarv: { sky: ['#1a0604', '#5a1408', '#c8501c'], sun: ['#ffb060', 160, 70], far: '#3a1008', mid: '#24080a', near: '#120404', water: ['#e86a1c', '#8a2a0c', '#2a0804'] }
+  }[id] || {};
+  let back = '', near = '', fx = '', refl = '';
+  // kauged mäed/künkad (heledamad – õhuperspektiiv) ja keskmine kiht
+  back += `<path d="${sdRidge(rnd, WL - 6, id === 'kulmajarv' ? 46 : id === 'tulejarv' ? 20 : 26, 26, W)}" fill="${T.far}"/>`;
+  if (id === 'kulmajarv') { // lumised mäed: varjus pool sinakas
+    back += `<path d="M150 ${WL - 4} L196 ${WL - 70} L222 ${WL - 48} L246 ${WL - 62} L300 ${WL - 4}Z" fill="#e8f2fa"/><path d="M196 ${WL - 70} L208 ${WL - 4} L150 ${WL - 4}Z" fill="#a8c4dc"/><path d="M246 ${WL - 62} L262 ${WL - 4} L222 ${WL - 48}Z" fill="#b8d0e4"/>`;
+    back += `<path d="M10 ${WL - 4} L58 ${WL - 54} L96 ${WL - 4}Z" fill="#dcebf6"/><path d="M58 ${WL - 54} L70 ${WL - 4} L10 ${WL - 4}Z" fill="#a8c4dc"/>`;
+  }
+  if (id === 'tulejarv') { // vulkaan laavanirede ja suitsuga
+    back += `<path d="M96 ${WL} L146 ${WL - 74} L174 ${WL - 74} L232 ${WL}Z" fill="#2a0a06"/><path d="M146 ${WL - 74} L160 ${WL - 66} L174 ${WL - 74}" fill="#ff8a2a" class="sd-lava"/>
+      <path d="M156 ${WL - 68} Q150 ${WL - 40} 140 ${WL - 4} M164 ${WL - 68} Q172 ${WL - 36} 186 ${WL - 4}" stroke="#ff7a1c" stroke-width="2.2" fill="none" class="sd-lava" opacity=".85"/>
+      <g class="sd-plume">${[0, 1, 2, 3].map(k => `<ellipse cx="${160 + k * 6}" cy="${WL - 84 - k * 14}" rx="${14 + k * 6}" ry="${8 + k * 3}" fill="#3a2a2a" opacity="${.55 - k * .1}"/>`).join('')}</g>`;
+    fx += [...Array(16)].map((_, i) => `<circle cx="${150 + rnd() * 20}" cy="${WL - 74}" r="${1 + rnd() * 1.4}" fill="#ffc04a" class="sd-ember" style="animation-delay:${(i * .23).toFixed(2)}s;--dx:${((rnd() - .5) * 60).toFixed(0)}px"/>`).join('');
+  }
+  if (id === 'sugavjarv') { // järsud kaljud kahel pool
+    back += `<path d="M-10 ${WL} L-10 ${WL - 80} L20 ${WL - 92} L48 ${WL - 70} L66 ${WL - 76} L92 ${WL - 30} L104 ${WL}Z" fill="#1c2840"/><path d="M20 ${WL - 92} L34 ${WL - 40} L12 ${WL}" stroke="#2c3c5c" stroke-width="3" fill="none"/>
+      <path d="M330 ${WL} L330 ${WL - 86} L296 ${WL - 96} L270 ${WL - 64} L248 ${WL - 70} L226 ${WL - 20} L216 ${WL}Z" fill="#18223a"/><path d="M296 ${WL - 96} L284 ${WL - 30}" stroke="#2c3c5c" stroke-width="3"/>
+      <path d="M262 ${WL - 60} q2 30 0 60" stroke="rgba(220,235,255,.5)" stroke-width="3" fill="none" class="sd-fall"/>`;
+  }
+  back += `<path d="${sdRidge(rnd, WL - 2, 14, 18, W)}" fill="${T.mid}"/>`;
+  // metsad/taimestik kaldal
+  if (id === 'metsajarv') { back += sdForest(rnd, WL - 2, 46, 12, 22, T.mid, -5, 325); near += sdForest(rnd, WL + 2, 14, 26, 46, T.near, -10, 70) + sdForest(rnd, WL + 2, 10, 22, 40, T.near, 262, 330);
+    near += `<path d="M58 ${WL + 2} h34 v3 h-34z" fill="#6a4a2a"/><path d="M62 ${WL + 5} v8 M74 ${WL + 5} v9 M86 ${WL + 5} v8" stroke="#4a3018" stroke-width="2"/>`; // paadisild
+    fx += [...Array(6)].map(() => { const x = 30 + rnd() * 260, y = 150 + rnd() * 24; return `<ellipse cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="5" ry="2" fill="#3a7a4a"/><circle cx="${(x + 2).toFixed(0)}" cy="${(y - 1).toFixed(0)}" r="1.4" fill="#f4e8f0"/>` }).join(''); }
+  if (id === 'sugavjarv') { back += sdForest(rnd, WL - 2, 26, 10, 18, T.near, 100, 220); fx += `<circle cx="252" cy="${WL - 4}" r="2.2" fill="#ffd86a" class="sd-lamp"/>`; }
+  if (id === 'udusoo') {
+    back += [...Array(9)].map(() => { const x = rnd() * 320, h = 18 + rnd() * 22; return `<path d="M${x.toFixed(0)} ${WL} v-${h.toFixed(0)} m0 ${(h * .4).toFixed(0)} l-7 -6 m7 ${(-h * .2).toFixed(0)} l6 -8 m-6 ${(h * .1).toFixed(0)} l-4 -5" stroke="${T.near}" stroke-width="1.8" fill="none" stroke-linecap="round"/>` }).join('');
+    near += [...Array(60)].map(() => { const x = rnd() * 330, h = 10 + rnd() * 22, b = WL + 4 + rnd() * 6; return `<path d="M${x.toFixed(0)} ${b.toFixed(0)} q${(rnd() * 3).toFixed(1)} -${(h / 2).toFixed(0)} ${(rnd() * 4 - 2).toFixed(1)} -${h.toFixed(0)}" stroke="#4a5636" stroke-width="1.4" fill="none"/>${rnd() < .25 ? `<ellipse cx="${x.toFixed(0)}" cy="${(b - h).toFixed(0)}" rx="1.6" ry="4" fill="#5a3a22"/>` : ''}` }).join('');
+    fx += `<rect x="-60" y="${WL - 30}" width="460" height="34" fill="rgba(225,232,222,.38)" class="sd-fog" rx="17"/><rect x="-80" y="${WL + 8}" width="480" height="26" fill="rgba(225,232,222,.28)" class="sd-fog b" rx="13"/>`;
+  }
+  if (id === 'kulmajarv') { back += sdForest(rnd, WL - 2, 22, 10, 18, '#2c4a52', 0, 320, true);
+    fx += [...Array(5)].map(() => { const x = 20 + rnd() * 280, y = 132 + rnd() * 36, w = 14 + rnd() * 22; return `<path d="M${x.toFixed(0)} ${y.toFixed(0)} l${(w * .2).toFixed(0)} -4 h${(w * .6).toFixed(0)} l${(w * .2).toFixed(0)} 4 l-${(w * .15).toFixed(0)} 3 h-${(w * .7).toFixed(0)}z" fill="#f2f9ff" stroke="#b8d4e8" stroke-width=".8"/>` }).join('');
+    fx += `<path d="M-10 40 Q80 10 160 34 T340 22" stroke="rgba(120,255,190,.35)" stroke-width="14" fill="none" class="sd-aurora"/><path d="M-10 54 Q90 28 170 46 T340 38" stroke="rgba(170,120,255,.22)" stroke-width="10" fill="none" class="sd-aurora b"/>`;
+    fx += [...Array(18)].map((_, i) => `<circle cx="${(rnd() * 320).toFixed(0)}" cy="${(rnd() * 100).toFixed(0)}" r="${(1 + rnd()).toFixed(1)}" fill="#fff" class="sd-snow" style="animation-delay:${(i * .33).toFixed(2)}s"/>`).join('');
+  }
+  if (id === 'tulejarv') { near += `<path d="M-10 ${WL + 10} L20 ${WL - 8} L44 ${WL + 2} L70 ${WL + 12}Z M262 ${WL + 12} L290 ${WL - 12} L318 ${WL - 2} L340 ${WL + 12}Z" fill="#0c0302"/>`;
+    fx += `<path d="M20 150 q40 -6 80 0 t80 0 M160 166 q50 -8 100 0" stroke="#ffd06a" stroke-width="1.6" fill="none" opacity=".8" class="sd-lava"/>`; }
+  // peegeldus: kaldajoone tagurpidi koopia hägusalt vees
+  refl = `<g transform="translate(0 ${2 * WL}) scale(1 -1)" opacity="${id === 'tulejarv' ? .18 : .28}" filter="url(#${u}bl)">${back}</g>`;
+  const sky = `<linearGradient id="${u}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.sky[2]}"/><stop offset=".6" stop-color="${T.sky[1]}"/><stop offset="1" stop-color="${T.sky[0]}"/></linearGradient>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" class="sd-scene" aria-hidden="true"><defs>${sky}
+    <linearGradient id="${u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.water[0]}"/><stop offset=".45" stop-color="${T.water[1]}"/><stop offset="1" stop-color="${T.water[2]}"/></linearGradient>
+    <radialGradient id="${u}s"><stop offset="0" stop-color="${T.sun[0]}" stop-opacity=".95"/><stop offset=".25" stop-color="${T.sun[0]}" stop-opacity=".4"/><stop offset="1" stop-color="${T.sun[0]}" stop-opacity="0"/></radialGradient>
+    <filter id="${u}bl" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.4"/></filter></defs>
+    <rect width="${W}" height="${WL + 2}" fill="url(#${u}a)"/>
+    <circle cx="${T.sun[1]}" cy="${T.sun[2]}" r="60" fill="url(#${u}s)"/><circle cx="${T.sun[1]}" cy="${T.sun[2]}" r="${id === 'sugavjarv' || id === 'kulmajarv' ? 7 : 10}" fill="${T.sun[0]}" opacity=".9"/>
+    ${id === 'metsajarv' || id === 'udusoo' ? [...Array(3)].map(() => `<ellipse cx="${(rnd() * 320).toFixed(0)}" cy="${(16 + rnd() * 30).toFixed(0)}" rx="${(26 + rnd() * 30).toFixed(0)}" ry="6" fill="#fff" opacity=".35" class="sd-cloud"/>`).join('') : ''}
+    ${id === 'sugavjarv' ? [...Array(24)].map(() => `<circle cx="${(rnd() * 320).toFixed(0)}" cy="${(rnd() * 70).toFixed(0)}" r="${(rnd() * .9 + .3).toFixed(1)}" fill="#fff" opacity="${(.4 + rnd() * .5).toFixed(2)}"/>`).join('') : ''}
+    ${back}
+    <rect y="${WL}" width="${W}" height="${H - WL}" fill="url(#${u}b)"/>${refl}
+    <path d="M${T.sun[1] - 18} ${WL + 6} h36 M${T.sun[1] - 12} ${WL + 12} h24 M${T.sun[1] - 8} ${WL + 19} h16" stroke="${T.sun[0]}" stroke-opacity=".45" stroke-width="1.6"/>
+    ${[...Array(10)].map(() => { const x = rnd() * 320, y = WL + 10 + rnd() * 60; return `<path d="M${x.toFixed(0)} ${y.toFixed(0)} q6 -2 12 0" stroke="rgba(255,255,255,${id === 'tulejarv' ? .25 : .18})" fill="none" class="sd-ripple"/>` }).join('')}
+    ${near}${fx}${extra || ''}</svg>`;
 }
+// kaardi märgid: poi, sadam, boss ja väike purjekas koos kiiluvee jäljega
+function sdRoute(found, n) {
+  const P = SD_PTS; let d = `M${P[0][0]} ${P[0][1]}`;
+  for (let i = 1; i < P.length; i++) { const [ax, ay] = P[i - 1], [bx, by] = P[i]; d += ` C${ax + (bx - ax) * .5} ${ay} ${ax + (bx - ax) * .5} ${by} ${bx} ${by}` }
+  return d;
+}
+function sdBuoy(f, i, col) { return f ? `<g class="sd-node on"><path d="M0 -16 v10" stroke="#3a2a1a" stroke-width="1.4"/><path d="M0 -16 l9 3 -9 3z" fill="${col}"/><ellipse cx="0" cy="0" rx="7" ry="3" fill="#0006"/><path d="M-6 -1 Q0 -12 6 -1Z" fill="#d84a2a" stroke="#fff" stroke-width="1"/><text y="-19" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" stroke="#0008" stroke-width="2" paint-order="stroke">${i}</text></g>`
+  : `<g class="sd-node"><circle r="8" fill="rgba(12,24,28,.7)" stroke="rgba(255,255,255,.55)" stroke-dasharray="2 2"/><text y="3.5" text-anchor="middle" font-size="10" font-weight="800" fill="#e6efec">?</text></g>` }
+function sdBoatMark() { return `<g transform="translate(-12 -20)"><path d="M-14 19 q8 2 14 0" stroke="rgba(255,255,255,.55)" stroke-width="1.2" fill="none" class="sd-foam"/><path d="M2 16 Q12 20 22 16 L20 21 Q12 23 4 21Z" fill="#5a3418" stroke="#2a1608" stroke-width=".8"/><path d="M12 2 v14" stroke="#3a2010" stroke-width="1.3"/><path d="M12 3 Q18 9 19 15 H12Z" fill="#f6efdc" stroke="#b8a888" stroke-width=".6"/><path d="M11 5 Q7 10 6 15 H11Z" fill="#ece2c8" stroke="#b8a888" stroke-width=".6"/><path d="M12 2 l5 1.5 -5 1.5z" fill="#c8302a"/></g>` }
 
 async function sdLoad(silent) {
   if (SD.loading) return; SD.loading = true;
@@ -15407,13 +15470,12 @@ function sdMap() {
   const sites = R.sites || [], found = R.found || [], allFound = found.length >= sites.length;
   const atSea = (D.ships || []).filter(s => s.voyage && s.voyage.region === R.id);
   // paikade sõlmed kaardil (rada vasakult paremale), laev liigub raja peal
-  const pts = [[30, 140], [105, 118], [180, 135], [255, 108], [298, 130]];
-  const path = 'M' + pts.map(p => p.join(' ')).join(' L');
-  let ext = `<path d="${path}" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="4 5" fill="none"/>`;
-  ext += `<g transform="translate(30 140)"><circle r="9" fill="#0d2228" stroke="#e8b65a" stroke-width="2"/><path d="M-3 -1 l3 -5 3 5 -3 4z" fill="#e8b65a"/></g>`;
-  sites.forEach((st, i) => { const f = found.includes(st.id), [x, y] = pts[i + 1]; ext += `<g transform="translate(${x} ${y})" class="${f ? 'sd-node on' : 'sd-node'}"><circle r="11" fill="${f ? RC.a : 'rgba(10,20,24,.75)'}" stroke="#fff" stroke-width="${f ? 2 : 1}" stroke-opacity="${f ? 1 : .4}"/><text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="${f ? '#0d2228' : '#cfe0e4'}">${f ? i + 1 : '?'}</text></g>` });
+  const pts = SD_PTS, RA = RC.a;
+  let ext = `<path d="${sdRoute()}" stroke="rgba(0,0,0,.35)" stroke-width="3.5" fill="none" transform="translate(0 1.5)"/><path d="${sdRoute()}" stroke="rgba(255,248,220,.85)" stroke-width="1.6" stroke-dasharray="5 5" fill="none" class="sd-route"/>`;
+  ext += `<g transform="translate(${pts[0][0]} ${pts[0][1]})"><path d="M-14 -2 h22 v3 h-22z" fill="#6a4a2a"/><path d="M-11 1 v7 M-1 1 v8 M6 1 v7" stroke="#4a3018" stroke-width="1.6"/><g transform="translate(-6 -16) scale(.5)" stroke="#ffd27a" stroke-width="2.2" fill="none">${LU.anchor}</g></g>`;
+  sites.forEach((st, i) => { const [x, y] = pts[i + 1]; ext += `<g transform="translate(${x} ${y})">${sdBuoy(found.includes(st.id), i + 1, RA)}</g>` });
   const [bx, by] = pts[4];
-  ext += `<g transform="translate(${bx} ${by})" class="sd-node boss ${R.boss_dead ? 'dead' : allFound ? 'on' : ''}"><circle r="13" fill="${R.boss_dead ? '#3a3a3a' : allFound ? '#b8302a' : 'rgba(10,20,24,.75)'}" stroke="#ffd27a" stroke-width="2"/><g transform="translate(-8 -8) scale(.68)" stroke="#fff" fill="none" stroke-width="2">${LU.skull}</g></g>`;
+  ext += `<g transform="translate(${bx} ${by})" class="sd-node boss ${R.boss_dead ? 'dead' : allFound ? 'on' : ''}">${allFound && !R.boss_dead ? '<circle r="18" fill="none" stroke="#e4574a" stroke-width="2" class="sd-whirl" stroke-dasharray="6 5"/>' : ''}<circle r="12" fill="${R.boss_dead ? '#3a3a3a' : allFound ? '#8a1a14' : 'rgba(12,24,28,.75)'}" stroke="#ffd27a" stroke-width="1.6"/><g transform="translate(-7 -7) scale(.58)" stroke="#fff" fill="none" stroke-width="2">${LU[R.boss_dead ? 'crown' : 'skull']}</g></g>`;
   atSea.forEach((s, i) => { const v = s.voyage, a = Date.parse(v.started_at), b = Date.parse(v.ready_at); ext += `<g class="sd-boat" data-sdb="${a}|${b}|${v.kind}|${found.length}" style="--d:${i}">${sdBoatMark()}</g>` });
   let h = `<div class="sd-regs">${D.regions.map(r => `<button type="button" class="sd-rg ${r.id === SD.region ? 'on' : ''} ${r.open ? '' : 'lock'}" data-sd="reg" data-arg="${r.id}" style="--ra:${(SD_REG[r.id] || {}).a}">${r.open ? '' : luc('lock')}<b>${r.ord}. ${esc(r.name)}</b>${r.boss_dead ? `<small>${luc('crown')} võidetud</small>` : r.open ? `<small>${r.found.length}/${r.sites.length} paika</small>` : '<small>suletud</small>'}</button>`).join('')}</div>`;
   h += `<div class="fv-card sd-region" style="--ra:${RC.a}"><div class="sd-sc">${sdScene(R.id, open ? ext : '')}${open ? '' : `<div class="sd-locked">${luc('lock')}<b>Suletud piirkond</b><span>Võida enne „${esc((D.regions.find(x => x.ord === R.ord - 1) || {}).boss ? D.regions.find(x => x.ord === R.ord - 1).boss.name : '')}“ eelmises piirkonnas. Vaja ka laeva: ${esc((D.types.find(t => t.rank === R.min_rank) || {}).name || '')} või tugevam.</span></div>`}
@@ -15428,7 +15490,6 @@ function sdMap() {
     ${open ? sdSend(R, allFound) : ''}</div>`;
   return h;
 }
-function sdBoatMark() { return `<g transform="translate(-10 -14)"><path d="M2 14 h16 l-3 5 h-10z" fill="#5a3418"/><path d="M10 0 v14" stroke="#3a2010" stroke-width="1.5"/><path d="M10 1 l7 11 h-7z" fill="#f4ecd8"/></g>` }
 function sdSend(R, allFound) {
   const D = SD.d, free = (D.ships || []).filter(s => !s.voyage);
   if (!free.length) return `<p class="lead sd-note">${(D.ships || []).length ? 'Kõik laevad on praegu retkel.' : 'Sul pole veel laeva. Ehita see vahekaardil „Laevad“.'}</p>`;
@@ -15544,7 +15605,7 @@ setInterval(() => {
   // kaardil: laev sõidab sadamast sihtkohta ja tagasi
   document.querySelectorAll('[data-sdb]').forEach(el => {
     const [a, b, k, nf] = el.dataset.sdb.split('|'), p = Math.max(0, Math.min(1, (t - +a) / (+b - +a)));
-    const pts = [[30, 140], [105, 118], [180, 135], [255, 108], [298, 130]], target = k === 'boss' ? 4 : k === 'avasta' ? Math.min(3, +nf + 1) : Math.max(1, Math.min(3, +nf || 1));
+    const pts = SD_PTS, target = k === 'boss' ? 4 : k === 'avasta' ? Math.min(3, +nf + 1) : Math.max(1, Math.min(3, +nf || 1));
     const q = p < .5 ? p * 2 : (1 - p) * 2, f = q * target, i = Math.min(target - 1, Math.floor(f)), r = f - i, A = pts[i], B = pts[Math.min(4, i + 1)];
     const x = A[0] + (B[0] - A[0]) * r, y = A[1] + (B[1] - A[1]) * r - 4;
     el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${p < .5 ? 1 : -1} 1)`);
@@ -15591,7 +15652,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sd-locked{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:6px;padding:20px;text-align:center;background:rgba(6,14,18,.62);backdrop-filter:blur(3px)}.sd-locked .lu{width:30px;height:30px;color:#ffd27a}.sd-locked span{color:#cfe0e4;max-width:44ch}
 .sd-node.on circle{filter:drop-shadow(0 0 6px var(--ra))}.sd-node.boss.on circle{animation:sdBoss 1.4s ease-in-out infinite}
 .sd-boat{transition:transform 1s linear;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}
-.sd-fog{animation:wvFog 12s ease-in-out infinite alternate}.sd-fog.b{animation-duration:17s;animation-direction:alternate-reverse}
+.sd-fog{animation:wvFog 12s ease-in-out infinite alternate}.sd-cloud{animation:wvFog 30s ease-in-out infinite alternate}.sd-aurora{animation:smRune 5s ease-in-out infinite}.sd-aurora.b{animation-duration:7s}
+.sd-plume{animation:wvFog 9s ease-in-out infinite alternate}.sd-fall{stroke-dasharray:4 4;animation:sdFall .6s linear infinite}.sd-ripple{animation:sdFoam 3s ease-in-out infinite}.sd-route{animation:sdRoute 2s linear infinite}.sd-whirl{animation:sdSpin 4s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes sdFall{to{stroke-dashoffset:-8}}@keyframes sdRoute{to{stroke-dashoffset:-20}}@keyframes sdSpin{to{transform:rotate(360deg)}}.sd-fog.b{animation-duration:17s;animation-direction:alternate-reverse}
 .sd-snow{animation:sdSnow 6s linear infinite}.sd-ember{animation:sdEmber 2.6s ease-out infinite}.sd-lava{animation:smFire 1s ease-in-out infinite alternate}
 .sd-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.sd-cols h3,.sd-region h3{display:flex;align-items:center;gap:7px;margin:0 0 6px;font-size:15px}.sd-region h3 .lu{width:17px;height:17px;color:var(--ra)}
 .sd-fish{display:flex;flex-wrap:wrap;gap:6px}.sd-fish span{display:grid;justify-items:center;width:78px;padding:4px;border-radius:10px;background:rgba(0,0,0,.2)}.sd-fish canvas{width:66px;height:36px}.sd-fish small{font-size:11px;text-align:center;color:#cfe0e4;line-height:1.2}
