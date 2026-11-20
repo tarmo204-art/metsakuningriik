@@ -1601,9 +1601,11 @@ async function loadKT(silent) {
     const d = await rpc('fish_kalatund'); KT.off = new Date(d.now).getTime() - Date.now(); KT.at = Date.now();
     if (KT.wasActive === false && d.active) { toast('Kalatund algas! Tund aega ühist püüki: iga kala annab punkte ja teeb bossikalale kahju. Mine kalale!', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
     if (KT.d && KT.d.boss && d.boss && !KT.d.boss.killed_at && d.boss.killed_at) toast(`Bossikala on alistatud! Viimase löögi andis ${d.boss.killer}. Kõik, kes aitasid, saavad pärast Kalatundi auhinna.`, 'gold', 'fish');
-    KT.wasActive = d.active; KT.d = d;
+    const same = KT.d && JSON.stringify({ ...d, now: 0 }) === JSON.stringify({ ...KT.d, now: 0 });
+    KT.wasActive = d.active; KT.d = d; KT.same = same;
   } catch (e) { if (!silent) toast(e.message, 'bad') }
-  KT.loading = false; if (FV.open && (FV.tab === 'kalatund' || KT.d && KT.d.active)) renderFV();
+  // kui midagi ei muutunud, ei joonista lehte uuesti (muidu kerimine tõkerdab)
+  KT.loading = false; if (FV.open && !KT.same && (FV.tab === 'kalatund' || KT.d && KT.d.active)) renderFV();
 }
 function ktNow() { return Date.now() + KT.off }
 function ktClock(ms) { ms = Math.max(0, ms); const h = Math.floor(ms / 3600e3), m = Math.floor(ms % 3600e3 / 60000), s2 = Math.floor(ms % 60000 / 1000); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0') }
