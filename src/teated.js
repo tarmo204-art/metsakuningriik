@@ -19,6 +19,9 @@ Object.assign(LU, {
 });
 // sisu järgi ikoon (esimene sobiv); "epic" = eriti tähtis teade
 const TQ_RULES = [
+  [/^torm|tormi/i, 'cloud-lightning'],
+  [/kalaparv/i, 'fish'],
+  [/^udu/i, 'cloud'],
   [/^Tase \d|tase tõusis/i, 'crown', 1],
   [/saavutus|tiitel|\d\. koht|alistatud|viimase löögi|retk läbitud|kalakuningas/i, 'trophy', 1],
   [/legend|uus liik|uus geen|avastasid uue|uus aare/i, 'sparkles', 1],

@@ -2081,7 +2081,7 @@ begin
     'total', f.total, 'rare', f.rare, 'night', f.night, 'junk', f.junk, 'chests', f.chests, 'broken', f.broken, 'lost', f.lost,
     'orders_done', f.orders_done, 'comp_wins', f.comp_wins, 'biggest', f.biggest, 'biggest_species', f.biggest_species,
     'title', f.title, 'titles', to_jsonb(f.titles), 'book', book, 'ach', v_ach, 'by_rarity', byr, 'inventory', inv,
-    'inbox', inbox, 'active', act, 'weather', w, 'is_night', fx_is_night(), 'is_winter', fx_is_winter(), 'today', fx_today(),
+    'inbox', inbox, 'active', act, 'weather', w, 'wev', fx_wev_info(u), 'is_night', fx_is_night(), 'is_winter', fx_is_winter(), 'today', fx_today(),
     'items', v_items, 'quests_done', f.quests_done, 'badges', fx_badges(u),
     'gear', fx_gear(u), 'boats', to_jsonb(f.boats),
     'rod_mods', (select coalesce(jsonb_object_agg(rod, jsonb_build_object('upg', upg, 'ench', ench, 'ench_lvl', ench_lvl)), '{}') from fisher_rods where user_id = u),
@@ -2198,7 +2198,7 @@ begin
   end if;
   -- kalade üldine aktiivsus selles kohas mõjutab, kui kiiresti näkkab
   select avg(fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) into avgact from fish_species fs where p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null;
-  wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * (case when p_spot = 'udulaht' then 0.85 else 1 end) * fx_weather_wait(wthr) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
+  wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * (case when p_spot = 'udulaht' then 0.85 else 1 end) * fx_weather_wait(wthr) * fx_wev_wait(p_spot) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
   if kind = 'fish' and (fit -> 'worn') ? 'polar' and wthr in ('paike','pilves') then peek := round(least(1, sqrt(wt / 15.0)), 2); end if;
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
@@ -5227,6 +5227,84 @@ begin
   update fishers set gold = gold - p_stake, last_seen = now() where user_id = u;
   insert into fish_duels(a, b, bot, spot, stake, bot_at) values (u, null, vb.id, p_spot, p_stake, now() + make_interval(secs => 3 + random() * 5));
   return duel_ping();
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 6z7. Ilmasündmused: lühikesed ühised sündmused kõigile mängijatele (torm, udu, kalaparv)
+--   Ajakava tuleb kellaajast (iga 30 min plokk saab räsi järgi oma sündmuse või mitte),
+--   nii et server ei pea midagi taustal käivitama ja kõik näevad sama sündmust samal ajal.
+--   torm: 2 min hoiatus (kalad söövad ahnelt, näkkab kiiremini) + 3 min torm (ilm = torm)
+--   udu:  2 min (ilm = udu, udukalad)
+--   parv: 90 s ühes püügikohas (näkkab 2× kiiremini)
+-- ---------------------------------------------------------------------
+create or replace function public.fx_wev_slot(n bigint) returns jsonb language plpgsql immutable as $$
+declare h int := abs(hashtext('wev' || n::text)) % 100; o int := 240 + abs(hashtext('wevo' || n::text)) % 1200;
+  t0 timestamptz := to_timestamp(n * 1800); k text; sp text;
+begin
+  k := case when h < 20 then 'torm' when h < 38 then 'udu' when h < 68 then 'parv' else null end;
+  if k is null then return null; end if;
+  -- kui suur ilm on niigi torm/udu, siis sama sündmust ei korrata – tuleb kalaparv
+  if (k = 'torm' and public.fx_weather_at(t0) = 'torm') or (k = 'udu' and public.fx_weather_at(t0) = 'udu') then k := 'parv'; end if;
+  if k = 'torm' then
+    return jsonb_build_object('id', 'torm-' || n, 'kind', 'torm', 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o + 120), 'end', t0 + make_interval(secs => o + 300));
+  elsif k = 'udu' then
+    return jsonb_build_object('id', 'udu-' || n, 'kind', 'udu', 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o), 'end', t0 + make_interval(secs => o + 120));
+  end if;
+  sp := (array['metsajarv','jogi','kuninglik','meri','saarestik','metsajarv'])[1 + abs(hashtext('wevs' || n::text)) % 6];
+  return jsonb_build_object('id', 'parv-' || n, 'kind', 'parv', 'spot', sp, 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o), 'end', t0 + make_interval(secs => o + 90));
+end $$;
+-- sündmus, mis antud hetkel käib (hoiatus või tegelik osa), või null
+create or replace function public.fx_wev(ts timestamptz default now()) returns jsonb language plpgsql stable as $$
+declare e jsonb := public.fx_wev_slot(floor(extract(epoch from ts) / 1800)::bigint);
+begin
+  if e is not null and ts >= (e ->> 'warn')::timestamptz and ts < (e ->> 'end')::timestamptz then
+    return e || jsonb_build_object('phase', case when ts < (e ->> 'start')::timestamptz then 'warn' else 'on' end);
+  end if;
+  return null;
+end $$;
+-- sündmused ajavahemikus (tulemas)
+create or replace function public.fx_wev_list(p_from timestamptz, p_to timestamptz) returns jsonb language plpgsql stable as $$
+declare n bigint; e jsonb; res jsonb := '[]';
+begin
+  for n in floor(extract(epoch from p_from) / 1800)::bigint .. floor(extract(epoch from p_to) / 1800)::bigint loop
+    e := public.fx_wev_slot(n);
+    if e is not null and (e ->> 'end')::timestamptz > p_from and (e ->> 'warn')::timestamptz < p_to then res := res || jsonb_build_array(e); end if;
+  end loop;
+  return res;
+end $$;
+-- ilm koos ilmasündmusega (kõik püügiloogika kasutab seda)
+create or replace function public.fx_weather() returns text language plpgsql stable as $$
+declare e jsonb := public.fx_wev(now());
+begin
+  if e is not null and e ->> 'phase' = 'on' and e ->> 'kind' in ('torm', 'udu') then return e ->> 'kind'; end if;
+  return public.fx_weather_at(now());
+end $$;
+-- ootamise kordaja: enne tormi söövad kalad ahnelt, kalaparve juures näkkab kaks korda kiiremini
+create or replace function public.fx_wev_wait(p_spot text) returns numeric language plpgsql stable as $$
+declare e jsonb := public.fx_wev(now());
+begin
+  if e is null then return 1; end if;
+  if e ->> 'kind' = 'torm' and e ->> 'phase' = 'warn' then return 0.7; end if;
+  if e ->> 'kind' = 'parv' and e ->> 'spot' = p_spot then return 0.5; end if;
+  return 1;
+end $$;
+-- mängijale: praegune sündmus, tulemas (järgmine tund) ja just lõppenud sündmuse kokkuvõte
+create or replace function public.fx_wev_info(u uuid) returns jsonb language plpgsql stable as $$
+declare cur jsonb := public.fx_wev(now()); lst jsonb; e jsonb; n int; best jsonb;
+begin
+  -- viimased 10 minutit lõppenud sündmus
+  for e in select x from jsonb_array_elements(public.fx_wev_list(now() - interval '40 minutes', now())) x loop
+    if (e ->> 'end')::timestamptz <= now() and (e ->> 'end')::timestamptz > now() - interval '10 minutes' then lst := e; end if;
+  end loop;
+  if lst is not null then
+    select count(*), (select jsonb_build_object('species', c2.species, 'weight', c2.weight) from fish_catches c2 where c2.user_id = u and not c2.bought
+        and c2.caught_at >= (lst ->> 'start')::timestamptz and c2.caught_at < (lst ->> 'end')::timestamptz + interval '20 seconds' order by c2.rarity desc, c2.weight desc limit 1)
+      into n, best from fish_catches c where c.user_id = u and not c.bought and c.caught_at >= (lst ->> 'start')::timestamptz and c.caught_at < (lst ->> 'end')::timestamptz + interval '20 seconds'
+        and (lst ->> 'kind' <> 'parv' or c.spot = lst ->> 'spot');
+    lst := lst || jsonb_build_object('n', n, 'best', best);
+  end if;
+  return jsonb_build_object('now', now(), 'cur', cur, 'next', (select coalesce(jsonb_agg(x), '[]') from jsonb_array_elements(public.fx_wev_list(now(), now() + interval '75 minutes')) x
+      where (x ->> 'warn')::timestamptz > now()), 'last', lst);
 end $$;
 
 -- ---------------------------------------------------------------------
