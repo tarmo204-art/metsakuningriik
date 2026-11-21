@@ -6,11 +6,12 @@
    Kõik arvutused ja auhinnad teeb server (fleet_* funktsioonid).
    ===================================================================== */
 const SD = { back: new Set(), d: null, at: 0, loading: false, busy: false, sub: 'laevad', ship: null, region: 'metsajarv', res: null, off: 0 };
+Object.assign(LU, { ghost: '<path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>', snowflake: '<path d="M2 12h20"/><path d="M12 2v20"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/>' });
 // valikuga sündmused retkel: ikoon ja värv
-const SD_EV = { vrakk: ['anchor', '#7fb6c9'], saar: ['tree-pine', '#7fd18b'], koletis: ['monster', '#e4574a'], kaupmees: ['coins', '#f0c05a'], piraadid: ['skull', '#e4574a'], merehada: ['users', '#8ec5ff'], nakk: ['moon', '#c9a6ff'], virvatuli: ['sparkles', '#6fe3ff'] };
-const SD_SUBS = [['laevad', 'ship', 'Laevad'], ['kaart', 'map', 'Merekaart'], ['tookoda', 'wrench', 'Laevatöökoda'], ['meeskond', 'users', 'Meeskond'], ['logi', 'scroll-text', 'Logiraamat']];
+const SD_EV = { vrakk: ['anchor', '#7fb6c9'], saar: ['tree-pine', '#7fd18b'], koletis: ['monster', '#e4574a'], kaupmees: ['coins', '#f0c05a'], piraadid: ['skull', '#e4574a'], merehada: ['users', '#8ec5ff'], nakk: ['moon', '#c9a6ff'], virvatuli: ['sparkles', '#6fe3ff'], vastane: ['skull', '#ff8a5c'] };
+const SD_SUBS = [['laevad', 'ship', 'Laevad'], ['kaart', 'map', 'Merekaart'], ['tookoda', 'wrench', 'Laevatöökoda'], ['meeskond', 'users', 'Meeskond'], ['vastased', 'skull', 'Vastased'], ['logi', 'scroll-text', 'Logiraamat']];
 const SD_STATS = [['spd', 'gauge', 'Kiirus'], ['vast', 'shield-check', 'Vastupidavus'], ['cap', 'package', 'Lastiruum'], ['avast', 'compass', 'Avastamisoskus'], ['kaitse', 'shield', 'Kaitsevõime'], ['pyuk', 'fish', 'Kalapüük']];
-const SD_KIND = { avasta: ['Avastusretk', 'compass', 'Otsi piirkonnast uus paik. Avastamisoskus aitab.'], pyuk: ['Püügiretk', 'fish', 'Laev püüab võrkudega kala. Lastiruum ja võrgud loevad.'], boss: ['Bossi jaht', 'skull', 'Rünnak piirkonna bossile. Kaitsevõime ja vastupidavus loevad.'] };
+const SD_KIND = { avasta: ['Avastusretk', 'compass', 'Otsi piirkonnast uus paik. Avastamisoskus aitab.'], pyuk: ['Püügiretk', 'fish', 'Laev püüab võrkudega kala. Lastiruum ja võrgud loevad.'], jaht: ['Koletisejaht', 'swords', 'Otsi üles piirkonna vastane. Ta on tugevam, aga võit annab 1,6× rohkem kulda ja trofeesid.'], aare: ['Aardejaht', 'gem', 'Otsi avastatud paikadest peidetud aardeid. Avastamisoskus aitab lõkse vältida.'], boss: ['Bossi jaht', 'skull', 'Rünnak piirkonna bossile. Kaitsevõime ja vastupidavus loevad.'] };
 const SD_CREW = { kapten: ['Kapten', 'Kaitsevõime +4% ja vastupidavus +3% iga taseme kohta.', 'shield'], tuurimees: ['Tüürimees', 'Kiirus ja avastamisoskus +4% iga taseme kohta.', 'compass'], kalur: ['Vanem kalur', 'Kalapüük +5% ja lastiruum +3% iga taseme kohta.', 'fish'] };
 const SD_REG = { // piirkondade värvid ja meeleolu
   metsajarv: { a: '#5fbf8f', sky: ['#9fd6c8', '#2f6d6a'], water: ['#2d7f86', '#0f3a44'] },
@@ -275,6 +276,7 @@ function sdTab() {
   else if (SD.sub === 'kaart') h += sdMap();
   else if (SD.sub === 'tookoda') h += sdYard();
   else if (SD.sub === 'meeskond') h += sdCrew();
+  else if (SD.sub === 'vastased') h += sdFoes();
   else h += sdLog();
   return h;
 }
@@ -345,14 +347,14 @@ function sdSend(R, allFound) {
   if (!free.length) return `<p class="lead sd-note">${(D.ships || []).length ? 'Kõik laevad on praegu retkel.' : 'Sul pole veel laeva. Ehita see vahekaardil „Laevad“.'}</p>`;
   if (!SD.sendShip || !free.some(s => s.id === SD.sendShip)) SD.sendShip = free[0].id;
   const s = sdShipById(SD.sendShip), T = sdT(s.type), okRank = T.rank >= R.min_rank;
-  const kinds = ['avasta', 'pyuk', 'boss'].filter(k => k !== 'boss' || (allFound && !R.boss_dead)).filter(k => k !== 'avasta' || !allFound);
-  const mins = k => Math.max(3, Math.round(R.minutes * ({ pyuk: 1.2, boss: .8 }[k] || 1) * 16 / Math.max(5, s.stats.spd)));
+  const kinds = ['avasta', 'pyuk', 'jaht', 'aare', 'boss'].filter(k => k !== 'boss' || (allFound && !R.boss_dead)).filter(k => k !== 'avasta' || !allFound).filter(k => k !== 'aare' || (R.found || []).length >= 1);
+  const mins = k => Math.max(3, Math.round(R.minutes * ({ pyuk: 1.2, boss: .8, aare: 1.1 }[k] || 1) * 16 / Math.max(5, s.stats.spd)));
   return `<div class="sd-send"><h3>${luc('ship')} Saada retkele</h3>
     <div class="sd-pick">${free.map(x => `<button type="button" class="${x.id === SD.sendShip ? 'on' : ''}" data-sd="pick" data-arg="${x.id}">${sdShip(x.type, x.parts, {})}<b>${esc(sdT(x.type).name)}</b><small>${x.cond}% korras</small></button>`).join('')}</div>
     ${okRank ? '' : `<p class="sd-warn">${luc('triangle-alert')} ${esc(R.name)} on selle laeva jaoks liiga ohtlik – vaja vähemalt: ${esc((D.types.find(t => t.rank === R.min_rank) || {}).name)}.</p>`}
     ${s.cond < 25 ? `<p class="sd-warn">${luc('triangle-alert')} Laev on liiga katki. Remondi see enne.</p>` : ''}
     <div class="sd-kinds">${kinds.map(k => `<button type="button" class="sd-k ${k}" data-sd="send" data-arg="${k}" ${!okRank || s.cond < 25 || SD.busy ? 'disabled' : ''}>${luc(SD_KIND[k][1])}<b>${SD_KIND[k][0]}</b><small>${SD_KIND[k][2]}</small>
-      <span class="sd-kf">${luc('timer')} ${mins(k)} min · ${ic('food')} ${Math.round(R.food * (k === 'boss' ? 1.5 : 1))}${+(s.parts || {}).mootor >= 1 ? ` · ${typeof matIc === 'function' ? matIc('kask', 16) : ''}${R.ord * 2} kaske` : ''}</span></button>`).join('')}</div>
+      <span class="sd-kf">${luc('timer')} ${mins(k)} min · ${ic('food')} ${Math.round(R.food * (k === 'boss' ? 1.5 : k === 'jaht' ? 1.2 : 1))}${+(s.parts || {}).mootor >= 1 ? ` · ${typeof matIc === 'function' ? matIc('kask', 16) : ''}${R.ord * 2} kaske` : ''}</span></button>`).join('')}</div>
     <small class="lead">Proviant (toit) võetakse kuningriigi laost. Mootoriga laev vajab ka küttepuid (kask). Retk kulgeb ka siis, kui oled mängust eemal.</small></div>`;
 }
 function sdYard() {
@@ -366,6 +368,20 @@ function sdYard() {
       return `<div class="fv-card sd-part"><div class="sd-ph"><span class="sd-pi">${luc({ puri: 'wind', kere: 'shield-check', mootor: 'gauge', lastiruum: 'package', kompass: 'compass', vorgud: 'fish', kaitse: 'shield' }[p.id])}</span><div><b>${esc(p.name)}</b><small>${esc(p.descr)}</small></div></div>
         <div class="sd-pips">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}<span>+${p.per * (p.id === 'lastiruum' ? T.rank : 1)} ${(SD_STATS.find(x => x[0] === p.stat) || [])[2]?.toLowerCase()}</span></div>
         ${c ? `${sdCostTxt(c)}<button class="btn sm" type="button" data-sd="upg" data-arg="${p.id}" ${atSea || SD.busy ? 'disabled' : ''}>${luc('hammer')} Täiusta tasemele ${l + 1}</button>` : `<span class="sd-max">${luc('crown')} Parim</span>`}</div>` }).join('')}</div>`;
+}
+function sdFoes() {
+  const D = SD.d, F = D.foes || [], M = D.myfoes || {}, seen = F.filter(f => (M[f.id] || {}).seen).length, won = F.filter(f => (M[f.id] || {}).won).length;
+  const regName = id => id ? (sdReg(id).name || id) : 'Kõik veed';
+  const loot = f => [...Object.keys((f.loot || {}).mats || {}).map(k => (D.names.mats || {})[k] || k), ...Object.keys((f.loot || {}).items || {}).map(k => (D.names.items || {})[k] || k)].join(', ');
+  return `<div class="fv-card sd-foeh"><h3>${luc('skull')} Vastaste raamat</h3><p class="lead">Retkedel võib kohata merekoletisi, kummituslaevu ja piirkonna vanu valitsejaid. <b>Koletisejaht</b> viib otse vastase pessa. Kohatud: <b>${seen}/${F.length}</b> · Võidetud: <b>${won}/${F.length}</b></p></div>
+  <div class="sd-foes">${F.map(f => {
+    const m = M[f.id] || {}, known = m.seen > 0, col = f.region ? (SD_REG[f.region] || {}).a : '#ff8a5c';
+    const pw = f.region ? f.power : `${f.power + f.grow}–${f.power + f.grow * 5}`;
+    return `<div class="sd-foe ${known ? '' : 'unk'} ${m.won ? 'won' : ''}" style="--c:${col}"><span class="sd-foei">${luc(known ? f.icon : 'lock')}</span>
+      <div><b>${known ? esc(f.name) : '???'}</b><small>${esc(regName(f.region))} · jõud ${pw}</small>
+      <p>${known ? esc(f.descr) : 'Seda vastast pole veel kohatud.'}</p>
+      ${known ? `<small class="sd-foel">${luc('gem')} ${esc(loot(f) || 'kuld')}</small><small class="sd-foec">Kohatud ${m.seen}× · võidetud ${m.won || 0}×</small>` : ''}</div>${m.won ? `<span class="sd-foew">${luc('trophy')}</span>` : ''}</div>`;
+  }).join('')}</div>`;
 }
 function sdCrew() {
   const D = SD.d;
@@ -389,7 +405,7 @@ function sdResult(vg) {
   const epic = a.boss_dead || fish.some(f => f.rarity >= 5 || f.boss);
   return `<div class="sd-rs ${epic ? 'epic' : ''}" style="--ra:${(SD_REG[vg.region] || {}).a}"><div class="sd-rh">${sdScene(vg.region)}<div><small>${luc('scroll-text')} Logiraamat</small><h2>${SD_KIND[vg.kind][0]} · ${esc(R.name || '')}</h2></div></div>
     <ul class="sd-ll anim">${(a.log || []).map((e, i) => `<li class="${e.tone || ''}" style="animation-delay:${(i * .35).toFixed(2)}s">${luc(e.ic)}<span>${esc(e.t)}</span></li>`).join('')}</ul>
-    ${ch ? `<div class="sd-choice${ch.ev === 'valitseja' ? ' lev' : ''}" style="${SD_EV[ch.ev] && ch.ev !== 'valitseja' ? '--c:' + SD_EV[ch.ev][1] : ''}">${ch.ev === 'valitseja' && typeof levHtml === 'function' ? levHtml() : ''}<h3>${ch.ev !== 'valitseja' && SD_EV[ch.ev] ? `<span class="sd-chic" style="--c:${SD_EV[ch.ev][1]}">${luc(SD_EV[ch.ev][0])}</span>` : ''}${esc(ch.title)}</h3><p>${esc(ch.text)}</p><div>${ch.opts.map(o => `<button class="btn" type="button" data-sd="choose" data-arg="${vg.id}|${o.id}"><b>${esc(o.t)}</b><small>${esc(o.d)}</small></button>`).join('')}</div></div>`
+    ${ch ? `<div class="sd-choice${ch.ev === 'valitseja' ? ' lev' : ''}" style="${SD_EV[ch.ev] && ch.ev !== 'valitseja' ? '--c:' + SD_EV[ch.ev][1] : ''}">${ch.ev === 'valitseja' && typeof levHtml === 'function' ? levHtml() : ''}<h3>${ch.ev !== 'valitseja' && SD_EV[ch.ev] ? `<span class="sd-chic" style="--c:${SD_EV[ch.ev][1]}">${luc(ch.icon || SD_EV[ch.ev][0])}</span>` : ''}${esc(ch.title)}</h3><p>${esc(ch.text)}</p><div>${ch.opts.map(o => `<button class="btn" type="button" data-sd="choose" data-arg="${vg.id}|${o.id}"><b>${esc(o.t)}</b><small>${esc(o.d)}</small></button>`).join('')}</div></div>`
       : `${a.boss_dead ? `<div class="sd-bossdead">${luc('crown')}<b>${esc(R.boss.name)} on alistatud!</b></div>` : a.boss_dmg ? `<div class="sd-hp big"><i style="width:${(a.boss_hp / a.boss_max * 100).toFixed(1)}%"></i><span>${esc(R.boss.name)}: ${fmt(a.boss_hp)} / ${fmt(a.boss_max)} elu (−${a.boss_dmg})</span></div>` : ''}
       ${fish.length ? `<h3>${luc('fish')} Saak (${fish.length})</h3><div class="sd-fish got">${fish.map(f => `<span class="${f.rarity >= 4 || f.boss ? 'rare' : ''}"><canvas data-fl="${f.species}" data-r="${f.rarity}" data-nobg="1"></canvas><small>${esc((SD.d.spnames[f.species] || FD.sp[f.species] || {}).name || f.species)}</small><b>${fKg(+f.weight)}</b></span>`).join('')}</div>` : ''}
       <div class="sd-sum">${a.gold ? `<span class="g">${luc('coins')} +${fmt(a.gold)} kulda</span>` : ''}${a.sum ? `<span>${luc('zap')} +${a.sum.xp} kogemust</span>` : ''}${items.map(([k, v]) => `<span class="r">${sdIt(k)}${v} × ${esc(sdN(k, 'items'))}</span>`).join('')}${mats.map(([k, v]) => `<span>${typeof matIc === 'function' ? matIc(k, 18) : ''}${v} × ${esc(sdN(k, 'mats'))}</span>`).join('')}${baits.map(([k, v]) => `<span class="b">${luc('bug')}${v} × ${esc(sdN(k, 'baits'))}</span>`).join('')}${a.sum ? `<span>${luc('shield-check')} laev ${a.sum.cond}%</span>` : ''}</div>
@@ -540,6 +556,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sd-rs{display:grid;gap:10px}.sdmodal{max-width:640px}
 .sd-rh{position:relative;border-radius:14px;overflow:hidden;height:120px}.sd-rh .sd-scene{position:absolute;inset:0}.sd-rh > div{position:absolute;left:14px;bottom:10px}.sd-rh small{display:inline-flex;align-items:center;gap:5px;color:#fff;text-shadow:0 1px 4px #000}.sd-rh small .lu{width:15px;height:15px}.sd-rh h2{margin:0;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.7)}
 .sd-rs.epic .sd-rh{box-shadow:0 0 0 2px #ffd27a,0 0 30px rgba(255,210,122,.4)}
+.sd-foes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:10px}.sd-foe{position:relative;display:grid;grid-template-columns:46px 1fr;gap:10px;padding:12px;border-radius:14px;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 14%,rgba(10,20,26,.6)),rgba(10,20,26,.6));border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}.sd-foe b{display:block;font-size:15px}.sd-foe small{display:block;opacity:.8;font-size:12px}.sd-foe p{margin:6px 0;font-size:13px;color:#dfeaec}.sd-foei{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 60%,transparent)}.sd-foei svg{width:24px;height:24px}.sd-foe.unk{filter:saturate(.2);opacity:.75}.sd-foe.unk .sd-foei{color:#9aa}.sd-foel{display:flex!important;align-items:center;gap:4px}.sd-foel svg{width:13px;height:13px}.sd-foec{margin-top:2px}.sd-foew{position:absolute;top:10px;right:10px;color:#f0c05a}.sd-foew svg{width:18px;height:18px}
 .sd-choice{padding:12px;border-radius:14px;background:rgba(228,87,74,.12);border:1px solid rgba(228,87,74,.5);animation:sdLine .5s 1s backwards}.sd-choice h3{margin:0}.sd-choice p{margin:4px 0 10px;color:#dfeaec}
 .sd-choice > div{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.sd-choice[style*="--c"]{background:color-mix(in srgb,var(--c) 13%,transparent);border-color:color-mix(in srgb,var(--c) 55%,transparent)}.sd-choice h3{display:flex;align-items:center;gap:10px}.sd-chic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 60%,transparent)}.sd-chic svg{width:20px;height:20px}.sd-choice .btn{display:grid;gap:2px;text-align:left;justify-items:start;justify-content:stretch;height:auto;padding:10px 12px}.sd-choice > div:has(> :nth-child(3)){grid-template-columns:1fr}.sd-choice .btn small{font-weight:500;opacity:.85;font-size:12px}
 .sd-bossdead{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:14px;background:linear-gradient(90deg,rgba(242,181,82,.3),rgba(197,140,255,.25));font-size:18px;animation:tqPop .7s cubic-bezier(.3,1.8,.4,1)}.sd-bossdead .lu{width:28px;height:28px;color:#ffd27a}

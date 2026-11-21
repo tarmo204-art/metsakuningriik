@@ -1884,6 +1884,36 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- ---------------------------------------------------------------------
+-- 2z7b. Sadam: vastased (merekoletised, piraadilaevad jm), keda retkel kohtab
+--   region = null → võib tulla igas piirkonnas (jõud kasvab piirkonna raskusega: power + grow * diff)
+--   loot: {"mats":{"soomus":[min,max]}, "items":{"karp":tõenäosus}}
+-- ---------------------------------------------------------------------
+create table if not exists public.fleet_foes (
+  id text primary key, name text not null, region text, power int not null, grow int not null default 0, atk int not null,
+  gold int not null, loot jsonb not null default '{}', icon text not null default 'skull', descr text not null default '', ord int not null default 0
+);
+insert into public.fleet_foes (id, name, region, power, grow, atk, gold, loot, icon, descr, ord) values
+ ('hiidkrabi','Hiidkrabi',null,4,11,8,90,'{"mats":{"luu":[3,6]},"items":{"karp":0.4}}','bug','Kaljukarbi suurune krabi, kelle sõrad krõbistavad laevaplanke nagu piparkooki.',1),
+ ('merimadu','Merimadu',null,6,12,10,120,'{"mats":{"soomus":[2,5]}}','waves','Pikk roheline madu, kes keerdub ümber laeva ja pigistab.',2),
+ ('hiidkalmaar','Hiidkalmaar',null,10,13,16,160,'{"mats":{"soomus":[2,4]},"items":{"parl":0.4}}','monster','Kaheksa kombitsat ja kaks laternasuurust silma. Armastab kalurite saaki.',3),
+ ('kummituslaev','Kummituslaev',null,12,13,14,200,'{"items":{"ruun":0.35,"sormus":0.25}}','ghost','Rebenenud purjedega laev, mille tekil tantsivad kahvatud meremehed.',4),
+ ('hiidhaug','Hiidhaug','metsajarv',16,0,8,120,'{"mats":{"luu":[2,5]},"items":{"merevaik":0.3}}','fish','Metsajärve vanim haug – tema hambad on nagu saehambad.',10),
+ ('vetevana','Vetevana','metsajarv',20,0,10,160,'{"items":{"karp":0.5}}','moon','Habemega vetehaldjas, kes tirib õngenööre ja naerab kurjalt.',11),
+ ('elektriangerjas','Välguangerjas','sugavjarv',28,0,12,260,'{"items":{"koopakristall":0.3}}','zap','Sügavuse angerjas, kelle löök paneb laeva laternad sädelema.',20),
+ ('kivikilpkonn','Kivikilpkonn','sugavjarv',33,0,10,300,'{"mats":{"iidneluu":[0,1]},"items":{"parl":0.4}}','shield','Kilpkonn, kelle selg on kaetud sammaldunud kividega. Vana ja tõre.',21),
+ ('rabavaim','Rabavaim','udusoo',38,0,14,380,'{"items":{"ruun":0.4}}','sparkles','Udust kokku keerdunud vaim, kelle hääl kõlab nagu tuul roostikus.',30),
+ ('sookoll','Sookoll','udusoo',44,0,16,450,'{"mats":{"kuldsoomus":[1,2]}}','skull','Mudast ja juurtest kogu, kes tõuseb soost ja haarab laeva põhjast.',31),
+ ('jaauss','Jääuss','kulmajarv',50,0,18,600,'{"items":{"kristall":0.5}}','snowflake','Läbipaistev uss, kes kaevab jää alla tunneleid ja külmutab vee laeva ümber.',40),
+ ('harmahai','Härmahai','kulmajarv',56,0,20,700,'{"mats":{"kuldsoomus":[1,3]}}','triangle-alert','Valge hai, kelle uimelt pudeneb härmatist. Ründab vaikselt ja kiirelt.',41),
+ ('laavamadu','Laavamadu','tulejarv',64,0,22,900,'{"items":{"mustparl":0.35}}','flame','Hõõguv madu, kes ujub laavas sama kergelt nagu kala vees.',50),
+ ('tuleraid','Tuleraid','tulejarv',72,0,25,1100,'{"mats":{"iidneluu":[1,3]},"items":{"kristall":0.5}}','flame','Tiibadega raikala, kelle uimed lõõmavad. Tulejärve kõige kardetum kütt.',51)
+on conflict (id) do update set name=excluded.name, region=excluded.region, power=excluded.power, grow=excluded.grow, atk=excluded.atk, gold=excluded.gold,
+  loot=excluded.loot, icon=excluded.icon, descr=excluded.descr, ord=excluded.ord;
+alter table public.fisher_fleet add column if not exists foes jsonb not null default '{}';
+alter table public.fleet_foes enable row level security;
+revoke all on public.fleet_foes from anon, authenticated;
+
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -5535,7 +5565,7 @@ end $$;
 create or replace function public.fx_fl_open(u uuid, r public.fleet_regions) returns boolean language sql stable as $$
   select r.ord = 1 or exists (select 1 from public.fisher_regions x join public.fleet_regions p on p.id = x.region where x.user_id = u and p.ord = r.ord - 1 and x.boss_dead) $$;
 create or replace function public.fx_fl_minutes(r public.fleet_regions, k text, st jsonb) returns int language sql immutable as $$
-  select greatest(3, round(r.minutes * (case k when 'pyuk' then 1.2 when 'boss' then 0.8 else 1 end) * 16.0 / greatest(5, (st ->> 'spd')::numeric)))::int $$;
+  select greatest(3, round(r.minutes * (case k when 'pyuk' then 1.2 when 'boss' then 0.8 when 'aare' then 1.1 else 1 end) * 16.0 / greatest(5, (st ->> 'spd')::numeric)))::int $$;
 create or replace function public.fx_fl_crew_cost(l int) returns int language sql immutable as $$ select round(400 * power(l, 1.7))::int $$;
 
 create or replace function public.fleet_state() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -5550,7 +5580,8 @@ begin
     'stock', jsonb_build_object('mats', (select coalesce(jsonb_object_agg(mat, qty), '{}') from fisher_mats where user_id = u and mat in ('luu','soomus','kuldsoomus','iidneluu','kask')),
       'items', (select coalesce(jsonb_object_agg(item, qty), '{}') from fisher_items where user_id = u)),
     'names', jsonb_build_object('mats', (select jsonb_object_agg(id, name) from fish_mats), 'items', (select jsonb_object_agg(id, name) from fish_items), 'baits', (select jsonb_object_agg(id, name) from fish_baits)),
-    'crew', fl.crew, 'voyages', fl.voyages,
+    'crew', fl.crew, 'voyages', fl.voyages, 'myfoes', coalesce(fl.foes, '{}'),
+    'foes', (select jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'region', o.region, 'power', o.power, 'grow', o.grow, 'icon', o.icon, 'descr', o.descr, 'gold', o.gold, 'loot', o.loot) order by o.ord) from fleet_foes o),
     'crew_cost', jsonb_build_object('kapten', fx_fl_crew_cost((fl.crew ->> 'kapten')::int), 'tuurimees', fx_fl_crew_cost((fl.crew ->> 'tuurimees')::int), 'kalur', fx_fl_crew_cost((fl.crew ->> 'kalur')::int)),
     'types', (select jsonb_agg(to_jsonb(t) order by t.sort) from fleet_ship_types t),
     'parts', fx_fl_parts(),
@@ -5636,9 +5667,10 @@ begin
   if p_kind = 'avasta' and coalesce(cardinality(x.sites), 0) >= jsonb_array_length(r.sites) then raise exception 'Kõik % paigad on juba avastatud', r.name; end if;
   if p_kind = 'boss' and (coalesce(cardinality(x.sites), 0) < jsonb_array_length(r.sites) or coalesce(x.boss_dead, false)) then
     raise exception '%', case when coalesce(x.boss_dead, false) then 'See boss on juba võidetud' else 'Bossi pesa leiad, kui oled kõik piirkonna paigad avastanud' end; end if;
-  if p_kind not in ('avasta','pyuk','boss') then raise exception 'Tundmatu retk'; end if;
+  if p_kind not in ('avasta','pyuk','boss','jaht','aare') then raise exception 'Tundmatu retk'; end if;
+  if p_kind = 'aare' and coalesce(cardinality(x.sites), 0) < 1 then raise exception 'Aardejahiks avasta enne vähemalt üks paik'; end if;
   st := fx_fl_stats(s, fl.crew); m := fx_fl_minutes(r, p_kind, st);
-  c := jsonb_build_object('food', round(r.food * case when p_kind = 'boss' then 1.5 else 1 end)::int);
+  c := jsonb_build_object('food', round(r.food * case when p_kind = 'boss' then 1.5 when p_kind = 'jaht' then 1.2 else 1 end)::int);
   if coalesce((s.parts ->> 'mootor')::int, 0) >= 1 then c := c || jsonb_build_object('mats', jsonb_build_object('kask', r.ord * 2)); end if;
   perform fx_fl_pay(u, c);
   insert into fisher_voyages(user_id, ship_id, region, kind, ready_at) values (u, s.id, r.id, p_kind, now() + make_interval(mins => m));
@@ -5664,6 +5696,31 @@ begin
 end $$;
 
 -- retke tulemuse veeretamine (ühe korra, kui laev on tagasi)
+-- vastase valimine piirkonnast (piirkonna omad 2× sagedamini) ja tema jõud
+create or replace function public.fx_fl_foe(r public.fleet_regions) returns public.fleet_foes language sql volatile as $$
+  select f from public.fleet_foes f where f.region = r.id or f.region is null order by random() * case when f.region is null then 1 else 0.5 end limit 1 $$;
+create or replace function public.fx_fl_foe_pw(f public.fleet_foes, diff int) returns int language sql immutable as $$ select f.power + f.grow * diff $$;
+-- laeva võitlusjõud (kaitse, püük ja kiirus)
+create or replace function public.fx_fl_fight(st jsonb) returns numeric language sql immutable as $$
+  select (st ->> 'kaitse')::numeric * 1.3 + (st ->> 'pyuk')::numeric * 0.3 + (st ->> 'spd')::numeric * 0.5 $$;
+-- vastaste raamat: kohtumised ja võidud
+create or replace function public.fx_fl_foe_mark(u uuid, fid text, k text) returns void language sql volatile as $$
+  update public.fisher_fleet set foes = jsonb_set(coalesce(foes, '{}'), array[fid], coalesce(foes -> fid, '{}') || jsonb_build_object(k, coalesce((foes -> fid ->> k)::int, 0) + 1))
+  where user_id = u $$;
+-- vastasega kohtumise valik
+create or replace function public.fx_fl_foe_choice(u uuid, r public.fleet_regions, st jsonb, boost numeric) returns jsonb language plpgsql volatile as $$
+declare f fleet_foes; pw int;
+begin
+  f := fx_fl_foe(r); if f.id is null then return null; end if;
+  pw := round(fx_fl_foe_pw(f, r.diff) * case when boost > 1 then 1.1 else 1 end)::int;
+  perform fx_fl_foe_mark(u, f.id, 'seen');
+  return jsonb_build_object('ev', 'vastane', 'foe', f.id, 'icon', f.icon, 'pw', pw, 'my', round(fx_fl_fight(st)), 'boost', boost,
+    'title', f.name || '!', 'text', f.descr,
+    'opts', jsonb_build_array(
+      jsonb_build_object('id', 'voitle', 't', 'Võitle', 'd', format('Vastase jõud %s, sinu laeval %s. Võit annab kulda ja haruldasi leide', pw, round(fx_fl_fight(st)))),
+      jsonb_build_object('id', 'peibuta', 't', 'Viska talle kala', 'd', 'Pool saagist läheb, aga laev jääb terveks'),
+      jsonb_build_object('id', 'pogene', 't', 'Põgene', 'd', 'Kiire laev pääseb, aeglane saab pihta')));
+end $$;
 create or replace function public.fx_fl_roll(u uuid, v public.fisher_voyages) returns jsonb language plpgsql volatile as $$
 declare s fisher_ships; fl fisher_fleet; r fleet_regions; x fisher_regions; st jsonb; a jsonb := '{"log":[],"fish":[],"gold":0,"cond":0}';
   n int; i int; k text; sp jsonb; site jsonb; ev text; evs text[] := '{}'; pool text[]; ch boolean := false; hp int; dmg int; fr jsonb;
@@ -5689,6 +5746,19 @@ begin
     n := floor(random() * 3)::int;
   elsif v.kind = 'pyuk' then
     n := least(cap, greatest(1, round(cap * (0.5 + 0.5 * random()) * (0.75 + pyuk / 120))))::int;
+  elsif v.kind = 'jaht' then
+    n := greatest(0, round(cap * 0.3 * random()))::int;
+  elsif v.kind = 'aare' then
+    if random() < least(0.9, 0.45 + avast / 120 - diff * 0.03) then
+      i := round(220 * diff * (1 + random() * 1.5))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      for k in select key from jsonb_each(r.res -> 'items') order by random() limit (1 + floor(random() * 2))::int loop a := fx_fl_add(a, 'items', k, 1); end loop;
+      if random() < 0.35 then k := (select key from jsonb_each(r.res -> 'baits') limit 1); if k is not null then a := fx_fl_add(a, 'baits', k, 2 + diff); end if; end if;
+      a := fx_fl_log(a, 'gem', format('Vana kaardi rist viis kaljuõõnde. Seal oli aardekirst: %s kulda ja haruldasi asju!', i), 'epic');
+    else
+      i := 6 + diff * 2; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
+      a := fx_fl_log(a, 'triangle-alert', format('Aare oli lõks! Varisev kalju kriimustas laeva (−%s%%). Parem avastamisoskus aitaks õige koha leida.', i), 'bad');
+    end if;
+    n := floor(random() * 2)::int;
   else
     n := 0;
   end if;
@@ -5744,13 +5814,19 @@ begin
         jsonb_build_object('id', 'pogene', 't', 'Pööra laev ümber', 'd', 'Osa saagist kukub kiirustades üle parda'))));
     a := fx_fl_log(a, 'crown', 'Sügavuste Valitseja tõusis veest! Kapten ootab sinu otsust.', 'choice');
   end if;
+  -- koletisejaht: vastane tuleb kindlasti (tugevam, aga auhinnad 1,6×)
+  if v.kind = 'jaht' and not ch then
+    fr := fx_fl_foe_choice(u, r, st, 1.6);
+    if fr is not null then ch := true; evs := evs || 'vastane'::text; a := a || jsonb_build_object('choice', fr);
+      a := fx_fl_log(a, fr ->> 'icon', format('Jäljed viisid pesani. Vastu tuli %s!', fr ->> 'title'), 'choice'); end if;
+  end if;
   -- juhuslikud sündmused (1–2, kõige rohkem üks valikuga)
-  pool := array['torm','torm','kirst','vrakk','saar','koletis','haruldane','kaart','parv','linnud','vaikus','kaupmees','piraadid','merehada','nakk']
+  pool := array['torm','torm','kirst','vrakk','saar','koletis','haruldane','kaart','parv','linnud','vaikus','kaupmees','piraadid','merehada','nakk','vastane','vastane']
     || case r.id when 'metsajarv' then array['kobras','kobras'] when 'sugavjarv' then array['keeris','keeris'] when 'udusoo' then array['virvatuli','virvatuli']
                  when 'kulmajarv' then array['jaamagi','virmalised'] when 'tulejarv' then array['vulkaan','vulkaan'] else '{}'::text[] end;
   for i in 1 .. (1 + case when random() < 0.55 then 1 else 0 end) loop
     ev := pool[1 + floor(random() * array_length(pool, 1))::int];
-    if ev = any(evs) or (ev in ('vrakk','saar','koletis','kaupmees','piraadid','merehada','nakk','virvatuli') and ch) or v.kind = 'boss' and ev in ('koletis','parv','linnud','kaupmees','piraadid','merehada','nakk','virvatuli') then continue; end if;
+    if ev = any(evs) or (ev in ('vrakk','saar','koletis','kaupmees','piraadid','merehada','nakk','virvatuli','vastane') and ch) or v.kind = 'boss' and ev in ('koletis','parv','linnud','kaupmees','piraadid','merehada','nakk','virvatuli','vastane') then continue; end if;
     evs := evs || ev;
     if ev = 'torm' then
       k := round((6 + diff * 3) * (1 - least(0.6, vast / 250)) * (0.6 + random() * 0.8))::text;
@@ -5806,6 +5882,10 @@ begin
       i := 6 + floor(random() * 7)::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
       a := fx_fl_add(a, 'mats', 'kuldsoomus', 1 + floor(random() * 2)::int); if random() < 0.5 then a := fx_fl_add(a, 'mats', 'iidneluu', 1); end if;
       a := fx_fl_log(a, 'flame', format('Veealune vulkaan purskas! Kuum vesi kõrvetas laeva (−%s%%), aga laavast kerkisid kuldsed soomused.', i));
+    elsif ev = 'vastane' then
+      fr := fx_fl_foe_choice(u, r, st, 1);
+      if fr is not null then ch := true; a := a || jsonb_build_object('choice', fr);
+        a := fx_fl_log(a, fr ->> 'icon', format('%s Kapten ootab sinu otsust.', fr ->> 'title'), 'choice'); end if;
     elsif ev in ('kaupmees','piraadid','merehada','nakk','virvatuli') then
       ch := true;
       a := a || jsonb_build_object('choice', case ev
@@ -5847,7 +5927,7 @@ begin
   return a;
 end $$;
 create or replace function public.fx_fl_choose(u uuid, v public.fisher_voyages, a jsonb, c text) returns jsonb language plpgsql volatile as $$
-declare s fisher_ships; fl fisher_fleet; r fleet_regions; x fisher_regions; st jsonb; ev text := a -> 'choice' ->> 'ev'; i int; k text; site jsonb; m int; cost int;
+declare s fisher_ships; fl fisher_fleet; r fleet_regions; x fisher_regions; st jsonb; ev text := a -> 'choice' ->> 'ev'; i int; k text; site jsonb; m int; cost int; fo fleet_foes; pw int; bo numeric;
 begin
   if not exists (select 1 from jsonb_array_elements(a -> 'choice' -> 'opts') o where o ->> 'id' = c) then raise exception 'Vali üks pakutud võimalustest'; end if;
   select * into s from fisher_ships where id = v.ship_id; fl := fx_fleet(u); st := fx_fl_stats(s, fl.crew);
@@ -5980,6 +6060,40 @@ begin
     else
       a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 12)); a := fx_fl_lose_fish(a, 0.15);
       a := fx_fl_log(a, 'triangle-alert', 'Tuluke kadus ja laev sõitis mutta kinni (−12%). Välja pääsemiseks tuli osa lasti maha visata.', 'bad');
+    end if;
+  elsif ev = 'vastane' then
+    select * into fo from fleet_foes where id = a -> 'choice' ->> 'foe';
+    pw := coalesce((a -> 'choice' ->> 'pw')::int, 20); bo := coalesce((a -> 'choice' ->> 'boost')::numeric, 1);
+    if c = 'peibuta' and jsonb_array_length(a -> 'fish') = 0 then c := 'pogene'; a := fx_fl_log(a, 'fish', 'Võrgud olid tühjad – polnud midagi visata! Tuli põgeneda.'); end if;
+    if c = 'voitle' then
+      if fx_fl_fight(st) * (0.6 + random() * 0.8) >= pw then
+        i := round(fo.gold * case when fo.region is null then r.diff else 1 end * bo * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+        for k in select jsonb_object_keys(coalesce(fo.loot -> 'mats', '{}')) loop
+          m := round(((fo.loot -> 'mats' -> k ->> 0)::int + random() * ((fo.loot -> 'mats' -> k ->> 1)::int - (fo.loot -> 'mats' -> k ->> 0)::int)) * bo)::int;
+          if m > 0 then a := fx_fl_add(a, 'mats', k, m); end if;
+        end loop;
+        for k in select jsonb_object_keys(coalesce(fo.loot -> 'items', '{}')) loop
+          if random() < least(1, (fo.loot -> 'items' ->> k)::numeric * bo) then a := fx_fl_add(a, 'items', k, 1); end if;
+        end loop;
+        if random() < 0.2 * bo then site := fx_fl_fish(r, (st ->> 'pyuk')::numeric + 80, 3); if site is not null then a := jsonb_set(a, '{fish}', (a -> 'fish') || jsonb_build_array(site || '{"rare":true}')); end if; end if;
+        perform fx_fl_foe_mark(u, fo.id, 'won');
+        a := fx_fl_log(a, 'swords', format('Võit! %s on alistatud. Saak: %s kulda ja trofeed%s.', fo.name, i, case when site is not null then ' – pesast leiti ka haruldane kala' else '' end), 'epic');
+      else
+        i := fo.atk + case when fo.region is null then 2 * r.diff else 0 end; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i)); a := fx_fl_lose_fish(a, 0.3);
+        a := fx_fl_log(a, 'triangle-alert', format('%s oli tugevam. Laev sai pihta (−%s%%) ja osa saagist läks kaotsi. Tugevam kaitse aitaks.', fo.name, i), 'bad');
+      end if;
+    elsif c = 'peibuta' then
+      a := fx_fl_lose_fish(a, 0.5);
+      if random() < 0.3 then i := round(fo.gold * 0.3)::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+        a := fx_fl_log(a, 'fish', format('%s haaras kalad ja kadus. Tema pesast kerkis pinnale %s kulda!', fo.name, i), 'good');
+      else a := fx_fl_log(a, 'fish', format('Meeskond viskas pool saagist üle parda. %s sööstis kaladele järele ja laev pääses.', fo.name)); end if;
+    else
+      if (st ->> 'spd')::numeric * (0.5 + random()) >= pw * 0.35 then
+        a := fx_fl_log(a, 'wind', format('Täispurjes minema! %s jäi maha.', fo.name), 'good');
+      else
+        i := ceil((fo.atk + case when fo.region is null then 2 * r.diff else 0 end) / 2.0)::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
+        a := fx_fl_log(a, 'triangle-alert', format('%s jõudis järele ja ründas (−%s%%). Kiirem laev pääseks.', fo.name, i), 'bad');
+      end if;
     end if;
   elsif ev in ('kaupmees','merehada','virvatuli') then
     a := fx_fl_log(a, 'compass', 'Kapten otsustas edasi sõita.');
