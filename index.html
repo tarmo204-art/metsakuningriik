@@ -5308,8 +5308,10 @@ async function doCast() {
   FV.busy = true; FV.result = null; setPhase('casting');
   try {
     FV.castBait = FS.bait; FV.castRod = FS.rod;
+    const t0 = performance.now();
     const r = await rpc('fish_cast', { p_spot: FV.spot, p_bait: FS.bait });
-    FV.cast = r; FV.castAt = performance.now(); FV.biteAt = FV.castAt + r.wait_ms;
+    // näkkamise aeg arvestatakse päringu keskpunktist – nii on see serveri ajaga samas kohas ka aeglase ühendusega
+    FV.cast = r; FV.castAt = performance.now(); FV.biteAt = Math.max(FV.castAt, (t0 + FV.castAt) / 2 + r.wait_ms);
     const b = FD.bait[FS.bait]; if (b && b.consumable) FS.baits[b.id] = Math.max(0, ((FS.baits || {})[b.id] || 1) - 1);
     setPhase('waiting');
   } catch (e) { toast(e.message, 'bad'); setPhase('idle') }

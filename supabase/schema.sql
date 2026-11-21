@@ -123,6 +123,7 @@ create table if not exists public.fish_catches (
 create index if not exists fish_catches_user on public.fish_catches(user_id, status);
 create index if not exists fish_catches_time on public.fish_catches(caught_at);
 create index if not exists fish_catches_spw on public.fish_catches(species, weight desc);
+create index if not exists fish_catches_usp on public.fish_catches(user_id, species);
 create table if not exists public.fish_unlocked (
   user_id uuid not null references auth.users(id) on delete cascade,
   ach text not null references public.fish_achievements(id),
@@ -2420,7 +2421,7 @@ begin
     update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
     return jsonb_build_object('ok', false, 'reason', 'early');
   end if;
-  if now() > c.bite_at + interval '3 seconds' then
+  if now() > c.bite_at + interval '4 seconds' then -- varu aeglase mobiilühenduse jaoks (mängija näeb näkkamist 1,9 s)
     update fish_casts set state = 'lost' where id = c.id; update fishers set lost = lost + 1 where user_id = u;
     return jsonb_build_object('ok', false, 'reason', 'late');
   end if;
@@ -2611,10 +2612,11 @@ begin
        * (case when c.bought then 0.6 else 1 end) * fx_fresh(u, c);
   return greatest(1, round(v));
 end $$;
-create or replace function public.fx_sell_value(u uuid, c fish_catches) returns int language plpgsql as $$
+drop function if exists public.fx_sell_value(uuid, public.fish_catches);
+create or replace function public.fx_sell_value(u uuid, c fish_catches, p_bonus numeric default null) returns int language plpgsql as $$
 declare v int;
 begin
-  v := fx_sell_price(u, c);
+  v := fx_sell_price(u, c, p_bonus);
   insert into fish_sales(user_id, day, species, qty) values (u, fx_today(), c.species, 1)
     on conflict (user_id, day, species) do update set qty = fish_sales.qty + 1;
   return v;
@@ -2624,15 +2626,16 @@ end $$;
 create or replace function public.fish_use(p_ids bigint[], p_action text, p_choice text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); c fish_catches; s fish_species; v_gold int := 0; v_food int := 0; v_fame int := 0; v_xp int := 0; v_maps int := 0;
-  n int := 0; levels int[] := '{}'; ntro int; f fishers; extra jsonb := '{}'; bb text; rel text[] := '{}';
+  n int := 0; levels int[] := '{}'; ntro int; f fishers; extra jsonb := '{}'; bb text; rel text[] := '{}'; v_sb numeric;
 begin
   if p_action not in ('sell','cook','release','trophy','untrophy','exchange') then raise exception 'Tundmatu tegevus'; end if;
   f := fx_fisher(u);
+  if p_action = 'sell' then v_sb := fx_sell_bonus(u); end if; -- müügiboonus arvutatakse üks kord, mitte iga kala jaoks
   if p_action = 'exchange' and coalesce(array_length(p_ids, 1), 0) <> 1 then raise exception 'Vaheta korraga üks kala'; end if;
   for c in select * from fish_catches where id = any(p_ids) and user_id = u
              and status = case when p_action = 'untrophy' then 'trophy' else 'kept' end for update loop
     select * into s from fish_species where id = c.species;
-    if p_action = 'sell' then v_gold := v_gold + fx_sell_value(u, c); update fish_catches set status = 'sold' where id = c.id;
+    if p_action = 'sell' then v_gold := v_gold + fx_sell_value(u, c, v_sb); update fish_catches set status = 'sold' where id = c.id;
     elsif p_action = 'cook' then v_food := v_food + greatest(2, round(c.weight * 4 + s.rarity * 3)); update fish_catches set status = 'cooked' where id = c.id;
     elsif p_action = 'release' then rel := rel || s.id; v_fame := v_fame + s.rarity * 2; v_xp := v_xp + ceil(s.xp * 0.3); update fish_catches set status = 'released' where id = c.id;
     elsif p_action = 'trophy' then
@@ -6421,7 +6424,7 @@ create or replace function public.fx_room_mul(u uuid, r text) returns numeric la
 -- trofeeseina boonus: iga püütud liik +0,2% (kuni 8% / 11% / 14%)
 create or replace function public.fx_trophy_bonus(u uuid) returns numeric language sql stable as $$
   select case when public.fx_room_lvl(u, 'trofeesein') = 0 then 0 else
-    least(0.08 + 0.03 * (public.fx_room_lvl(u, 'trofeesein') - 1), 0.002 * (select count(distinct species) from public.fish_catches where user_id = u)) end $$;
+    least(0.08 + 0.03 * (public.fx_room_lvl(u, 'trofeesein') - 1), 0.002 * (select count(*) from public.fish_species s where exists (select 1 from public.fish_catches c where c.user_id = u and c.species = s.id))) end $$;
 create or replace function public.fx_cabin_fin(u uuid) returns void language sql as $$
   update public.fisher_cabin set lvl = lvl + 1, up_at = null where user_id = u and up_at is not null and up_at <= now() $$;
 create or replace function public.cabin_state() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -6749,7 +6752,8 @@ end $$;
 create or replace function public.fx_fresh(u uuid, c public.fish_catches) returns numeric language sql stable as $$
   select case when c.status <> 'kept' or c.fresh_at is null then 1 else
     greatest(0.5, least(1, 1 - (case when coalesce((select ws from public.fisher_proc where user_id = u), 1) >= 6 then 0.05 else 0.10 end)
-      * (1 - 0.25 * public.fx_room_mul(u, 'kelder'))
+      * (1 - coalesce((select 0.25 + 0.15 * (case when k.up_at is not null and k.up_at <= now() then k.lvl else k.lvl - 1 end) from public.fisher_cabin k
+          where k.user_id = u and k.room = 'kelder' and k.done_at <= now() and not k.damage), 0))
       * greatest(0, extract(epoch from now() - c.fresh_at) / 3600 - 24) / 24)) end $$;
 create or replace function public.fx_mat_add(u uuid, m text, q int) returns void language sql as $$
   insert into public.fisher_mats(user_id, mat, qty) values (u, m, q) on conflict (user_id, mat) do update set qty = public.fisher_mats.qty + q $$;
