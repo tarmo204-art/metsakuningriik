@@ -5623,7 +5623,7 @@ begin
         'visits', coalesce(x.visits, 0)) order by r.ord)
       from fleet_regions r left join fisher_regions x on x.user_id = u and x.region = r.id),
     'spnames', (select jsonb_object_agg(id, jsonb_build_object('name', name, 'rarity', rarity)) from fish_species where id in (select unnest(species) from fleet_regions) or id in (select boss ->> 'fish' from fleet_regions)),
-    'log', (select coalesce(jsonb_agg(z order by z.taken_at desc), '[]') from (select v.id, v.region, v.kind, v.taken_at, v.result -> 'log' as log, v.result -> 'sum' as sum, v.ship_id
+    'log', (select coalesce(jsonb_agg(z order by z.taken_at desc), '[]') from (select v.id, v.region, v.kind, v.taken_at, v.result -> 'log' as log, v.result -> 'sum' as sum, v.result -> 'items' as items, v.result -> 'mats' as mats, v.result -> 'baits' as baits, v.ship_id
       from fisher_voyages v where v.user_id = u and v.status = 'done' order by v.taken_at desc limit 8) z));
 end $$;
 
