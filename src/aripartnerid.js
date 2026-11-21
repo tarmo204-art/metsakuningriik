@@ -7,7 +7,7 @@ const BZ = { d: null, at: 0, loading: false, busy: false, seen: 0 };
 try { BZ.seen = +localStorage.getItem('mk.bizSeen') || 0 } catch (e) { }
 const BZ_EV = { double: ['💰', 'Topelthind'], rare: ['💎', 'Haruldane'], royal: ['👑', 'Kuninglik'], mutant: ['🧬', 'Mutant'], bulk: ['📦', 'Suur kogus'], record: ['🏆', 'Rekord'] };
 const BZ_UNLOCK = [[2, 'Suuremad tellimused ja parem tasu'], [4, 'Lisaauhinnad: haruldased esemed'], [5, '24 tunni lepingud'], [6, 'Igapäevane eripakkumine'], [8, '7 päeva lepingud ja paremad eripakkumised'], [10, 'Parimad tasud ja ainulaadsed esemed']];
-const BZ_OFFER = { tarbed: 'Erisööda pakk', alkeemik: 'Kuldsed soomused', gild: 'Iidne luu' };
+const BZ_OFFER = { tarbed: 'Erisööda pakk', alkeemik: 'Kuldsed soomused', gild: 'Iidne luu', korts: 'Erisööt ja meremeeste lood', muuseum: 'Muuseumi tänukiri' };
 
 FTABS.biz = 'Äripartnerid';
 { // vahekaart Turu järele
@@ -33,13 +33,15 @@ function bzWant(o) {
   if (w.minw) chips.push(`⚖️ vähemalt ${fKg(+w.minw)}`);
   if (w.rmin && w.type === 'fish') chips.push(`💎 ${RAR2[w.rmin][0]} või haruldasem`);
   if (w.fresh) chips.push(`❄ värskus ≥ ${Math.round(w.fresh * 100)}%`);
+  if (w.amin != null && typeof AGE_CLS !== 'undefined' && AGE_CLS[w.amin]) chips.push(`${AGE_CLS[w.amin][1]} vanus: ${AGE_CLS[w.amin][2].toLowerCase()}${w.amin < 4 ? ' või vanem' : ''}`);
   if (w.type === 'hybrid') chips.push(`🧬 ${RAR2[w.rmin || 1][0]} või haruldasem`);
   let pic, name;
   if (w.type === 'fish' && w.species) { pic = `<canvas data-fl="${w.species}" data-r="${(FD.sp[w.species] || {}).rarity || 1}" data-nobg="1"></canvas>`; name = (FD.sp[w.species] || {}).name || w.species }
-  else if (w.type === 'fish') { pic = '<span class="bz-big">🐟</span>'; name = 'Mis tahes kala' }
+  else if (w.type === 'fish') { pic = '<span class="bz-big">' + (w.amin >= 3 ? '🏛️' : '🐟') + '</span>'; name = w.amin >= 4 ? 'Mis tahes erakordselt vana kala' : 'Mis tahes kala' }
+  else if (w.type === 'item') { pic = typeof gearCv === 'function' ? gearCv('item', w.item, 'gi') : '💎'; name = (FD.item && FD.item[w.item] && FD.item[w.item].name) || w.item }
   else if (w.type === 'mat') { pic = typeof matIc === 'function' ? matIc(w.mat, 48) : '📦'; name = (BZ.d && BZ.d.mats && BZ.d.mats[w.mat]) || w.mat }
   else { pic = '<span class="bz-big">🧬</span>'; name = 'Labori hübriid (muteerunud kala)' }
-  const kind = w.type === 'mat' ? (['filee', 'filee_hea'].includes(w.mat) ? 'Fileeritud kala' : 'Töödeldud kaup') : w.type === 'hybrid' ? 'Muteerunud kala' : 'Toorkala';
+  const kind = w.type === 'mat' ? (['filee', 'filee_hea'].includes(w.mat) ? 'Fileeritud kala' : 'Töödeldud kaup') : w.type === 'hybrid' ? 'Muteerunud kala' : w.type === 'item' ? 'Aare (Sadama retkedelt ja varahoidlast)' : w.type === 'smoked' ? 'Suitsukala' : 'Toorkala';
   return { pic, name, chips, kind };
 }
 function bzCard(o) {

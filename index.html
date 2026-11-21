@@ -11648,6 +11648,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .cb-res span{padding:5px 10px;border-radius:999px;background:rgba(10,20,18,.72);border:1px solid rgba(255,255,255,.14);color:#f2efe6;font-weight:800;font-size:13px;backdrop-filter:blur(4px)}
 .cb-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);padding:6px 12px;border-radius:999px;background:rgba(10,20,18,.7);color:#eaf2ec;font-size:12.5px;font-weight:700;white-space:nowrap;pointer-events:none}
 .cb-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cb-stars{display:inline-flex;gap:1px;font-size:15px;letter-spacing:0}.cb-stars i{font-style:normal;color:rgba(255,255,255,.22)}.cb-stars i.on{color:#ffd27a;text-shadow:0 0 6px rgba(255,200,90,.6)}.cb-up{font-size:13px;color:#eaf3e4;padding:6px 10px;border-radius:10px;background:rgba(255,210,122,.09);border:1px dashed rgba(255,210,122,.35)}
 .cb-room{position:relative;display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,rgba(60,48,34,.35),rgba(20,24,22,.5));border:1px solid rgba(220,190,140,.2)}
 .cb-room.done{border-color:rgba(140,220,150,.45);background:linear-gradient(180deg,rgba(40,70,44,.4),rgba(18,30,22,.55))}
 .cb-room.work{border-color:rgba(255,200,110,.55);box-shadow:0 0 0 1px rgba(255,200,110,.15),0 0 18px rgba(255,180,80,.12)}
@@ -11682,7 +11683,20 @@ async function cbLoad(force) {
 }
 function cbNow() { return Date.now() - ((CB.d && CB.d._skew) || 0) }
 function cbDone(id) { return !!(CB.d && CB.d.rooms.find(r => r.id === id && r.done && !r.damage)) }
-function cbWork() { return CB.d && CB.d.rooms.find(r => r.started_at && !r.done) }
+function cbWork() { return CB.d && CB.d.rooms.find(r => (r.started_at && !r.done) || (r.up_at && Date.parse(r.up_at) > cbNow())) }
+// iga ruumi boonus tasemetel 1, 2 ja 3
+const CB_LV = {
+  sild: ['Udulahes näkkab 15% kiiremini', 'Udulahes näkkab 24% kiiremini', 'Udulahes näkkab 33% kiiremini'],
+  suitsukoda: ['Kalade müügihind +8%', 'Kalade müügihind +13%', 'Kalade müügihind +18%'],
+  aidake: ['Püünised valmivad 25% kiiremini', 'Püünised valmivad 40% kiiremini', 'Püünised valmivad 55% kiiremini'],
+  laternatuba: ['Öised kalad: +15% kogemust', 'Öised kalad: +24% kogemust', 'Öised kalad: +33% kogemust'],
+  poonung: ['Hallhaugi võimalus tavaline', 'Hallhaugi võimalus 1,6×', 'Hallhaugi võimalus 2,2×'],
+  majakas: ['Udulahes +6% õnne', 'Udulahes +10% õnne', 'Udulahes +13% õnne'],
+  kelder: ['Kalad riknevad 25% aeglasemalt', 'Kalad riknevad 40% aeglasemalt', 'Kalad riknevad 55% aeglasemalt'],
+  saun: ['Saunaõhtu: kogemus ja 4 erisööta', 'Saunaõhtu: 1,6× kogemust ja 6 erisööta', 'Saunaõhtu: 2,2× kogemust ja 8 erisööta'],
+  trofeesein: ['Iga püütud liik +0,2% müügihinda (kuni 8%)', 'Iga liik +0,2% (kuni 11%)', 'Iga liik +0,2% (kuni 14%)']
+};
+function cbStars(l) { return `<span class="cb-stars" aria-label="Tase ${l}/3">${[1, 2, 3].map(i => `<i class="${i <= l ? 'on' : ''}">★</i>`).join('')}</span>` }
 function cbSeen() { try { return JSON.parse(localStorage.getItem('mk.cbPages') || '[]') } catch (e) { return [] } }
 function cbMarkSeen(id) { const a = cbSeen(); if (!a.includes(id)) { a.push(id); try { localStorage.setItem('mk.cbPages', JSON.stringify(a)) } catch (e) { } } }
 function cbRes(k) { return S && S.res ? Math.floor(S.res[k] || 0) : 0 }
@@ -11747,14 +11761,25 @@ function cbRoomHtml(r, i, rooms, work) {
     cls = 'dmg'; st = `<div class="cb-dmg">🌪️ <b>Tormikahju!</b> ${esc(D.what)}<br><small>Ruumi boonus ei tööta, kuni see on parandatud.</small></div>
       <div class="cb-cost"><span class="${g < D.gold ? 'no' : ''}">🪙 ${fmt(D.gold)}</span>${D.wood ? `<span class="${w < D.wood ? 'no' : ''}">🪵 ${fmt(D.wood)}</span>` : ''}${D.stone ? `<span class="${s < D.stone ? 'no' : ''}">🪨 ${fmt(D.stone)}</span>` : ''}</div>
       <div class="acts"><button class="btn sm" type="button" data-cb="repair" data-arg="${r.id}" ${!can || CB.busy ? 'disabled' : ''}>🔧 Paranda</button>${!can ? '<span class="lead" style="font-size:12.5px">Korja puitu ja kivi maja ümbert</span>' : ''}</div>` }
-  else if (r.done) { cls = 'done'; st = `<div class="acts"><span class="pill ok">✓ Taastatud</span><button class="btn sm ghost" type="button" data-cb="page" data-arg="${r.id}">📜 Loe päevikut${cbSeen().includes(r.id) ? '' : ' •'}</button></div>` }
+  else if (r.done) {
+    cls = 'done'; const L = r.lvl || 1, upg = r.up_at && Date.parse(r.up_at) > cbNow(), K = r.up_cost;
+    let up = '';
+    if (upg) { const t1 = Date.parse(r.up_at), t0 = t1 - (K ? K.hours : 1) * 3600000, now = cbNow(), p = Math.min(1, (now - t0) / Math.max(1, t1 - t0)), left = Math.max(0, t1 - now), rush = Math.max(100, Math.ceil(left / 60000 * 40));
+      up = `<div class="cb-bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div><div class="acts"><span class="lead" style="font-size:13px">🔨 Uuendus tasemele ${L + 1} · valmis ${cbLeft(left)} pärast</span><button class="btn sm ghost" type="button" data-cb="rush" ${g < rush || CB.busy ? 'disabled' : ''}>⚡ Kiirusta (${fmt(rush)} kulda)</button></div>` }
+    else if (L < 3 && K) { const need = r.min_level + 4 * L, can = g >= K.gold && w >= K.wood && s >= K.stone && !work && FS.level >= need;
+      up = `<div class="cb-up"><b>⬆ Tase ${L + 1}:</b> ${esc((CB_LV[r.id] || [])[L] || '')}</div><div class="cb-cost"><span class="${g < K.gold ? 'no' : ''}">🪙 ${fmt(K.gold)}</span><span class="${w < K.wood ? 'no' : ''}">🪵 ${fmt(K.wood)}</span><span class="${s < K.stone ? 'no' : ''}">🪨 ${fmt(K.stone)}</span><span>⏱ ${K.hours} h</span></div>
+        <div class="acts"><button class="btn sm" type="button" data-cb="upgrade" data-arg="${r.id}" ${!can || CB.busy ? 'disabled' : ''}>⬆ Uuenda</button>${FS.level < need ? `<span class="lead" style="font-size:12.5px">🔒 Vaja kalapüügi ${need}. taset</span>` : work ? '<span class="lead" style="font-size:12.5px">Oota, kuni praegune töö valmib</span>' : ''}</div>` }
+    const extra = r.id === 'saun' && CB.d.saun ? `<div class="acts"><button class="btn sm" type="button" data-cb="saun" ${!CB.d.saun.ok || CB.busy ? 'disabled' : ''}>🧖 ${CB.d.saun.ok ? 'Mine saunaõhtule' : 'Täna juba saunas käidud'}</button></div>`
+      : r.id === 'trofeesein' && CB.d.trophy ? `<div class="cb-up">🏆 Seinal <b>${CB.d.trophy.species}</b> eri liigi trofeed · müügihind <b>+${(CB.d.trophy.bonus * 100).toFixed(1).replace('.', ',')}%</b></div>` : '';
+    st = `${extra}${up}<div class="acts"><span class="pill ok">✓ Taastatud</span>${cbStars(L)}<button class="btn sm ghost" type="button" data-cb="page" data-arg="${r.id}">📜 Loe päevikut${cbSeen().includes(r.id) ? '' : ' •'}</button></div>`;
+  }
   else if (building) {
     cls = 'work'; const t0 = Date.parse(r.started_at), t1 = Date.parse(r.done_at), now = cbNow(), p = Math.min(1, (now - t0) / Math.max(1, t1 - t0)), left = Math.max(0, t1 - now), rush = Math.max(100, Math.ceil(left / 60000 * 40));
     st = `<div class="cb-bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div><div class="acts"><span class="lead" style="font-size:13px">🔨 Töö käib · valmis ${cbLeft(left)} pärast</span><button class="btn sm ghost" type="button" data-cb="rush" ${g < rush || CB.busy ? 'disabled' : ''}>⚡ Kiirusta (${fmt(rush)} kulda)</button></div>`;
   } else if (!prevOk) { cls = 'lock'; st = `${cost}<span class="lead" style="font-size:13px">🔒 Taasta enne ${esc(rooms[i - 1].name.toLowerCase())}</span>` }
   else if (!lvlOk) { cls = 'lock'; st = `${cost}<span class="lead" style="font-size:13px">🔒 Avaneb kalapüügi ${r.min_level}. tasemel</span>` }
   else { const can = g >= r.gold && w >= r.wood && s >= r.stone && !work; st = `${cost}<div class="acts"><button class="btn sm" type="button" data-cb="build" data-arg="${r.id}" ${!can || CB.busy ? 'disabled' : ''}>🔨 Taasta</button>${work ? '<span class="lead" style="font-size:12.5px">Oota, kuni praegune töö valmib</span>' : !can ? '<span class="lead" style="font-size:12.5px">Korja puitu ja kivi maja ümbert või kuningriigist</span>' : ''}</div>` }
-  return `<div class="cb-room ${cls}"><div class="hd"><span class="ic">${r.icon}</span><div><h3>${esc(r.name)}</h3><small class="lead">${esc(r.descr)}</small></div></div><div class="bon">✨ ${esc(r.bonus)}</div>${st}</div>`;
+  return `<div class="cb-room ${cls}"><div class="hd"><span class="ic">${r.icon}</span><div><h3>${esc(r.name)}</h3><small class="lead">${esc(r.descr)}</small></div></div><div class="bon">✨ ${esc(r.done && CB_LV[r.id] ? CB_LV[r.id][(r.lvl || 1) - 1] : r.bonus)}</div>${st}</div>`;
 }
 function cbLeft(ms) { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.max(1, m)} min` }
 
@@ -11777,6 +11802,15 @@ async function cbAct(a, arg) {
       if (r.spent && S) { S.res.wood = Math.max(0, S.res.wood - r.spent.wood); S.res.stone = Math.max(0, S.res.stone - r.spent.stone); save(); if (typeof cloudSave === 'function') cloudSave(true) }
       CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now);
       const rm = r.rooms.find(x => x.id === arg); toast(`🔧 ${rm ? rm.name : 'Ruum'} on jälle korras! Boonus töötab uuesti.`, 'good', 'gold'); cbBurst('#a8f0b0');
+    } else if (a === 'upgrade') {
+      if (typeof cloudSave === 'function') await cloudSave(true);
+      const r = await rpc('cabin_upgrade', { p_room: arg });
+      if (r.spent && S) { S.res.wood = Math.max(0, S.res.wood - r.spent.wood); S.res.stone = Math.max(0, S.res.stone - r.spent.stone); save(); if (typeof cloudSave === 'function') cloudSave(true) }
+      CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now);
+      const rm = r.rooms.find(x => x.id === arg); toast(`⬆ ${rm ? rm.name : 'Ruum'}: uuendamine algas! Valmib ${r.spent.hours} tunni pärast.`, 'good', 'gold'); cbBurst('#ffd28a');
+    } else if (a === 'saun') {
+      const r = await rpc('cabin_saun'); CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now);
+      toast(`🧖 Mõnus leil! Said ${fmt(r.saun.xp)} kogemust ja ${r.saun.bait} erisööta.`, 'good', 'gold'); cbBurst('#ffb48a');
     } else if (a === 'rush') {
       const r = await rpc('cabin_rush'); CB.d = r; CB.d._at = Date.now(); CB.d._skew = Date.now() - Date.parse(r.now); toast(`⚡ Töö sai valmis! (${fmt(r.rushed)} kulda)`, 'gold', 'gold'); cbBurst('#a8f0b0');
     }
@@ -14178,7 +14212,7 @@ const BZ = { d: null, at: 0, loading: false, busy: false, seen: 0 };
 try { BZ.seen = +localStorage.getItem('mk.bizSeen') || 0 } catch (e) { }
 const BZ_EV = { double: ['💰', 'Topelthind'], rare: ['💎', 'Haruldane'], royal: ['👑', 'Kuninglik'], mutant: ['🧬', 'Mutant'], bulk: ['📦', 'Suur kogus'], record: ['🏆', 'Rekord'] };
 const BZ_UNLOCK = [[2, 'Suuremad tellimused ja parem tasu'], [4, 'Lisaauhinnad: haruldased esemed'], [5, '24 tunni lepingud'], [6, 'Igapäevane eripakkumine'], [8, '7 päeva lepingud ja paremad eripakkumised'], [10, 'Parimad tasud ja ainulaadsed esemed']];
-const BZ_OFFER = { tarbed: 'Erisööda pakk', alkeemik: 'Kuldsed soomused', gild: 'Iidne luu' };
+const BZ_OFFER = { tarbed: 'Erisööda pakk', alkeemik: 'Kuldsed soomused', gild: 'Iidne luu', korts: 'Erisööt ja meremeeste lood', muuseum: 'Muuseumi tänukiri' };
 
 FTABS.biz = 'Äripartnerid';
 { // vahekaart Turu järele
@@ -14204,13 +14238,15 @@ function bzWant(o) {
   if (w.minw) chips.push(`⚖️ vähemalt ${fKg(+w.minw)}`);
   if (w.rmin && w.type === 'fish') chips.push(`💎 ${RAR2[w.rmin][0]} või haruldasem`);
   if (w.fresh) chips.push(`❄ värskus ≥ ${Math.round(w.fresh * 100)}%`);
+  if (w.amin != null && typeof AGE_CLS !== 'undefined' && AGE_CLS[w.amin]) chips.push(`${AGE_CLS[w.amin][1]} vanus: ${AGE_CLS[w.amin][2].toLowerCase()}${w.amin < 4 ? ' või vanem' : ''}`);
   if (w.type === 'hybrid') chips.push(`🧬 ${RAR2[w.rmin || 1][0]} või haruldasem`);
   let pic, name;
   if (w.type === 'fish' && w.species) { pic = `<canvas data-fl="${w.species}" data-r="${(FD.sp[w.species] || {}).rarity || 1}" data-nobg="1"></canvas>`; name = (FD.sp[w.species] || {}).name || w.species }
-  else if (w.type === 'fish') { pic = '<span class="bz-big">🐟</span>'; name = 'Mis tahes kala' }
+  else if (w.type === 'fish') { pic = '<span class="bz-big">' + (w.amin >= 3 ? '🏛️' : '🐟') + '</span>'; name = w.amin >= 4 ? 'Mis tahes erakordselt vana kala' : 'Mis tahes kala' }
+  else if (w.type === 'item') { pic = typeof gearCv === 'function' ? gearCv('item', w.item, 'gi') : '💎'; name = (FD.item && FD.item[w.item] && FD.item[w.item].name) || w.item }
   else if (w.type === 'mat') { pic = typeof matIc === 'function' ? matIc(w.mat, 48) : '📦'; name = (BZ.d && BZ.d.mats && BZ.d.mats[w.mat]) || w.mat }
   else { pic = '<span class="bz-big">🧬</span>'; name = 'Labori hübriid (muteerunud kala)' }
-  const kind = w.type === 'mat' ? (['filee', 'filee_hea'].includes(w.mat) ? 'Fileeritud kala' : 'Töödeldud kaup') : w.type === 'hybrid' ? 'Muteerunud kala' : 'Toorkala';
+  const kind = w.type === 'mat' ? (['filee', 'filee_hea'].includes(w.mat) ? 'Fileeritud kala' : 'Töödeldud kaup') : w.type === 'hybrid' ? 'Muteerunud kala' : w.type === 'item' ? 'Aare (Sadama retkedelt ja varahoidlast)' : w.type === 'smoked' ? 'Suitsukala' : 'Toorkala';
   return { pic, name, chips, kind };
 }
 function bzCard(o) {
