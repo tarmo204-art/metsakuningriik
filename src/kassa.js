@@ -14,7 +14,7 @@ function kassaSync() {
   KASSA.t = setTimeout(async () => { try { await refreshFS(); kassaShow() } catch (e) { } }, 30);
 }
 function kassaInstall() {
-  const _rpc = rpc, SKIP = /^fish_(state|cast|reel|bite|hook|strike|odds|market$)|_state$|_list$|_info$|^get_/;
+  const _rpc = rpc, SKIP = /^fish_(state|cast|reel|bite|hook|strike|odds|market$|land|lose|orders_today)|_state$|_list$|_info$|_ping$|^get_|^duel_/;
   rpc = async function (fn, args) {
     const r = await _rpc.apply(this, arguments);
     if (typeof FV !== 'undefined' && FV.open && FS && !SKIP.test(fn) && /buy|upgrade|repair|crew|build|shop|order|craft|deliver|transfer|sell|collect|send|pay|hire|unlock|learn|start|rush|fuse|enchant|license|duel|hall|offer/.test(fn)) {
