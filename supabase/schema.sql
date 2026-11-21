@@ -6799,7 +6799,7 @@ begin
     'catalog', (select jsonb_agg(to_jsonb(m) order by m.sort) from fish_mats m),
     'recipes', (select jsonb_agg(to_jsonb(r) order by r.sort) from fish_recipes r),
     'fish', (select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'species', c.species, 'rarity', c.rarity, 'weight', c.weight, 'fresh', round(fx_fresh(u, c), 2),
-        'age', c.age, 'len', c.length_cm, 'acls', c.age_cls, 'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought),
+        'age', c.age, 'len', c.length_cm, 'acls', c.age_cls, 'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept'),
     'orders', (select coalesce(jsonb_agg(to_jsonb(o) - 'user_id' order by o.idx), '[]') from fisher_proc_orders o where o.user_id = u and o.day = fx_today()),
     'quests', (select jsonb_agg(qq || jsonb_build_object('have', case when qq ->> 'stat' = '_lvl' then lv else coalesce((p.stats ->> (qq ->> 'stat'))::int, 0) end,
         'claimed', exists (select 1 from fisher_proc_quests z where z.user_id = u and z.q = qq ->> 'id'))) from jsonb_array_elements(fx_proc_quests()) qq),
@@ -6816,7 +6816,7 @@ begin
   perform fx_fisher(u); p := fx_proc(u); lv := fx_proc_lvl(p.xp);
   if p_kind = 'clean' then
     if coalesce(array_length(p_ids, 1), 0) = 0 or array_length(p_ids, 1) > 10 then raise exception 'Vali puhastamiseks 1–10 kala'; end if;
-    for c in select * from fish_catches where id = any(p_ids) and user_id = u and status = 'kept' and not bought loop
+    for c in select * from fish_catches where id = any(p_ids) and user_id = u and status = 'kept' loop
       if c.rarity >= 5 and lv < 30 then raise exception 'Legendaarseid ja müütilisi kalu saab töödelda alles töötlemise 30. tasemel'; end if;
       if c.rarity = 4 and lv < 15 then raise exception 'Eepilisi kalu saab töödelda alates töötlemise 15. tasemest'; end if;
       n := n + 1; cl := cl + fx_clean_clicks(c.weight, c.rarity);
@@ -7074,7 +7074,7 @@ create or replace function public.fx_smoke_cap(s public.fisher_smoke) returns in
   select floor((3 + 2 * (s.lvl - 1)) * case when 'kamber' = any(s.upg) then 1.5 else 1 end)::int $$;
 -- kalad, mis sobivad selle toote jaoks
 create or replace function public.fx_smoke_fish(u uuid, pr public.fish_smoke_products) returns setof public.fish_catches language sql stable as $$
-  select c.* from public.fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought
+  select c.* from public.fish_catches c where c.user_id = u and c.status = 'kept'
     and case when pr.grp = 'legend' then c.rarity >= 5 else public.fx_smoke_grp(c.species) = pr.grp end
   order by public.fx_fresh(u, c) asc, c.weight asc $$;
 create or replace function public.fx_smoke_collect(u uuid) returns jsonb language plpgsql as $$
@@ -7108,8 +7108,8 @@ begin
     'stock', (select coalesce(jsonb_object_agg(mat, qty), '{}') from fisher_mats where user_id = u and qty > 0 and mat in ('kask','lepp','ounapuu','tamm','sool','till','kuuslauk','pipar','maitsetaim','marinaad','luu','soomus','kuldsoomus','luukonks','iidneluu')),
     'products', (select jsonb_agg(to_jsonb(x) order by x.sort) from fish_smoke_products x),
     'fish', (select coalesce(jsonb_object_agg(g, jsonb_build_object('n', n, 'fresh', fr, 'amin', amin, 'amax', amax)), '{}') from (
-        select fx_smoke_grp(c.species) g, count(*) n, round(avg(fx_fresh(u, c)), 2) fr, min(c.age) amin, max(c.age) amax from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought group by 1) z),
-    'legend_n', (select count(*) from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought and c.rarity >= 5),
+        select fx_smoke_grp(c.species) g, count(*) n, round(avg(fx_fresh(u, c)), 2) fr, min(c.age) amin, max(c.age) amax from fish_catches c where c.user_id = u and c.status = 'kept' group by 1) z),
+    'legend_n', (select count(*) from fish_catches c where c.user_id = u and c.status = 'kept' and c.rarity >= 5),
     'smoked', (select coalesce(jsonb_agg(jsonb_build_object('product', z.product, 'quality', z.quality, 'qty', z.qty, 'value', fx_smoke_value(pr, z.quality)) order by pr.sort, z.quality desc), '[]')
       from fisher_smoked z join fish_smoke_products pr on pr.id = z.product where z.user_id = u and z.qty > 0),
     'batch', (select to_jsonb(b) - 'user_id' from fisher_smoke_batch b where b.user_id = u and b.status = 'run'));
