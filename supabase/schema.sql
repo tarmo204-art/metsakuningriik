@@ -5779,7 +5779,9 @@ begin
       i := round(220 * diff * (1 + random() * 1.5))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
       for k in select key from jsonb_each(r.res -> 'items') order by random() limit (1 + floor(random() * 2))::int loop a := fx_fl_add(a, 'items', k, 1); end loop;
       if random() < 0.35 then k := (select key from jsonb_each(r.res -> 'baits') limit 1); if k is not null then a := fx_fl_add(a, 'baits', k, 2 + diff); end if; end if;
-      a := fx_fl_log(a, 'gem', format('Vana kaardi rist viis kaljuõõnde. Seal oli aardekirst: %s kulda ja haruldasi asju!', i), 'epic');
+      a := fx_fl_log(a, 'gem', format('Vana kaardi rist viis kaljuõõnde. Seal oli aardekirst: %s kulda, %s!', i,
+        coalesce((select string_agg(lower(it.name), ', ') from jsonb_each_text(a -> 'items') e join fish_items it on it.id = e.key), 'vanad mündid')
+        || coalesce(' ja erisöödad (' || (select string_agg(lower(b.name) || ' × ' || e.value, ', ') from jsonb_each_text(a -> 'baits') e join fish_baits b on b.id = e.key) || ')', '')), 'epic');
     else
       i := 6 + diff * 2; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
       a := fx_fl_log(a, 'triangle-alert', format('Aare oli lõks! Varisev kalju kriimustas laeva (−%s%%). Parem avastamisoskus aitaks õige koha leida.', i), 'bad');
