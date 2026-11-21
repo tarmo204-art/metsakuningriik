@@ -7268,7 +7268,7 @@ create or replace function public.fx_trust_need(l int) returns int language sql 
 -- kui palju sobivat kaupa mängijal on
 create or replace function public.fx_biz_have(u uuid, w jsonb) returns int language sql stable as $$
   select case w ->> 'type'
-    when 'fish' then (select count(*)::int from public.fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought
+    when 'fish' then (select count(*)::int from public.fish_catches c where c.user_id = u and c.status = 'kept'
       and (w ->> 'species' is null or c.species = w ->> 'species') and c.rarity >= coalesce((w ->> 'rmin')::int, 1)
       and c.weight >= coalesce((w ->> 'minw')::numeric, 0) and coalesce(c.age_cls, 0) >= coalesce((w ->> 'amin')::int, 0) and public.fx_fresh(u, c) >= coalesce((w ->> 'fresh')::numeric, 0))
     when 'item' then coalesce((select qty from public.fisher_items where user_id = u and item = w ->> 'item'), 0)
@@ -7482,7 +7482,7 @@ begin
   if o.kind <> 'contract' and take < need then raise exception 'Kaupa jääb puudu: sul on % / %', take, need; end if;
   if take <= 0 then raise exception 'Sul pole veel sobivat kaupa'; end if;
   if w ->> 'type' = 'fish' then
-    select array_agg(id) into ids from (select c.id from fish_catches c where c.user_id = u and c.status = 'kept' and not c.bought
+    select array_agg(id) into ids from (select c.id from fish_catches c where c.user_id = u and c.status = 'kept'
       and (w ->> 'species' is null or c.species = w ->> 'species') and c.rarity >= coalesce((w ->> 'rmin')::int, 1)
       and c.weight >= coalesce((w ->> 'minw')::numeric, 0) and coalesce(c.age_cls, 0) >= coalesce((w ->> 'amin')::int, 0) and fx_fresh(u, c) >= coalesce((w ->> 'fresh')::numeric, 0)
       order by c.weight asc limit take for update) x;
