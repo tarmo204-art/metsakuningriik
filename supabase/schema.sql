@@ -5745,10 +5745,12 @@ begin
     a := fx_fl_log(a, 'crown', 'Sügavuste Valitseja tõusis veest! Kapten ootab sinu otsust.', 'choice');
   end if;
   -- juhuslikud sündmused (1–2, kõige rohkem üks valikuga)
-  pool := array['torm','torm','kirst','vrakk','saar','koletis','haruldane','kaart'];
-  for i in 1 .. (1 + case when random() < 0.4 then 1 else 0 end) loop
+  pool := array['torm','torm','kirst','vrakk','saar','koletis','haruldane','kaart','parv','linnud','vaikus','kaupmees','piraadid','merehada','nakk']
+    || case r.id when 'metsajarv' then array['kobras','kobras'] when 'sugavjarv' then array['keeris','keeris'] when 'udusoo' then array['virvatuli','virvatuli']
+                 when 'kulmajarv' then array['jaamagi','virmalised'] when 'tulejarv' then array['vulkaan','vulkaan'] else '{}'::text[] end;
+  for i in 1 .. (1 + case when random() < 0.55 then 1 else 0 end) loop
     ev := pool[1 + floor(random() * array_length(pool, 1))::int];
-    if ev = any(evs) or (ev in ('vrakk','saar','koletis') and ch) or v.kind = 'boss' and ev in ('koletis') then continue; end if;
+    if ev = any(evs) or (ev in ('vrakk','saar','koletis','kaupmees','piraadid','merehada','nakk','virvatuli') and ch) or v.kind = 'boss' and ev in ('koletis','parv','linnud','kaupmees','piraadid','merehada','nakk','virvatuli') then continue; end if;
     evs := evs || ev;
     if ev = 'torm' then
       k := round((6 + diff * 3) * (1 - least(0.6, vast / 250)) * (0.6 + random() * 0.8))::text;
@@ -5769,6 +5771,63 @@ begin
       if site is not null then a := a || jsonb_build_object('site2', site ->> 'id');
         a := fx_fl_log(a, 'map', format('Pudelist leiti kadunud kaart! See näitab teed paika „%s“ – see on nüüd avastatud.', site ->> 'name'), 'good');
       else i := 150 * diff; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i)); a := fx_fl_log(a, 'map', format('Pudelist leiti vana kaart. Kaardikoguja ostis selle %s kulla eest.', i), 'good'); end if;
+    elsif ev = 'parv' then
+      k := (1 + floor(random() * 3))::int::text;
+      for n in 1 .. k::int loop sp := fx_fl_fish(r, pyuk); if sp is not null then a := jsonb_set(a, '{fish}', (a -> 'fish') || jsonb_build_array(sp)); end if; end loop;
+      a := fx_fl_log(a, 'fish', format('Kalaparv järgnes laevale! Võrku tuli veel %s kala.', k), 'good');
+    elsif ev = 'linnud' then
+      sp := fx_fl_fish(r, pyuk + 30, case when random() < 0.25 then 2 else 1 end);
+      if sp is not null then a := jsonb_set(a, '{fish}', (a -> 'fish') || jsonb_build_array(sp)); end if;
+      i := round(30 * diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      a := fx_fl_log(a, 'wind', format('Kajakad tiirlesid ühe koha kohal – seal oli kala! Lisaks leiti vee pealt hulpimas kukkur %s kullaga.', i), 'good');
+    elsif ev = 'vaikus' then
+      i := 4 + floor(random() * 5)::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int - i));
+      a := fx_fl_log(a, 'wrench', format('Täielik tuulevaikus. Meeskond kasutas aega ja lappis laeva (+%s%%).', i), 'good');
+    elsif ev = 'kobras' then
+      i := round(60 + random() * 120)::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i)); a := fx_fl_add(a, 'items', 'karp', 1);
+      a := fx_fl_log(a, 'tree-pine', format('Kopratammi vahelt leiti vana kalurikarp ja %s kulda. Kobras vaatas pahaselt pealt.', i), 'good');
+    elsif ev = 'keeris' then
+      if (st ->> 'spd')::numeric * (0.5 + random()) >= 14 then
+        sp := fx_fl_fish(r, pyuk + 50, 3);
+        if sp is not null then a := jsonb_set(a, '{fish}', (a -> 'fish') || jsonb_build_array(sp || '{"rare":true}')); end if;
+        a := fx_fl_log(a, 'waves', 'Laev sattus keerisesse, kuid kiire laev pääses välja – ja keeris paiskas pardale haruldase süvakala!', 'epic');
+      else
+        i := 8 + floor(random() * 7)::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
+        a := fx_fl_log(a, 'waves', format('Keeris haaras laeva ja keerutas seda tükk aega (−%s%%). Kiirem laev pääseks välja.', i), 'bad');
+      end if;
+    elsif ev = 'jaamagi' then
+      i := round((8 + diff * 2) * (1 - least(0.6, vast / 250)) * (0.6 + random() * 0.8))::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
+      if random() < 0.5 then a := fx_fl_add(a, 'items', 'kristall', 1); end if;
+      a := fx_fl_log(a, 'triangle-alert', format('Jäämägi kriipis laeva külge (−%s%%).%s', i, case when a -> 'items' ? 'kristall' then ' Meeskond murdis jääst lahti sädeleva kristalli!' else '' end), 'bad');
+    elsif ev = 'virmalised' then
+      a := a || jsonb_build_object('xpmul', 2);
+      a := fx_fl_log(a, 'sparkles', 'Taevas lõid põlema virmalised. Meeskond jäi neid imetlema ja sai uut jõudu – selle retke kogemus on kahekordne!', 'epic');
+    elsif ev = 'vulkaan' then
+      i := 6 + floor(random() * 7)::int; a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + i));
+      a := fx_fl_add(a, 'mats', 'kuldsoomus', 1 + floor(random() * 2)::int); if random() < 0.5 then a := fx_fl_add(a, 'mats', 'iidneluu', 1); end if;
+      a := fx_fl_log(a, 'flame', format('Veealune vulkaan purskas! Kuum vesi kõrvetas laeva (−%s%%), aga laavast kerkisid kuldsed soomused.', i));
+    elsif ev in ('kaupmees','piraadid','merehada','nakk','virvatuli') then
+      ch := true;
+      a := a || jsonb_build_object('choice', case ev
+        when 'kaupmees' then jsonb_build_object('ev', 'kaupmees', 'title', 'Kaupmehe laev!', 'text', 'Kõrvale sõitis värviliste purjedega kaubalaev. Kaupmees hõikab: „Ostan kala ja müün haruldasi asju!“',
+          'opts', jsonb_build_array(jsonb_build_object('id', 'myy', 't', 'Müü pool saagist', 'd', 'Kaupmees maksab kala eest 30% rohkem kui turg'),
+            jsonb_build_object('id', 'osta', 't', format('Osta haruldasi asju (%s kulda)', 150 * diff), 'd', 'Erisöödad ja võib-olla mõni haruldane ese'),
+            jsonb_build_object('id', 'jata', 't', 'Sõida edasi', 'd', 'Midagi ei muutu')))
+        when 'piraadid' then jsonb_build_object('ev', 'piraadid', 'title', 'Piraadid!', 'text', 'Musta lipuga laev lõikab tee ette. Piraatide kapten nõuab osa saagist.',
+          'opts', jsonb_build_array(jsonb_build_object('id', 'voitle', 't', 'Võitle', 'd', 'Kaitse ja kiirus aitavad – võit annab piraatide aarde'),
+            jsonb_build_object('id', 'maksa', 't', 'Anna osa saagist', 'd', 'Piraadid võtavad umbes kolmandiku kaladest'),
+            jsonb_build_object('id', 'pogene', 't', 'Põgene', 'd', 'Kiire laev pääseb, aeglane saab pihta')))
+        when 'merehada' then jsonb_build_object('ev', 'merehada', 'title', 'Meremehed parvel!', 'text', 'Lainetel hulbib parv, millel lehvitavad vrakist pääsenud meremehed.',
+          'opts', jsonb_build_array(jsonb_build_object('id', 'paasta', 't', 'Päästa nad', 'd', 'Tänulikud meremehed võivad midagi vastu anda'),
+            jsonb_build_object('id', 'jata', 't', 'Sõida mööda', 'd', 'Midagi ei muutu')))
+        when 'nakk' then jsonb_build_object('ev', 'nakk', 'title', 'Näkineiu laul!', 'text', 'Kaljult kostab imeilus laul. Meeskond hakkab laeva tahtmatult kaljude poole juhtima.',
+          'opts', jsonb_build_array(jsonb_build_object('id', 'kuula', 't', 'Lase laul lõpuni kõlada', 'd', 'Näkk võib kinkida pärleid – või juhtida laeva kaljudele'),
+            jsonb_build_object('id', 'vaha', 't', 'Pane meeskonnale vaha kõrvu', 'd', 'Ohutu')))
+        else jsonb_build_object('ev', 'virvatuli', 'title', 'Virvatuli!', 'text', 'Udu sees hõljub sinine tuluke, nagu kutsuks see kuhugi.',
+          'opts', jsonb_build_array(jsonb_build_object('id', 'jargne', 't', 'Järgne tulukesele', 'd', 'See võib viia peidetud paika – või soosse'),
+            jsonb_build_object('id', 'jata', 't', 'Ära järgne', 'd', 'Ohutu')))
+        end);
+      a := fx_fl_log(a, case ev when 'kaupmees' then 'coins' when 'piraadid' then 'skull' when 'merehada' then 'users' when 'nakk' then 'moon' else 'sparkles' end, (a -> 'choice' ->> 'title') || ' Kapten ootab sinu otsust.', 'choice');
     else
       ch := true;
       a := a || jsonb_build_object('choice', case ev
@@ -5784,11 +5843,11 @@ begin
   end loop;
   -- tavaline kulumine
   a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + round((2 + diff * 2) * (0.6 + random() * 0.8) * (1 - least(0.5, vast / 300)))::int));
-  a := a || jsonb_build_object('xp', 10 * diff * case v.kind when 'boss' then 3 when 'avasta' then 2 else 1 end);
+  a := a || jsonb_build_object('xp', round(10 * diff * case v.kind when 'boss' then 3 when 'avasta' then 2 else 1 end * coalesce((a ->> 'xpmul')::numeric, 1))::int);
   return a;
 end $$;
 create or replace function public.fx_fl_choose(u uuid, v public.fisher_voyages, a jsonb, c text) returns jsonb language plpgsql volatile as $$
-declare s fisher_ships; fl fisher_fleet; r fleet_regions; x fisher_regions; st jsonb; ev text := a -> 'choice' ->> 'ev'; i int; k text; site jsonb;
+declare s fisher_ships; fl fisher_fleet; r fleet_regions; x fisher_regions; st jsonb; ev text := a -> 'choice' ->> 'ev'; i int; k text; site jsonb; m int; cost int;
 begin
   if not exists (select 1 from jsonb_array_elements(a -> 'choice' -> 'opts') o where o ->> 'id' = c) then raise exception 'Vali üks pakutud võimalustest'; end if;
   select * into s from fisher_ships where id = v.ship_id; fl := fx_fleet(u); st := fx_fl_stats(s, fl.crew);
@@ -5847,6 +5906,83 @@ begin
   elsif ev = 'koletis' then
     a := fx_fl_lose_fish(a, 0.3); a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 4));
     a := fx_fl_log(a, 'wind', 'Laev põgenes täispurjes. Kiirustades kukkus osa saagist üle parda.');
+  elsif ev = 'kaupmees' and c = 'myy' then
+    m := jsonb_array_length(a -> 'fish') / 2;
+    if m < 1 then a := fx_fl_log(a, 'coins', 'Võrgud olid veel tühjad – kaupmehele polnud midagi müüa.');
+    else
+      select coalesce(round(sum(fs.price * greatest(0.5, (q.e ->> 'weight')::numeric / greatest(0.01, fs.max_w)) * 1.3)), 0)::int into i
+        from jsonb_array_elements(a -> 'fish') with ordinality q(e, o) join fish_species fs on fs.id = q.e ->> 'species' where q.o <= m and not coalesce((q.e ->> 'boss')::boolean, false);
+      a := jsonb_set(a, '{fish}', coalesce((select jsonb_agg(q.e order by q.o) from jsonb_array_elements(a -> 'fish') with ordinality q(e, o) where q.o > m or coalesce((q.e ->> 'boss')::boolean, false)), '[]'::jsonb));
+      a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      a := fx_fl_log(a, 'coins', format('Kaupmees ostis pool saagist ja maksis %s kulda.', i), 'good');
+    end if;
+  elsif ev = 'kaupmees' and c = 'osta' then
+    cost := 150 * r.diff;
+    update fishers set gold = gold - cost where user_id = u and gold >= cost;
+    if found then
+      k := (select key from jsonb_each(r.res -> 'baits') limit 1); if k is not null then a := fx_fl_add(a, 'baits', k, 3 + r.diff); end if;
+      i := 0; if random() < 0.45 then k := (select key from jsonb_each(r.res -> 'items') order by random() limit 1); if k is not null then a := fx_fl_add(a, 'items', k, 1); i := 1; end if; end if;
+      a := fx_fl_log(a, 'shopping-bag', format('Ostsid kaupmehelt %s kulla eest erisöötasid%s.', cost, case when i = 1 then ' ja haruldase eseme' else '' end), 'good');
+    else
+      a := fx_fl_log(a, 'coins', 'Kalurikassas polnud piisavalt raha. Kaupmees kehitas õlgu ja sõitis edasi.', 'bad');
+    end if;
+  elsif ev = 'piraadid' and c = 'voitle' then
+    if (st ->> 'kaitse')::numeric * (0.6 + random() * 0.8) + (st ->> 'spd')::numeric * 0.3 >= 12 + 6 * r.diff then
+      i := round(250 * r.diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      if random() < 0.4 then a := fx_fl_add(a, 'items', 'sormus', 1); end if;
+      a := fx_fl_log(a, 'swords', format('Võit! Piraadid põgenesid ja jätsid maha oma aardekasti: %s kulda%s.', i, case when a -> 'items' ? 'sormus' then ' ja kuldsõrmuse' else '' end), 'epic');
+    else
+      a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 18)); a := fx_fl_lose_fish(a, 0.4);
+      a := fx_fl_log(a, 'skull', 'Piraadid olid tugevamad. Laev sai pihta (−18%) ja nad viisid suure osa saagist. Tugevam kaitse aitaks.', 'bad');
+    end if;
+  elsif ev = 'piraadid' and c = 'maksa' then
+    a := fx_fl_lose_fish(a, 0.35);
+    a := fx_fl_log(a, 'skull', 'Piraadid võtsid osa saagist ja lasid laeva rahus edasi sõita.');
+  elsif ev = 'piraadid' then
+    if (st ->> 'spd')::numeric * (0.5 + random()) >= 10 + 4 * r.diff then
+      a := fx_fl_log(a, 'wind', 'Täispurjes! Kiire laev jättis piraadid kaugele maha.', 'good');
+    else
+      a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 10)); a := fx_fl_lose_fish(a, 0.2);
+      a := fx_fl_log(a, 'skull', 'Piraadid jõudsid järele ja tulistasid laeva (−10%). Osa saagist kukkus üle parda.', 'bad');
+    end if;
+  elsif ev = 'merehada' and c = 'paasta' then
+    if random() < 0.8 then
+      site := (select e from jsonb_array_elements(r.sites) e where not (e ->> 'id' = any(coalesce(x.sites, '{}'))) and e ->> 'id' is distinct from a ->> 'site' limit 1);
+      if site is not null and random() < 0.5 then
+        a := a || jsonb_build_object('site2', site ->> 'id');
+        a := fx_fl_log(a, 'map', format('Tänulikud meremehed näitasid teed paika „%s“ – see on nüüd avastatud!', site ->> 'name'), 'epic');
+      else
+        i := round(120 * r.diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+        a := fx_fl_log(a, 'heart', format('Meremehed tänasid ja andsid oma viimase kulla: %s. Meeskond tundis end hästi.', i), 'good');
+      end if;
+    else
+      a := fx_fl_lose_fish(a, 0.25);
+      a := fx_fl_log(a, 'skull', 'Need olid hoopis maskeerunud piraadid! Öösel viisid nad osa saagist ja kadusid.', 'bad');
+    end if;
+  elsif ev = 'nakk' and c = 'kuula' then
+    if random() < 0.5 then
+      a := fx_fl_add(a, 'items', case when random() < 0.25 then 'mustparl' else 'parl' end, 1);
+      i := round(80 * r.diff * (1 + random()))::int; a := jsonb_set(a, '{gold}', to_jsonb((a ->> 'gold')::int + i));
+      a := fx_fl_log(a, 'gem', format('Näkk lõpetas laulu ja viskas laevale pärli ning %s kulda. „Ilusat teed, kalurid!“', i), 'epic');
+    else
+      a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 20));
+      a := fx_fl_log(a, 'triangle-alert', 'Laul oli nii ilus, et keegi ei märganud kaljusid. Laev sai tugevasti pihta (−20%).', 'bad');
+    end if;
+  elsif ev = 'nakk' then
+    a := fx_fl_log(a, 'shield', 'Meeskond pani vaha kõrvu ja sõitis kaljudest ohutult mööda.');
+  elsif ev = 'virvatuli' and c = 'jargne' then
+    if random() < 0.6 then
+      site := (select e from jsonb_array_elements(r.sites) e where not (e ->> 'id' = any(coalesce(x.sites, '{}'))) and e ->> 'id' is distinct from a ->> 'site' limit 1);
+      if site is not null then a := a || jsonb_build_object('site2', site ->> 'id');
+        a := fx_fl_log(a, 'sparkles', format('Virvatuli viis peidetud paika „%s“ – see on nüüd avastatud!', site ->> 'name'), 'epic');
+      else a := fx_fl_add(a, 'items', 'ruun', 1);
+        a := fx_fl_log(a, 'sparkles', 'Virvatuli kustus vana kivi kohal. Kivi alt leiti iidne ruun!', 'epic'); end if;
+    else
+      a := jsonb_set(a, '{cond}', to_jsonb((a ->> 'cond')::int + 12)); a := fx_fl_lose_fish(a, 0.15);
+      a := fx_fl_log(a, 'triangle-alert', 'Tuluke kadus ja laev sõitis mutta kinni (−12%). Välja pääsemiseks tuli osa lasti maha visata.', 'bad');
+    end if;
+  elsif ev in ('kaupmees','merehada','virvatuli') then
+    a := fx_fl_log(a, 'compass', 'Kapten otsustas edasi sõita.');
   else
     a := fx_fl_log(a, 'compass', 'Kapten otsustas ohutult edasi sõita.');
   end if;
@@ -5867,7 +6003,7 @@ begin
     update fishers set baits = jsonb_set(coalesce(baits, '{}'), array[k], to_jsonb(coalesce((baits ->> k)::int, 0) + (a -> 'baits' ->> k)::int)) where user_id = u;
   end loop;
   perform fx_add_xp(u, (a ->> 'xp')::int + jsonb_array_length(coalesce(a -> 'fish', '[]')) * 2);
-  nc := greatest(0, s.cond - (a ->> 'cond')::int);
+  nc := least(100, greatest(0, s.cond - (a ->> 'cond')::int));
   update fisher_ships set cond = nc, voyages = voyages + 1 where id = s.id;
   update fisher_fleet set voyages = voyages + 1 where user_id = u;
   if a ? 'site' then v_sites := v_sites || (a ->> 'site'); end if;
