@@ -4675,11 +4675,15 @@ function closeFishView() {
   FV.open = false; FV.phase = 'idle'; FV.cast = null; $('#fishView').hidden = true; document.body.style.overflow = '';
   if (S) { hudUpdate(); renderPanel(true) }
 }
-async function loadSide() {
-  try { FV.orders = await rpc('fish_orders_today') } catch (e) { }
-  try { FV.quests = await rpc('fish_quests') } catch (e) { }
-  loadNews();
-  try { FV.comps = await rpc('fish_competitions') } catch (e) { }
+// Kõrvalinfo (tellimused, ülesanded, uudised, võistlused). Pärast iga kala ei küsita kõike uuesti –
+// see koormas Kalatunni ajal (kui kõik püüavad korraga) andmebaasi nii, et päringud hakkasid aeguma.
+const SIDE = { o: 0, q: 0, n: 0, c: 0 };
+async function loadSide(force) {
+  const now = Date.now(), due = (k, ms) => force || !SIDE[k] || now - SIDE[k] > ms ? (SIDE[k] = now, true) : false;
+  if (due('o', 20000) || !FV.orders) try { FV.orders = await rpc('fish_orders_today') } catch (e) { }
+  if (due('q', 15000) || !FV.quests) try { FV.quests = await rpc('fish_quests') } catch (e) { }
+  if (due('n', 45000)) loadNews();
+  if (due('c', 45000) || !FV.comps) try { FV.comps = await rpc('fish_competitions') } catch (e) { }
   if (FV.open) renderFV();
 }
 
@@ -5369,7 +5373,10 @@ async function doLand() {
       await refreshFS(); afterAch(r.ach); renderFV(true);
     } else {
       FV.result = r; fxLand(r);
-      await refreshFS(); FV.market = await rpc('fish_market').catch(() => FV.market); FV.oddsKey = ''; loadOdds().then(() => FV.phase === 'result' && renderFV());
+      await refreshFS();
+      if (!FV.mktAt || Date.now() - FV.mktAt > 60000) { FV.mktAt = Date.now(); FV.market = await rpc('fish_market').catch(() => FV.market) }
+      if (!FV.oddsAt || Date.now() - FV.oddsAt > 60000) { FV.oddsAt = Date.now(); FV.oddsKey = '' }
+      loadOdds().then(() => FV.phase === 'result' && renderFV());
       FV.busy = false; setPhase('result', resultMsg(r) + ktResult(r.kt));
       afterLevels(r.levels); afterAch(r.ach);
       FV.orders = null; loadSide();
@@ -5917,7 +5924,7 @@ document.addEventListener('click', async e => {
     case 'baitUse': fShop('equip_bait', arg); break;
     case 'deliver': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_order_deliver', { p_idx: +arg }); toast(`Kokk on õnnelik! +${r.gold} kulda, +${r.xp} kogemust, +${r.fame} kuulsust ja +${r.food} toitu kuningriiki.`, 'gold', 'fish'); await refreshFS(); FV.orders = await rpc('fish_orders_today'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
     case 'claim': if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_claim_prizes'); if (!r.prizes.length) toast('Uusi võidupreemiaid pole. Ole parim ja proovi uuesti!', 'info'); r.prizes.forEach(p => toast(`${COMPN[p.comp][0]}: ${p.place}. koht! +${p.gold} kulda, +${p.xp} kogemust${p.title ? `, tiitel „${p.title}“` : ''}`, 'gold', 'fame')); await refreshFS(); FV.comps = await rpc('fish_competitions'); afterLevels(r.levels); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break;
-    case 'reloadComp': FV.comps = null; renderFV(true); loadSide(); break;
+    case 'reloadComp': FV.comps = null; renderFV(true); loadSide(true); break;
     case 'wsrod': FV.wsRod = arg; renderFV(true); break;
     case 'upgrade': { if (FV.busy) return; FV.busy = true; try { const r = await rpc('fish_rod_upgrade', { p_rod: arg }); toast(`${FD.rod[arg].name} on nüüd +${r.upg}! Õng on tugevam ja parem.`, 'gold', 'fish'); sparkleScene('#ffd060'); await refreshFS(); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
     case 'enchant': { if (FV.busy) return; const [rd, en, tr] = arg.split(':'), cur = modOf(rd); if (cur.ench && cur.ench !== en && !confirm(`Uus võlu asendab õnge praeguse võlu (${FD.ench[cur.ench].name}). Kas jätkad?`)) return; FV.busy = true; try { const r = await rpc('fish_enchant', { p_rod: rd, p_ench: en, p_tier: +tr }); toast(`${FD.rod[rd].name} sai võlu: ${r.name} ${'I'.repeat(r.tier)}!`, 'gold', 'fish'); await refreshFS(); afterAch(r.ach) } catch (er) { toast(er.message, 'bad') } FV.busy = false; renderFV(true); break }
@@ -6073,13 +6080,13 @@ async function loadKT(silent) {
 function ktNow() { return Date.now() + KT.off }
 function ktClock(ms) { ms = Math.max(0, ms); const h = Math.floor(ms / 3600e3), m = Math.floor(ms % 3600e3 / 60000), s2 = Math.floor(ms % 60000 / 1000); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0') }
 setInterval(() => {
-  document.querySelectorAll('[data-ktto]').forEach(el => { const ms = +el.dataset.ktto - ktNow(); el.textContent = ktClock(ms); if (ms <= 0 && KT.d && Date.now() - KT.at > 3000) loadKT(true) });
+  document.querySelectorAll('[data-ktto]').forEach(el => { const ms = +el.dataset.ktto - ktNow(); el.textContent = ktClock(ms); if (ms <= 0 && KT.d && Date.now() - KT.at > 15000) loadKT(true) });
   if (!CL.user || !KT.d) return;
   // meeldetuletus 10 min enne
   const st = new Date(KT.d.start).getTime(), left = st - ktNow(), key = KT.d.start;
   if (!KT.d.active && left > 0 && left < 600e3 && KT.warned !== key) { KT.warned = key; toast(`Kalatund algab ${Math.ceil(left / 60000)} minuti pärast! Pane sööt valmis.`, 'info', 'fish') }
 }, 1000);
-setInterval(() => { if (!CL.user) return; const fast = FV.open && KT.d && KT.d.active; if (fast || Date.now() - KT.at > 60000) loadKT(true) }, 10000);
+setInterval(() => { if (!CL.user || document.hidden) return; const fast = FV.open && KT.d && KT.d.active, iv = fast ? (FV.tab === 'kalatund' ? 10000 : 25000) : 60000; if (Date.now() - KT.at > iv - 500) loadKT(true) }, 5000);
 function ktBanner() {
   const d = KT.d; if (!d || !d.active || FV.tab === 'kalatund') return '';
   const b = d.boss, pct = b ? Math.round(b.hp / b.max_hp * 100) : 100;
@@ -10843,7 +10850,7 @@ setInterval(() => {
   if (FV.open) { const now = evNow(); document.querySelectorAll('[data-evcd]').forEach(n => { n.textContent = n.dataset.pre + evLeft(+n.dataset.evcd - now) });
     document.querySelectorAll('[data-ducd]').forEach(n => { const v = +n.dataset.ducd - now, a = DU.d && DU.d.active; n.textContent = a && now < Date.parse(a.start_at) ? 'Algab ' + Math.max(0, Math.ceil(v / 1000)) : evLeft(v) }) }
 }, 1000);
-(function duLoop() { const go = CL.user && FV.open; if (go) duPing(); setTimeout(duLoop, DU.fast ? 2500 : 9000) })();
+(function duLoop() { const go = CL.user && FV.open; if (go) duPing(); setTimeout(duLoop, DU.fast ? 2500 : (DU.d && DU.d.active) ? 9000 : 20000) })();
 {
   FTAB_FN.sundmused = tabSundmused;
   const baseRenderE = renderFV;

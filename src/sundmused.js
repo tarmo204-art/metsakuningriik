@@ -325,7 +325,7 @@ setInterval(() => {
   if (FV.open) { const now = evNow(); document.querySelectorAll('[data-evcd]').forEach(n => { n.textContent = n.dataset.pre + evLeft(+n.dataset.evcd - now) });
     document.querySelectorAll('[data-ducd]').forEach(n => { const v = +n.dataset.ducd - now, a = DU.d && DU.d.active; n.textContent = a && now < Date.parse(a.start_at) ? 'Algab ' + Math.max(0, Math.ceil(v / 1000)) : evLeft(v) }) }
 }, 1000);
-(function duLoop() { const go = CL.user && FV.open; if (go) duPing(); setTimeout(duLoop, DU.fast ? 2500 : 9000) })();
+(function duLoop() { const go = CL.user && FV.open; if (go) duPing(); setTimeout(duLoop, DU.fast ? 2500 : (DU.d && DU.d.active) ? 9000 : 20000) })();
 {
   FTAB_FN.sundmused = tabSundmused;
   const baseRenderE = renderFV;
