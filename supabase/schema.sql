@@ -2041,6 +2041,10 @@ end $$;
 create or replace function public.fx_inbox(u uuid, p jsonb, why text) returns void language sql as
 $$ insert into public.kingdom_inbox(user_id, payload, reason) values (u, p, why) $$;
 
+-- kas Õnnetund käib praegu
+create or replace function public.fx_onn_on() returns boolean language plpgsql stable as $$
+declare e jsonb := public.fx_wev(now());
+begin return coalesce(e ->> 'kind' = 'onn' and e ->> 'phase' = 'on', false); end $$;
 -- Haruldusklasside tõenäosused (1..6) praeguste tingimuste jaoks, kokku alati 100
 create or replace function public.fx_rarity_weights(u uuid, p_spot text, p_bait text) returns numeric[] language plpgsql stable as $$
 declare
@@ -2056,6 +2060,8 @@ begin
   bonus := case when p_spot = 'udulaht' then 0.06 * public.fx_room_mul(u, 'majakas') else 0 end + coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
            + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0)
            + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end + public.fx_lab_aura(u, 'onn') * 0.2;
+  -- Õnnetund: mängija enda õnn (varustus, sööt, koht, ilm…) kolmekordne
+  if bonus > 0 and public.fx_onn_on() then bonus := bonus * 3; end if;
   for i in 1..6 loop
     avail[i] := exists (select 1 from public.fish_species s where s.rarity = i and p_spot = any(s.spots) and s.event is null
                  and s.min_level <= coalesce(f.level,1) and (not s.night_only or night)
@@ -2388,8 +2394,9 @@ begin
       s := null;
     end loop;
     if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
-    wt := s.min_w + (s.max_w - s.min_w) * power(random(), case when evb then 1.3 else 2.2 end);
-    if random() < 0.03 * (g ->> 'giant')::numeric then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
+    wt := s.min_w + (s.max_w - s.min_w) * power(random(), case when evb then 1.3 when fx_onn_on() then 0.63 else 2.2 end);
+    -- Õnnetunnil on hiiglase võimalus (varustuse järgi) kahekordne
+    if random() < 0.03 * (g ->> 'giant')::numeric * (case when fx_onn_on() then 2 else 1 end) then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
     wt := round(wt, case when wt < 1 then 3 else 2 end);
   end if;
   -- kalade üldine aktiivsus selles kohas mõjutab, kui kiiresti näkkab
@@ -5437,8 +5444,13 @@ create or replace function public.fx_wev_slot(n bigint) returns jsonb language p
 declare h int := abs(hashtext('wev' || n::text)) % 100; o int := 240 + abs(hashtext('wevo' || n::text)) % 1200;
   t0 timestamptz := to_timestamp(n * 1800); k text; sp text;
 begin
-  k := case when h < 20 then 'torm' when h < 38 then 'udu' when h < 68 then 'parv' when h < 72 then 'valitseja' else null end;
+  k := case when h < 20 then 'torm' when h < 38 then 'udu' when h < 68 then 'parv' when h < 72 then 'valitseja' when h < 76 then 'onn' else null end;
   if k is null then return null; end if;
+  -- Õnnetund (umbes 2 korda ööpäevas): 2 min ette teada, siis 10 min kõigil 3× õnn ja 2× suuremad kalad (iga mängija oma varustuse järgi)
+  if k = 'onn' then
+    o := 120 + o % 900;
+    return jsonb_build_object('id', 'onn-' || n, 'kind', 'onn', 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o + 120), 'end', t0 + make_interval(secs => o + 720));
+  end if;
   -- Sügavuste Valitseja ärkab (harva, umbes 2 korda ööpäevas): 2 min vesi tumeneb, siis 4 min võib ta näkata igas püügikohas
   if k = 'valitseja' then
     return jsonb_build_object('id', 'valitseja-' || n, 'kind', 'valitseja', 'warn', t0 + make_interval(secs => o), 'start', t0 + make_interval(secs => o + 120), 'end', t0 + make_interval(secs => o + 360));

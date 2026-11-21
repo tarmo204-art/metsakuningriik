@@ -167,6 +167,7 @@ Object.assign(WV_INFO, {
 });
 Object.assign(WV_INFO.torm, { wic: 'cloud-lightning', wn: 'Torm tuleb', wsub: 'Torm jõuab kohale', wleft: 'tormini' });
 TQ_RULES.unshift([/valitseja|vesi tumeneb/i, 'crown', 1]);
+TQ_RULES.unshift([/õnnetund/i, 'sparkles', 1]);
 {
   const _r = renderFV;
   renderFV = function () { const r = _r.apply(this, arguments); levStart(); return r };

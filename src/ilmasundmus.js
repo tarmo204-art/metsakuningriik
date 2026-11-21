@@ -11,7 +11,11 @@ const WV_INFO = {
     wfx: ['Kalad söövad enne tormi ahnelt – näkkab 30% kiiremini', 'Kohe tulevad Tormihaug ja Välgukala'],
     ofx: ['Tormihaug, Välgukala ja tormiangerjas võtavad', 'Haruldasi kalu tuleb rohkem', 'Tamiil katkeb kergemini – ole ettevaatlik'] },
   udu: { n: 'Udu', ic: 'cloud', col: '#9fc4cf', on: 'Udu laskus vee kohale', ofx: ['Uduhõbe ja Udukala tulevad välja', 'Haruldasi kalu tuleb natuke rohkem'] },
-  parv: { n: 'Kalaparv', ic: 'fish', col: '#5ad6c4', on: 'Kalaparv!', ofx: ['Selles kohas näkkab 2× kiiremini'] }
+  parv: { n: 'Kalaparv', ic: 'fish', col: '#5ad6c4', on: 'Kalaparv!', ofx: ['Selles kohas näkkab 2× kiiremini'] },
+  onn: { n: 'Õnnetund', ic: 'sparkles', col: '#ffd25a', wic: 'sparkles', wn: 'Õnnetund tuleb', warn: 'Õnnetund on tulekul!', wsub: 'Õnnetund algab', wleft: 'alguseni',
+    on: 'Õnnetund!', osub: 'Kõigil kalameestel üle kuningriigi', done: 'Õnnetund sai läbi.',
+    wfx: ['10 minutit 3× õnne ja suuremaid kalu', 'Pane parim õng ja sööt valmis – boonus kasvab sinu varustusega'],
+    ofx: ['3× õnn sinu varustuse järgi', 'Ligi 2× suuremad kalad', 'Hiiglase võimalus 2×'] }
 };
 Object.assign(LU, {
   cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
@@ -39,7 +43,7 @@ function wvCard() {
   const sub = warn ? `${I.wsub || 'Torm jõuab kohale'} <b data-wvt="${b}">${wvClock(b - t)}</b> pärast` : e.kind === 'parv' ? (here ? 'Oled õiges kohas – viska õng!' : `Parv toitub kohas <b>${esc(wvSpot(e.spot))}</b>`) : (I.osub || 'Kõigil kalameestel üle kuningriigi');
   const R = 26, C = 2 * Math.PI * R, p = Math.max(0, Math.min(1, (t - a) / (b - a)));
   return `<section class="wv-card wv-${e.kind}${warn ? ' warn' : ''}" style="--wc:${I.col}" aria-live="polite">
-    <div class="wv-bg" aria-hidden="true">${I.art ? levHtml(warn ? 'right dim' : 'right') : e.kind === 'torm' ? '<i class="wv-rain"></i><i class="wv-flash"></i>' : e.kind === 'udu' ? '<i class="wv-fog"></i><i class="wv-fog b"></i>' : '<i class="wv-rip"></i><i class="wv-rip b"></i><i class="wv-rip c"></i>'}</div>
+    <div class="wv-bg" aria-hidden="true">${I.art ? levHtml(warn ? 'right dim' : 'right') : e.kind === 'torm' ? '<i class="wv-rain"></i><i class="wv-flash"></i>' : e.kind === 'udu' ? '<i class="wv-fog"></i><i class="wv-fog b"></i>' : e.kind === 'onn' ? '<i class="wv-gl"></i><i class="wv-gl b"></i><i class="wv-gl c"></i><i class="wv-gl d"></i>' : '<i class="wv-rip"></i><i class="wv-rip b"></i><i class="wv-rip c"></i>'}</div>
     <div class="wv-ring" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${R}" class="tr"/><circle cx="32" cy="32" r="${R}" class="pr" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * p).toFixed(1)}" data-wvr="${a}|${b}|${C.toFixed(1)}"/></svg><span>${luc(warn ? (I.wic || 'cloud-lightning') : I.ic)}</span></div>
     <div class="wv-tx"><h3>${esc(title)}</h3><p>${sub}</p>
       <div class="wv-fx">${fx.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>
@@ -94,6 +98,7 @@ setInterval(() => {
     if (e && !WV.toasted[ph]) {
       WV.toasted[ph] = 1; const I = WV_INFO[e.kind];
       if (e.kind === 'valitseja') toast(ph.endsWith('w') ? 'Vesi tumeneb kõikjal… Sügavuste Valitseja ärkab 2 minuti pärast!' : 'Sügavuste Valitseja on ärganud! 4 minutit võib ta näkata igas püügikohas.', 'gold', 'fish');
+      else if (e.kind === 'onn') toast(ph.endsWith('w') ? 'Õnnetund algab 2 minuti pärast! Pane parim õng ja sööt valmis.' : 'Õnnetund algas! 10 minutit 3× õnne ja suuremaid kalu.', 'gold', 'fish');
       else if (ph.endsWith('w')) toast(`Torm on tulekul! Kalad söövad enne tormi ahnelt – kasuta võimalust.`, 'gold', 'fish');
       else if (ph.endsWith('o') && e.kind === 'parv' && FD.spot[e.spot] && FS.level >= FD.spot[e.spot].min_level) toast(`Kalaparv kohas ${wvSpot(e.spot)}! 90 sekundit näkkab 2× kiiremini.`, 'gold', 'fish');
       else if (ph.endsWith('o') && e.kind === 'udu') toast('Udu laskus vee kohale. Uduhõbe ja Udukala tulevad välja!', 'info', 'fish');
@@ -113,6 +118,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .wv-flash{position:absolute;inset:0;background:radial-gradient(80% 90% at 70% 0%,rgba(230,225,255,.55),transparent 60%);opacity:0;animation:wvFlash 6s 1.5s infinite}
 .wv-fog{position:absolute;inset:-20% -50%;background:radial-gradient(40% 50% at 30% 50%,rgba(220,235,240,.22),transparent 70%),radial-gradient(35% 45% at 75% 60%,rgba(220,235,240,.18),transparent 70%);animation:wvFog 14s ease-in-out infinite alternate}
 .wv-fog.b{animation-duration:19s;animation-direction:alternate-reverse;opacity:.7}
+.wv-onn{border-color:rgba(255,210,90,.6)!important}.wv-gl{position:absolute;width:6px;height:6px;border-radius:50%;background:#ffe08a;box-shadow:0 0 10px 3px rgba(255,210,90,.7);left:20%;top:70%;opacity:0;animation:wvGl 3.2s ease-in-out infinite}.wv-gl.b{left:45%;top:30%;animation-delay:.8s}.wv-gl.c{left:70%;top:60%;animation-delay:1.6s}.wv-gl.d{left:85%;top:25%;animation-delay:2.4s}@keyframes wvGl{0%{opacity:0;transform:translateY(8px) scale(.4)}40%{opacity:1;transform:translateY(-6px) scale(1)}100%{opacity:0;transform:translateY(-22px) scale(.3)}}
 .wv-rip{position:absolute;left:18%;top:55%;width:60px;height:22px;margin:-11px -30px;border-radius:50%;border:2px solid rgba(120,240,220,.45);opacity:0;animation:wvRip 2.4s ease-out infinite}
 .wv-rip.b{left:62%;top:40%;animation-delay:.8s}.wv-rip.c{left:84%;top:72%;animation-delay:1.6s}
 .wv-ring{position:relative;width:64px;height:64px}.wv-ring > svg{width:64px;height:64px;transform:rotate(-90deg)}
@@ -141,5 +147,5 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 @keyframes wvRip{0%{opacity:.8;transform:scale(.3)}100%{opacity:0;transform:scale(1.6)}}
 @keyframes wvPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 @media (max-width:560px){.wv-card{grid-template-columns:auto minmax(0,1fr);padding:14px 44px 14px 14px;gap:12px}.wv-side{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;text-align:left}.wv-side .btn{margin-left:auto}.wv-time{font-size:24px}.wv-ring,.wv-ring > svg{width:54px;height:54px}.wv-tx h3{font-size:17px}}
-@media (prefers-reduced-motion:reduce){.wv-card,.wv-rain,.wv-flash,.wv-fog,.wv-rip,.wv-ring span{animation:none!important}.wv-flash,.wv-rip{display:none}}
+@media (prefers-reduced-motion:reduce){.wv-card,.wv-rain,.wv-flash,.wv-fog,.wv-rip,.wv-gl,.wv-ring span{animation:none!important}.wv-flash,.wv-rip{display:none}}
 </style>`);
