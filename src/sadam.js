@@ -11,7 +11,10 @@ Object.assign(LU, { ghost: '<path d="M9 10h.01"/><path d="M15 10h.01"/><path d="
 const SD_EV = { vrakk: ['anchor', '#7fb6c9'], saar: ['tree-pine', '#7fd18b'], koletis: ['monster', '#e4574a'], kaupmees: ['coins', '#f0c05a'], piraadid: ['skull', '#e4574a'], merehada: ['users', '#8ec5ff'], nakk: ['moon', '#c9a6ff'], virvatuli: ['sparkles', '#6fe3ff'], vastane: ['skull', '#ff8a5c'] };
 const SD_SUBS = [['laevad', 'ship', 'Laevad'], ['kaart', 'map', 'Merekaart'], ['tookoda', 'wrench', 'Laevatöökoda'], ['meeskond', 'users', 'Meeskond'], ['vastased', 'skull', 'Vastased'], ['logi', 'scroll-text', 'Logiraamat']];
 const SD_STATS = [['spd', 'gauge', 'Kiirus'], ['vast', 'shield-check', 'Vastupidavus'], ['cap', 'package', 'Lastiruum'], ['avast', 'compass', 'Avastamisoskus'], ['kaitse', 'shield', 'Kaitsevõime'], ['pyuk', 'fish', 'Kalapüük']];
-const SD_KIND = { avasta: ['Avastusretk', 'compass', 'Otsi piirkonnast uus paik. Avastamisoskus aitab.'], pyuk: ['Püügiretk', 'fish', 'Laev püüab võrkudega kala. Lastiruum ja võrgud loevad.'], jaht: ['Koletisejaht', 'swords', 'Otsi üles piirkonna vastane. Ta on tugevam, aga võit annab 1,6× rohkem kulda ja trofeesid.'], aare: ['Aardejaht', 'gem', 'Otsi avastatud paikadest peidetud aardeid. Avastamisoskus aitab lõkse vältida.'], boss: ['Bossi jaht', 'skull', 'Rünnak piirkonna bossile. Kaitsevõime ja vastupidavus loevad.'] };
+const SD_KIND = {
+  piraat: ['Piraadijaht', 'skull', 'Otsi üles piraadilaev ja võitle ainult piraatidega. Võit toob nende aarded – rohkem kulda kui koletistelt.'],
+  kaup: ['Kaubareis', 'coins', 'Sõida kaupmeestega kauplema. Kaupmees maksab kala eest 60% üle turuhinna ja müüb haruldasi asju.'],
+  paaste: ['Päästeretk', 'heart', 'Otsi tormis hädasse jäänud meremehi. Päästetud annavad tänutäheks kulda või näitavad peidetud paiku.'], avasta: ['Avastusretk', 'compass', 'Otsi piirkonnast uus paik. Avastamisoskus aitab.'], pyuk: ['Püügiretk', 'fish', 'Laev püüab võrkudega kala. Lastiruum ja võrgud loevad.'], jaht: ['Koletisejaht', 'swords', 'Otsi üles piirkonna koletis (piraate ei tule). Ta on tugevam, aga võit annab 1,6× rohkem kulda ja trofeesid.'], aare: ['Aardejaht', 'gem', 'Otsi avastatud paikadest peidetud aardeid. Avastamisoskus aitab lõkse vältida.'], boss: ['Bossi jaht', 'skull', 'Rünnak piirkonna bossile. Kaitsevõime ja vastupidavus loevad.'] };
 const SD_CREW = { kapten: ['Kapten', 'Kaitsevõime +4% ja vastupidavus +3% iga taseme kohta.', 'shield'], tuurimees: ['Tüürimees', 'Kiirus ja avastamisoskus +4% iga taseme kohta.', 'compass'], kalur: ['Vanem kalur', 'Kalapüük +5% ja lastiruum +3% iga taseme kohta.', 'fish'] };
 const SD_REG = { // piirkondade värvid ja meeleolu
   metsajarv: { a: '#5fbf8f', sky: ['#9fd6c8', '#2f6d6a'], water: ['#2d7f86', '#0f3a44'] },
@@ -61,13 +64,18 @@ function sdShip(type, parts, o) {
     kaluripaat: { L: 150, fb: 22, sr: 8, br: 12, bs: 26, hull: ['#a8743e', '#6a4220'], stripe: null, masts: [[.56, 92, 'gaff']], jibs: 1, cabin: 1 },
     avastaja: { L: 188, fb: 22, sr: 8, br: 14, bs: 40, hull: ['#2e3438', '#14181a'], stripe: '#e8dfc4', masts: [[.38, 112, 'gaff'], [.64, 122, 'gaff']], jibs: 2 },
     ekspeditsioon: { L: 208, fb: 30, sr: 12, br: 14, bs: 42, hull: ['#7a4e2a', '#3e2412'], stripe: '#d8a84a', masts: [[.33, 122, 'sq', 2], [.62, 132, 'sq', 2]], jibs: 2, spank: 1, house: 1 },
-    kuninglik: { L: 228, fb: 40, sr: 26, br: 18, bs: 46, hull: ['#5a2a1a', '#2a100a'], stripe: '#e8b65a', masts: [[.25, 128, 'sq', 3], [.5, 150, 'sq', 3], [.74, 132, 'sq', 3]], jibs: 3, spank: 1, castle: 1, gold: 1 }
+    kuninglik: { L: 228, fb: 40, sr: 26, br: 18, bs: 46, hull: ['#5a2a1a', '#2a100a'], stripe: '#e8b65a', masts: [[.25, 128, 'sq', 3], [.5, 150, 'sq', 3], [.74, 132, 'sq', 3]], jibs: 3, spank: 1, castle: 1, gold: 1 },
+    // uued: viikingi draakonlaev, sale klipper, raske sõjagaleon ja legendaarne kuldne galeon
+    draakonlaev: { L: 214, fb: 16, sr: 30, br: 34, bs: 0, hull: ['#9a6a34', '#4a2a10'], stripe: '#c8302a', masts: [[.5, 108, 'sq', 1]], jibs: 0, dragon: 1, shieldRow: 1, oars: 1, stripes: 1 },
+    kiirpurjekas: { L: 242, fb: 22, sr: 8, br: 16, bs: 54, hull: ['#1f4a5e', '#0a1a22'], stripe: '#f0efe6', masts: [[.24, 150, 'sq', 3], [.5, 170, 'sq', 3], [.76, 152, 'sq', 3]], jibs: 3, spank: 1 },
+    sojagaleon: { L: 238, fb: 46, sr: 30, br: 24, bs: 44, hull: ['#3e1c16', '#170806'], stripe: '#d8a84a', masts: [[.26, 134, 'sq', 3], [.5, 154, 'sq', 3], [.74, 136, 'sq', 3]], jibs: 2, spank: 1, castle: 1, forec: 1 },
+    kuldgaleon: { L: 240, fb: 46, sr: 30, br: 24, bs: 48, hull: ['#3a2258', '#140a24'], stripe: '#ffd36a', masts: [[.26, 140, 'sq', 3], [.5, 162, 'sq', 3], [.74, 142, 'sq', 3]], jibs: 3, spank: 1, castle: 1, forec: 1, gold: 1, goldsail: 1, lamps: 1 }
   }[type] || {};
   const uid = 'sh' + type.slice(0, 3) + Object.entries(parts || {}).map(([k, v]) => k[0] + v).join('') + (o.sail ? 's' : ''), W = 330, wl = 168, x0 = (W - C.L) / 2 - 8, x1 = x0 + C.L, mid = (x0 + x1) / 2;
   const dk = wl - C.fb, yS = dk - C.sr, yB = dk - C.br, keel = wl + 14 + C.fb * .25;
   // tekijoon (sheer): ahter kõrgem, keskelt madalam, vöör tõuseb
   const deckY = x => { const t = (x - x0) / (x1 - x0); return (1 - t) * (1 - t) * yS + 2 * t * (1 - t) * (dk + 4) + t * t * yB };
-  const canvas = puri >= 4 ? ['#fbf8f0', '#d9d2c0'] : puri >= 2 ? ['#f3ecd9', '#cfc3a4'] : ['#e6dcc2', '#b8a888'];
+  const canvas = C.goldsail ? ['#ffe9a8', '#d8a840'] : puri >= 4 ? ['#fbf8f0', '#d9d2c0'] : puri >= 2 ? ['#f3ecd9', '#cfc3a4'] : ['#e6dcc2', '#b8a888'];
   const emb = puri >= 5 ? `url(#${uid}g)` : puri >= 4 ? (C.gold ? '#b8302a' : '#2f5f9e') : null;
   const gold = C.gold || kere >= 5;
   let s = `<svg viewBox="__VB__" class="sd-ship${o.sail ? ' sail' : ''}" aria-hidden="true"><defs>
@@ -98,6 +106,7 @@ function sdShip(type, parts, o) {
         s += `<path d="M${mx - wT} ${yT} L${mx + wT} ${yT}" stroke="#4a2c14" stroke-width="2.2" stroke-linecap="round"/>`;
         s += `<path d="M${mx - wT + 1} ${yT + 1} L${mx + wT - 1} ${yT + 1} Q${mx + wB + 2} ${(yT + yBt) / 2} ${mx + wB} ${yBt} Q${mx} ${yBt + bulge} ${mx - wB} ${yBt} Q${mx - wB - 2} ${(yT + yBt) / 2} ${mx - wT + 1} ${yT + 1}Z" fill="url(#${uid}s)" stroke="rgba(60,40,20,.35)" class="sd-sl"/>`;
         s += `<path d="M${mx - wB + 3} ${(yT + yBt) / 2 + 2} Q${mx} ${(yT + yBt) / 2 + 6} ${mx + wB - 3} ${(yT + yBt) / 2 + 2}" stroke="rgba(120,100,70,.28)" fill="none" stroke-width=".9"/>`;
+        if (C.stripes) for (const f of [-.66, 0, .66]) s += `<path d="M${mx + f * wT - wT * .14} ${yT + 2} L${mx + f * wT + wT * .14} ${yT + 2} L${mx + f * wB + wB * .14} ${yBt} L${mx + f * wB - wB * .14} ${yBt}Z" fill="#b8302a" opacity=".85"/>`;
         if (emb && k === n - 1) s += C.gold && puri >= 4 ? `<path d="M${mx} ${yT + 4} V${yBt - 2} M${mx - 7} ${(yT + yBt) / 2} H${mx + 7}" stroke="${emb}" stroke-width="3"/>` : `<path d="M${mx - wB + 3} ${(yT + yBt) / 2} H${mx + wB - 3}" stroke="${emb}" stroke-width="4" opacity=".85"/>`;
       }
       if (komp >= 3 && i === Math.floor(C.masts.length / 2)) s += `<path d="M${mx - 7} ${top + 6 + each * (n - 1) - 6} h14 l-2 5 h-10z" fill="#5a3a1c"/>`; // vaatlusplatvorm
@@ -141,6 +150,22 @@ function sdShip(type, parts, o) {
   // reling
   s += `<path d="M${x0 - 4} ${yS - 5 - (C.castle ? 6 : 0)} Q${mid} ${dk + 3} ${x1 + 6} ${yB - 7}" stroke="#4a2c14" stroke-width="1.6" fill="none"/>`;
   for (let k = 0; k <= 12; k++) { const rx = x0 + k * C.L / 12; s += `<path d="M${rx} ${deckY(rx) - 5} v5" stroke="#4a2c14" stroke-width="1"/>` }
+  // draakonlaev: draakonipea vööris, keerdus saba ahtris ja kilpide rida pardal
+  if (C.dragon) {
+    const hx = x1 + 6, hy = yB - 2;
+    s += `<path d="M${hx - 6} ${hy + 4} Q${hx + 10} ${hy - 10} ${hx + 6} ${hy - 30} Q${hx + 4} ${hy - 40} ${hx + 14} ${hy - 44} L${hx + 26} ${hy - 40} L${hx + 18} ${hy - 36} L${hx + 22} ${hy - 32} L${hx + 12} ${hy - 32} Q${hx + 12} ${hy - 18} ${hx + 4} ${hy + 6}Z" fill="url(#${uid}h)" stroke="rgba(0,0,0,.6)" stroke-width="1.2"/>
+      <path d="M${hx + 12} ${hy - 44} l-4 -8 l8 5 M${hx + 7} ${hy - 41} l-6 -6 l9 3" stroke="#4a2a10" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle cx="${hx + 16}" cy="${hy - 40}" r="1.8" fill="#ffd36a"/><path d="M${hx + 19} ${hy - 34} l4 3 l-3 1z" fill="#e8e0c8"/>`;
+    const tx = x0 - 6, ty = yS - 2;
+    s += `<path d="M${tx + 6} ${ty + 4} Q${tx - 10} ${ty - 8} ${tx - 4} ${ty - 26} Q${tx + 2} ${ty - 36} ${tx + 10} ${ty - 30} Q${tx + 4} ${ty - 28} ${tx + 4} ${ty - 20} Q${tx + 2} ${ty - 8} ${tx + 12} ${ty + 4}Z" fill="url(#${uid}h)" stroke="rgba(0,0,0,.6)" stroke-width="1.2"/>`;
+  }
+  if (C.oars) for (let k = 0; k < 9; k++) { const ox = x0 + C.L * (.2 + k * .075), oy = deckY(ox) + 2; s += `<path d="M${ox} ${oy} l${-14} ${wl - oy + 12}" stroke="#5a3818" stroke-width="2.2" stroke-linecap="round" class="sd-oar" style="animation-delay:${(k * .08).toFixed(2)}s"/><path d="M${ox - 14} ${wl + 12} l-3 6" stroke="#5a3818" stroke-width="4" stroke-linecap="round" class="sd-oar" style="animation-delay:${(k * .08).toFixed(2)}s"/>` }
+  if (C.shieldRow) for (let k = 0; k < 11; k++) { const kx = x0 + C.L * (.12 + k * .072), ky = deckY(kx) - 1; s += `<circle cx="${kx}" cy="${ky}" r="5.2" fill="${['#c8302a', '#e8d6a0', '#2f5f9e'][k % 3]}" stroke="#3a2410" stroke-width="1.2"/><circle cx="${kx}" cy="${ky}" r="1.6" fill="#8a8a8a"/>` }
+  // galeonidel vööri kastell
+  if (C.forec) { const fx0 = x1 - C.L * .18, b0 = deckY(fx0); s += `<path d="M${fx0} ${b0} L${fx0 + 2} ${b0 - 14} L${x1 + 4} ${yB - 16} L${x1 + 6} ${yB - 2}Z" fill="#3a1810" stroke="rgba(0,0,0,.5)"/><path d="M${fx0 + 2} ${b0 - 14} L${x1 + 4} ${yB - 16}" stroke="${C.gold ? `url(#${uid}g)` : '#c89a3a'}" stroke-width="2"/>`;
+    for (let k = 0; k < 3; k++) s += `<rect x="${fx0 + 8 + k * 10}" y="${b0 - 10 - k * .6}" width="4.5" height="5" rx="1" fill="${o.sail ? '#ffd86a' : '#e8c070'}" opacity=".85"/>` }
+  // kuldse galeoni laternad relingul
+  if (C.lamps) for (let k = 0; k < 6; k++) { const lx = x0 + C.L * (.2 + k * .12), ly = deckY(lx) - 10; s += `<path d="M${lx} ${ly + 6} v-3" stroke="#3a2010" stroke-width="1"/><circle cx="${lx}" cy="${ly}" r="3.2" fill="#ffd86a" class="sd-lamp"/><circle cx="${lx}" cy="${ly}" r="7" fill="#ffd86a" opacity=".18"/>` }
   // ahtrikastell kuninglikul laeval: aknad ja kuldornament
   if (C.castle) { s += `<path d="M${x0 - 6} ${yS - 6} L${x0 - 10} ${yS - 22} L${x0 + C.L * .2} ${yS - 18} L${x0 + C.L * .22} ${deckY(x0 + C.L * .22)}" fill="#4a1e10" stroke="rgba(0,0,0,.5)"/>`;
     for (let k = 0; k < 4; k++) s += `<rect x="${x0 - 2 + k * 9}" y="${yS - 16}" width="5" height="6" rx="1" fill="${o.sail ? '#ffd86a' : '#e8c070'}" opacity=".9"/>`;
@@ -347,14 +372,14 @@ function sdSend(R, allFound) {
   if (!free.length) return `<p class="lead sd-note">${(D.ships || []).length ? 'Kõik laevad on praegu retkel.' : 'Sul pole veel laeva. Ehita see vahekaardil „Laevad“.'}</p>`;
   if (!SD.sendShip || !free.some(s => s.id === SD.sendShip)) SD.sendShip = free[0].id;
   const s = sdShipById(SD.sendShip), T = sdT(s.type), okRank = T.rank >= R.min_rank;
-  const kinds = ['avasta', 'pyuk', 'jaht', 'aare', 'boss'].filter(k => k !== 'boss' || (allFound && !R.boss_dead)).filter(k => k !== 'avasta' || !allFound).filter(k => k !== 'aare' || (R.found || []).length >= 1);
-  const mins = k => Math.max(3, Math.round(R.minutes * ({ pyuk: 1.2, boss: .8, aare: 1.1 }[k] || 1) * 16 / Math.max(5, s.stats.spd)));
+  const kinds = ['avasta', 'pyuk', 'jaht', 'piraat', 'kaup', 'paaste', 'aare', 'boss'].filter(k => k !== 'boss' || (allFound && !R.boss_dead)).filter(k => k !== 'avasta' || !allFound).filter(k => k !== 'aare' || (R.found || []).length >= 1);
+  const mins = k => Math.max(3, Math.round(R.minutes * ({ pyuk: 1.2, boss: .8, aare: 1.1, kaup: 1.1, paaste: .9 }[k] || 1) * 16 / Math.max(5, s.stats.spd)));
   return `<div class="sd-send"><h3>${luc('ship')} Saada retkele</h3>
     <div class="sd-pick">${free.map(x => `<button type="button" class="${x.id === SD.sendShip ? 'on' : ''}" data-sd="pick" data-arg="${x.id}">${sdShip(x.type, x.parts, {})}<b>${esc(sdT(x.type).name)}</b><small>${x.cond}% korras</small></button>`).join('')}</div>
     ${okRank ? '' : `<p class="sd-warn">${luc('triangle-alert')} ${esc(R.name)} on selle laeva jaoks liiga ohtlik – vaja vähemalt: ${esc((D.types.find(t => t.rank === R.min_rank) || {}).name)}.</p>`}
     ${s.cond < 25 ? `<p class="sd-warn">${luc('triangle-alert')} Laev on liiga katki. Remondi see enne.</p>` : ''}
     <div class="sd-kinds">${kinds.map(k => `<button type="button" class="sd-k ${k}" data-sd="send" data-arg="${k}" ${!okRank || s.cond < 25 || SD.busy ? 'disabled' : ''}>${luc(SD_KIND[k][1])}<b>${SD_KIND[k][0]}</b><small>${SD_KIND[k][2]}</small>
-      <span class="sd-kf">${luc('timer')} ${mins(k)} min · ${ic('food')} ${Math.round(R.food * (k === 'boss' ? 1.5 : k === 'jaht' ? 1.2 : 1))}${+(s.parts || {}).mootor >= 1 ? ` · ${typeof matIc === 'function' ? matIc('kask', 16) : ''}${R.ord * 2} kaske` : ''}</span></button>`).join('')}</div>
+      <span class="sd-kf">${luc('timer')} ${mins(k)} min · ${ic('food')} ${Math.round(R.food * (k === 'boss' ? 1.5 : k === 'jaht' || k === 'piraat' ? 1.2 : 1))}${+(s.parts || {}).mootor >= 1 ? ` · ${typeof matIc === 'function' ? matIc('kask', 16) : ''}${R.ord * 2} kaske` : ''}</span></button>`).join('')}</div>
     <small class="lead">Proviant (toit) võetakse kuningriigi laost. Mootoriga laev vajab ka küttepuid (kask). Retk kulgeb ka siis, kui oled mängust eemal.</small></div>`;
 }
 function sdYard() {
@@ -378,7 +403,7 @@ function sdFoes() {
     const m = M[f.id] || {}, known = m.seen > 0, col = f.region ? (SD_REG[f.region] || {}).a : '#ff8a5c';
     const pw = f.region ? f.power : `${f.power + f.grow}–${f.power + f.grow * 5}`;
     return `<div class="sd-foe ${known ? '' : 'unk'} ${m.won ? 'won' : ''}" style="--c:${col}"><span class="sd-foei">${luc(known ? f.icon : 'lock')}</span>
-      <div><b>${known ? esc(f.name) : '???'}</b><small>${esc(regName(f.region))} · jõud ${pw}</small>
+      <div><b>${known ? esc(f.name) : '???'}</b><small>${f.kind === 'piraat' ? '🏴‍☠️ Piraat · ' : ''}${esc(regName(f.region))} · jõud ${pw}</small>
       <p>${known ? esc(f.descr) : 'Seda vastast pole veel kohatud.'}</p>
       ${known ? `<small class="sd-foel">${luc('gem')} ${esc(loot(f) || 'kuld')}</small><small class="sd-foec">Kohatud ${m.seen}× · võidetud ${m.won || 0}×</small>` : ''}</div>${m.won ? `<span class="sd-foew">${luc('trophy')}</span>` : ''}</div>`;
   }).join('')}</div>`;
@@ -482,7 +507,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .sd-ship.sail .sd-bob{animation:sdBob 3.2s ease-in-out infinite;transform-origin:50% 80%}.sd-ship .sd-wave{animation:sdWave 4s ease-in-out infinite}.sd-ship .sd-wave.b{animation-duration:5.5s;animation-direction:reverse}
 .sd-ship.sail .sd-flag{animation:sdFlag 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:left center}
 .sd-ship.sail .sd-foam{animation:sdFoam 2.4s ease-in-out infinite}
-.sd-smoke circle{opacity:0;animation:smSmoke 2.6s ease-out infinite}.sd-lamp{animation:smFire 1.3s ease-in-out infinite alternate}.sd-glint{animation:wvPulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.sd-oar{transform-box:fill-box;transform-origin:50% 0}.sd-ship.sail .sd-oar{animation:sdOar 1.4s ease-in-out infinite}@keyframes sdOar{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}@media (prefers-reduced-motion:reduce){.sd-ship.sail .sd-oar{animation:none}}.sd-smoke circle{opacity:0;animation:smSmoke 2.6s ease-out infinite}.sd-lamp{animation:smFire 1.3s ease-in-out infinite alternate}.sd-glint{animation:wvPulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 .sd-card{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:16px;align-items:center}
 .sd-pic{border-radius:16px;background:linear-gradient(180deg,#244a58,#0e2a34 62%,#0b2a36);box-shadow:inset 0 0 0 1px rgba(134,205,224,.14);padding:6px 6px 0;overflow:hidden}
 .sd-pic.big{max-width:520px}
