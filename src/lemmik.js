@@ -228,7 +228,7 @@ function favStrip() {
     return h;
   };
   const baseLand = fxLand;
-  fxLand = function (r) { baseLand(r); if (r && r.kind === 'fish' && r.fav) setTimeout(() => { try { fxText(FX.bx, FX.by - 40, '❤ Lemmiksööt!', '#ff9ec0', 20); fxRing(FX.bx, FX.by, 60, '255,160,200') } catch (e) { } }, 1100) };
+  fxLand = function (r) { baseLand(r) }; // „Lemmiksööt!“ hüüdsõna on ära võetud – lemmiksööt on näha kala infokaardil
 }
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-fcgo]');
