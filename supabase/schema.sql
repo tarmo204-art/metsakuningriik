@@ -1367,6 +1367,14 @@ update public.fish_species set rarity = 6, real = false, price = 1600, xp = 900,
   baits = '{valgus,haldjatolm,kuldvobler}', times = '{öö}', max_len = 240, max_age = 80, element = 'pimedus', g_k = 0.04, g_linf = null, g_cls = null
 where id = 'merikurat';
 
+-- lantide kirjeldused: lanti võtavad ainult röövkalad
+update public.fish_baits set descr = v.d from (values
+  ('hobelant','Peibutis, mis ei kulu. Võtavad ainult röövkalad (haug, ahven, koha, forell…).'),
+  ('kuldvobler','Kallis peibutis, mis ei kulu. Võtavad ainult röövkalad.'),
+  ('draakonilant','Legendaarne peibutis, mis ei kulu kunagi. Võtavad ainult röövkalad.'),
+  ('soomuslant','Kalasoomustest läikiv lant – röövkalad ei suuda vastu panna, rahulikud kalad seda ei võta. Valmistatakse söödalaual.')) v(id, d)
+where fish_baits.id = v.id;
+
 -- ---------------------------------------------------------------------
 -- 2z6. Kala vanus: liigipõhine kasvumudel (von Bertalanffy) ja iga kala individuaalne vanus
 --   Igal liigil on oma kasvumudel fish_species veergudes (g_*). Tühjad väärtused täidetakse
@@ -2400,19 +2408,20 @@ begin
       w := fx_rarity_weights(u, p_spot, p_bait);
       roll := random() * 100;
       for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
-      -- Lant (peibutis, mis ei kulu ja on ostetud) meelitab peamiselt röövkalu: 85% juhtudest otsitakse
-      -- valitud või madalamast klassist kala, kelle lemmik on lant; muidu tavaline valik (rahulik kala harva).
-      lure := not b.consumable and b.price > 0;
-      if s.id is null and lure and random() < 0.85 then
+      -- Lant (hõbelant, kuldvobler, draakonilant, soomuslant) võtavad AINULT röövkalad: kala, kelle söötade hulgas
+      -- on lant või kes on röövkala. Rahulikud kalad (latikas, karpkala, särg…) lanti ei võta.
+      lure := p_bait = any(array['hobelant','kuldvobler','draakonilant','soomuslant']);
+      if s.id is null and lure then
         rr := rar;
         while rr >= 1 loop
           select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
             and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
-            and (fs.weather is null or wthr = any(fs.weather)) and fs.baits && array['hobelant','kuldvobler','draakonilant']
+            and (fs.weather is null or wthr = any(fs.weather)) and (fs.baits && array['hobelant','kuldvobler','draakonilant','soomuslant'] or 'pred' = any(fs.wx_tags))
             order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end) * fx_season_k(fs.season) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
           exit when s.id is not null;
           rr := rr - 1;
         end loop;
+        if s.id is null then raise exception 'Siin ei võta praegu ükski kala lanti – proovi elussööta (vihmauss, vagel, mais)'; end if;
       end if;
       while s.id is null and rar >= 1 loop
         select * into s from fish_species fs where fs.rarity = rar and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
