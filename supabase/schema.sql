@@ -1377,15 +1377,15 @@ insert into public.fish_baits (id,name,price,min_level,wait_mult,rarity_bonus,co
 on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, wait_mult=excluded.wait_mult,
   rarity_bonus=excluded.rarity_bonus, consumable=excluded.consumable, descr=excluded.descr, sort=excluded.sort;
 insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather) values
- ('tormituur','Tormituur',5,120,650,3200,1600,'{meri,saarestik}',46,false,false,10,'{"s":"l","c":["#4a5a64","#1a2228","#c8d4d8","#6a7a84"],"sp":1}',
-  'Iidne hiidtuur, kes tõuseb põhjast ainult tormi eel. Tema luukilbid on kõvad nagu kivi.',121,null),
+ ('tormituur','Tormituur',6,150,650,4600,2400,'{meri,saarestik,avameri}',46,false,false,10,'{"s":"l","c":["#2a3848","#0a1018","#9ad8ff","#3a4a5c"],"g":"#8ae0ff","fx":"storm"}',
+  'Müütiline hiidtuur, kelle seljakilpides sähvivad välgud. Tõuseb põhjast ainult tormiga – või vahetult enne tormi, kui õhk on elektrit täis.',121,'{torm}'),
  ('hiidhai','Hiidhai',6,180,850,5200,2700,'{avameri,sugavik}',48,false,false,10,'{"s":"l","c":["#5a6a78","#1c242e","#e6ecf0","#3a4a58"]}',
   'Ürgne hiidhai, kelle hambad on peopesa suurused. Arvati ammu väljasurnuks.',122,null),
  ('virmalislohe','Virmalislõhe',6,140,720,4800,2500,'{jaa,salajane}',50,false,false,10,'{"s":"l","c":["#1a5a6a","#0a1e2a","#c8fff0","#8a6aff"],"g":"#7affc8","sp":1}',
   'Müütiline põhjala lõhe, kelle soomustel peegelduvad virmalised. Ujub välja vaid tähistaeva all.',123,null)
 on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w, price=excluded.price, xp=excluded.xp,
-  spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty, look=excluded.look, descr=excluded.descr, sort=excluded.sort;
-update public.fish_species set baits = '{virmalislant,krevett}', times = '{öö,hommik}', max_len = 650, max_age = 150, real = false, element = 'vesi', arch = 'sturgeon', body = 'haug', wx_tags = '{}' where id = 'tormituur';
+  spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty, look=excluded.look, descr=excluded.descr, sort=excluded.sort, weather=excluded.weather;
+update public.fish_species set baits = '{virmalislant,krevett}', times = '{öö,õhtu,hommik,päev}', max_len = 650, max_age = 150, real = false, element = 'välk', arch = 'sturgeon', body = 'haug', wx_tags = '{pred}' where id = 'tormituur';
 update public.fish_species set baits = '{virmalislant,draakonilant}', times = '{öö,õhtu,hommik,päev}', max_len = 1600, max_age = 400, real = false, element = 'vesi', arch = 'tuna', body = 'haug', wx_tags = '{pred}' where id = 'hiidhai';
 update public.fish_species set baits = '{virmalislant,haldjatolm}', times = '{öö}', max_len = 420, max_age = 600, real = false, element = 'jää', arch = 'salmon', body = 'haug', wx_tags = '{pred}' where id = 'virmalislohe';
 
@@ -2415,6 +2415,10 @@ begin
     if f.level >= 20 and public.fx_wev(now()) ->> 'kind' = 'valitseja' and public.fx_wev(now()) ->> 'phase' = 'on' and random() < 0.03 then
       -- Sügavuste Valitseja võib näkata igas püügikohas, kui ta on ärganud
       select * into s from fish_species where id = 'sygavvalitseja'; evb := true;
+    elsif f.level >= 46 and p_spot = any(array['meri','saarestik','avameri']) and (wthr = 'torm' or wpre)
+        and random() < (case when wthr = 'torm' then 0.05 else 0.025 end) * (case when p_bait = 'virmalislant' then 2 else 1 end) then
+      -- Tormituur tõuseb tormiga (ja tormi eel) – Virmalislandiga kaks korda sagedamini
+      select * into s from fish_species where id = 'tormituur'; evb := true;
     elsif ev = 'hai' and p_spot = any(array['meri','saarestik','avameri','sugavik']) and random() < 0.12 then
       select * into s from fish_species where id = case when p_spot <> 'meri' and f.level >= 20 and random() < 0.22 then 'heeringahai' else 'ogahai' end;
       if s.min_level > f.level then s := null; end if;

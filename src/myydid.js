@@ -2,7 +2,7 @@
    Müütilised kalad: 10 uut liiki ja nende eriefektid (look.fx).
    Efekt joonistatakse kala peale igal pool, kus kala on näha (püük, saak, kalaraamat, kaardid).
    ===================================================================== */
-Object.assign(SP_ARCH, { tormituur: 'sturgeon', hiidhai: 'tuna', virmalislohe: 'salmon', aikeseangerjas: 'eel', kristallangerjas: 'eel', vikerkaarekuningas: 'salmon', kummitusforell: 'salmon', rubiinahven: 'perch', kuldnesaga: 'catfish', tahehaug: 'pike', myrgikuningas: 'monster', ajakala: 'angel', merihunt: 'monster' });
+Object.assign(SP_ARCH, { hiidhai: 'tuna', virmalislohe: 'salmon', aikeseangerjas: 'eel', kristallangerjas: 'eel', vikerkaarekuningas: 'salmon', kummitusforell: 'salmon', rubiinahven: 'perch', kuldnesaga: 'catfish', tahehaug: 'pike', myrgikuningas: 'monster', ajakala: 'angel', merihunt: 'monster' });
 Object.assign(GHOST, { kummitusforell: 1 });
 Object.assign(KI, {
   aikeseangerjas: ['Anguilla fulminans', 'Äikeseangerjas tõuseb sügavusest ainult äikese ajal. Tema keha on täis elektrit ja sinised sädemed käivad üle naha.', ['Püütav ainult tormiga.', 'Tema lähedal õngenöör sumiseb.', 'Iga välgulöök teeb ta tugevamaks.', 'Tõmbab ligi teisi välgukalu.'], 1],
