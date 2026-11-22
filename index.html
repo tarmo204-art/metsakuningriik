@@ -13862,6 +13862,17 @@ function ktTools() {
     </div>
     <div class="fv-card" style="margin-top:12px"><h2>📈 Oskuse tasemed</h2><div class="kt-ws">${KT_PERKS.map(([l, t]) => `<div class="${P.lvl >= l ? 'on' : ''}"><b>${l}</b><span>${esc(t)}</span></div>`).join('')}</div></div>`;
 }
+function ktDaily() {
+  const D = KTK.d.daily; if (!D || !D.list) return '';
+  const now = new Date(), mid = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' })), left = (24 * 3600 - (mid.getHours() * 3600 + mid.getMinutes() * 60 + mid.getSeconds())) * 1000;
+  const n = D.list.filter(q => q.claimed).length;
+  return `<div class="fv-card kt-daily"><h2>📅 Tänased ülesanded</h2><p class="lead">Iga päev 3 uut ülesannet. Uued tulevad <b>${Math.floor(left / 3600000)} h ${Math.floor(left % 3600000 / 60000)} min</b> pärast. Kõigi kolme täitmisel saad lisaks päeva boonuse ${D.bonus ? '<b>✓ kätte saadud</b>' : `(${n}/3)`}.</p>
+  <div class="kt-grid">${D.list.map(q => { const done = q.have >= q.goal, p = Math.min(100, q.have / q.goal * 100);
+    return `<div class="kt-card kt-q ${q.claimed ? 'done' : ''}"><h3 style="margin:0">${q.claimed ? '✓ ' : ''}${esc(q.name)}</h3><small class="lead">${esc(q.descr)}</small>
+      <div class="kt-bar"><i style="width:${p.toFixed(1)}%"></i></div><small class="lead">${Math.min(q.have, q.goal)}/${q.goal}</small>
+      <div class="kt-chips"><span class="kt-chip ok">🪙 ${fmt(q.gold)}</span><span class="kt-chip ok">✨ ${q.xp}</span><span class="kt-chip ok">⭐ ${q.rep}</span></div>
+      ${q.claimed ? '' : `<button class="btn sm" type="button" data-kt="dquest" data-arg="${q.id}" ${!done || KTK.busy ? 'disabled' : ''}>${done ? '🎁 Võta preemia' : 'Pooleli'}</button>`}</div>` }).join('')}</div></div>`;
+}
 function ktQuests() {
   return `<div class="kt-grid">${KTK.d.quests.map(q => { const done = q.have >= q.goal, p = Math.min(100, q.have / q.goal * 100);
     return `<div class="kt-card kt-q ${q.claimed ? 'done' : ''}"><h3 style="margin:0">${q.claimed ? '✓ ' : ''}${esc(q.name)}</h3><small class="lead">${esc(q.descr)}</small>
@@ -13882,7 +13893,7 @@ function ktView() {
   else if (sub === 'lett') h += ktLett();
   else if (sub === 'ladu') h += `<div class="fv-card"><h2>📦 Ladu</h2><p class="lead">Kõik sinu materjalid ja tooted. Igal asjal on kasutus: retseptides, tööriistade täiustamisel, kõrtsi tellimustes või müügiks.</p>${ktLadu()}</div>`;
   else if (sub === 'tools') h += ktTools();
-  else if (sub === 'quest') h += `<div class="fv-card"><h2>📜 Kalatöötlemise ülesanded</h2><p class="lead">Ülesanded uuenevad ise sinu tegevuste põhjal.</p>${ktQuests()}</div>`;
+  else if (sub === 'quest') h += ktDaily() + `<div class="fv-card"><h2>📜 Suured ülesanded</h2><p class="lead">Ühekordsed suured eesmärgid – edenemine loeb kogu aja tegevusi.</p>${ktQuests()}</div>`;
   return h;
 }
 // Kalurimaja vahekaart: alammenüü + kas vana maja vaade või töökoja vaated
@@ -13984,6 +13995,7 @@ async function ktAct(a, arg) {
       toast(arg === 'ws' ? `🔨 Töökoda on nüüd ${d.proc.ws}. tasemel: ${KT_WS[d.proc.ws - 1]}` : '⬆ Tööriist täiustatud!', 'good', 'gold'); if (typeof sfx === 'function') sfx('build');
     } else if (a === 'sell1' || a === 'sellall') { const d = await rpc('proc_sell', { p_mat: arg, p_qty: a === 'sell1' ? 1 : ktHave(arg) }); ktSet(d); toast(`🪙 Müüdud: ${d.sold.qty} × ${ktMat(arg).name} – ${fmt(d.sold.gold)} kulda`, 'gold', 'gold') }
     else if (a === 'order') { const d = await rpc('proc_order', { p_idx: +arg }); ktSet(d); toast(`🍺 Tellimus täidetud! +${fmt(d.delivered.gold)} kulda, +${d.delivered.rep} mainet`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('chime') }
+    else if (a === 'dquest') { const d = await rpc('proc_daily_claim', { p_id: arg }); ktSet(d); toast(`🎁 ${d.dclaimed.name}: ${fmt(d.dclaimed.gold)} kulda!` + (d.dbonus ? ` Kõik 3 tehtud – päeva boonus: ${fmt(d.dbonus.gold)} kulda ja ${d.dbonus.qty} × ${(KTK.d.catalog.find(m => m.id === d.dbonus.mat) || {}).name || d.dbonus.mat}!` : ''), 'gold', 'gold'); if (typeof sfx === 'function') sfx('build') }
     else if (a === 'quest') { const d = await rpc('proc_quest', { p_q: arg }); ktSet(d); toast(`🎁 ${d.claimed.name}: preemia käes!`, 'gold', 'gold'); if (typeof sfx === 'function') sfx('build') }
     else if (a === 'feed' || a === 'feedall') { const d = await rpc('proc_feed', { p_qty: a === 'feed' ? 1 : ktHave('kalasupp') }); ktSet(d); toast(`🍲 Kuningriigi köök sai ${d.fed} toitu!`, 'good'); if (typeof claimInbox === 'function') claimInbox() }
     await refreshFS();
@@ -14026,7 +14038,7 @@ const KT_IMG = {};
   if (_t) {
     tabTellimus = function () {
       const h = _t.apply(this, arguments); if (!KTK.d) { if (!KTK.loading) ktLoad(true); return h }
-      const open = KTK.d.quests.filter(q => !q.claimed), ready = open.filter(q => q.have >= q.goal).length;
+      const open = KTK.d.quests.filter(q => !q.claimed).concat(((KTK.d.daily || {}).list || []).filter(q => !q.claimed)), ready = open.filter(q => q.have >= q.goal).length;
       return h + `<div class="fv-card"><h2>🔪 Kalatöötlemise ülesanded</h2><p class="lead">${open.length ? `Pooleli ${open.length} ülesannet${ready ? `, neist <b>${ready}</b> ootab preemiat` : ''}.` : 'Kõik kalatöötlemise ülesanded on tehtud!'}</p>
         <button class="btn sm" type="button" data-kt-go="quest">📜 Ava Kalurimaja ülesanded</button></div>`;
     };
@@ -14046,7 +14058,7 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-kt-g
   const _b = fvBadges;
   fvBadges = function () {
     const b = _b(); if (!KTK.d) return b;
-    const n = KTK.d.quests.filter(q => !q.claimed && q.have >= q.goal).length + (KTK.d.orders || []).filter(o => !o.done && ktHave(o.mat) >= o.qty).length;
+    const n = KTK.d.quests.filter(q => !q.claimed && q.have >= q.goal).length + ((KTK.d.daily || {}).list || []).filter(q => !q.claimed && q.have >= q.goal).length + (KTK.d.orders || []).filter(o => !o.done && ktHave(o.mat) >= o.qty).length;
     if (n) b.kalurimaja = (b.kalurimaja || 0) + n; return b;
   };
 }

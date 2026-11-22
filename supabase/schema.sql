@@ -1783,8 +1783,13 @@ create table if not exists public.fisher_proc_orders (
 create table if not exists public.fisher_proc_quests (
   user_id uuid not null references auth.users(id) on delete cascade, q text not null, at timestamptz not null default now(), primary key (user_id, q)
 );
+-- igapäevased kalatöötlemise ülesanded: 3 tükki päevas, edenemine = statistika muutus päeva algusest
+create table if not exists public.fisher_proc_daily (
+  user_id uuid not null references auth.users(id) on delete cascade, day date not null, base jsonb not null default '{}',
+  picks text[] not null default '{}', claimed text[] not null default '{}', primary key (user_id, day)
+);
 do $$ declare t text; begin
-  foreach t in array array['fish_mats','fish_recipes','fisher_mats','fisher_proc','fisher_proc_job','fisher_proc_orders','fisher_proc_quests'] loop
+  foreach t in array array['fish_mats','fish_recipes','fisher_mats','fisher_proc','fisher_proc_job','fisher_proc_orders','fisher_proc_quests','fisher_proc_daily'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
   end loop;
@@ -6757,8 +6762,15 @@ create or replace function public.fx_fresh(u uuid, c public.fish_catches) return
       * greatest(0, extract(epoch from now() - c.fresh_at) / 3600 - 24) / 24)) end $$;
 create or replace function public.fx_mat_add(u uuid, m text, q int) returns void language sql as $$
   insert into public.fisher_mats(user_id, mat, qty) values (u, m, q) on conflict (user_id, mat) do update set qty = public.fisher_mats.qty + q $$;
-create or replace function public.fx_proc_stat(u uuid, k text, n int) returns void language sql as $$
-  update public.fisher_proc set stats = jsonb_set(stats, array[k], to_jsonb(coalesce((stats ->> k)::int, 0) + n)) where user_id = u $$;
+drop function if exists public.fx_proc_stat(uuid, text, int);
+create or replace function public.fx_proc_stat(u uuid, k text, n int) returns void language plpgsql as $$
+begin
+  -- päeva ülesannete algseis salvestatakse enne esimest tänast tegevust
+  if not exists (select 1 from public.fisher_proc_daily where user_id = u and day = public.fx_today()) then
+    perform public.fx_proc_daily(u, (select p from public.fisher_proc p where p.user_id = u));
+  end if;
+  update public.fisher_proc set stats = jsonb_set(stats, array[k], to_jsonb(coalesce((stats ->> k)::int, 0) + n)) where user_id = u;
+end $$;
 -- puhastamiseks vajalikud klikid ühe kala kohta
 create or replace function public.fx_clean_clicks(w numeric, r int) returns int language sql immutable as $$
   select least(45, greatest(4, round(5 + sqrt(w) * 2.2 + r * 1.5)))::int $$;
@@ -6776,6 +6788,40 @@ create or replace function public.fx_proc_quests() returns jsonb language sql im
   {"id":"sada","name":"Sada kala laual","descr":"Puhasta kokku 100 kala.","stat":"cleaned","goal":100,"gold":3000,"xp":400,"rep":60},
   {"id":"tase10","name":"Kogenud töötleja","descr":"Jõua kalatöötlemise 10. tasemele.","stat":"_lvl","goal":10,"gold":2500,"xp":0,"rep":50}
 ]'::jsonb $$;
+-- igapäevaste ülesannete valik (goal ja preemia kasvavad töökoja tasemega; %s = eesmärk)
+create or replace function public.fx_proc_daily_pool() returns jsonb language sql immutable as $$ select '[
+  {"id":"puhasta","name":"Päeva puhastus","descr":"Puhasta täna %s kala.","stat":"cleaned","goal":8,"ws":1,"gold":250,"xp":50,"rep":6},
+  {"id":"ahven","name":"Ahvenapäev","descr":"Valmista täna %s ahvenafileed.","stat":"filee_ahven","goal":5,"ws":1,"gold":200,"xp":40,"rep":5},
+  {"id":"konks","name":"Konksutund","descr":"Meisterda täna %s luukonksu.","stat":"luukonks","goal":3,"ws":1,"gold":300,"xp":60,"rep":6},
+  {"id":"kaunistus","name":"Soomuskunst","descr":"Meisterda täna %s soomuskaunistust.","stat":"soomuskaunistus","goal":2,"ws":1,"gold":300,"xp":60,"rep":6},
+  {"id":"rare","name":"Haruldus laual","descr":"Töötle täna üks haruldane kala.","stat":"rare","goal":1,"fixed":true,"ws":1,"gold":600,"xp":100,"rep":12},
+  {"id":"partner","name":"Partnerite päev","descr":"Täida täna %s äripartneri tellimust.","stat":"biz_done","goal":2,"fixed":true,"ws":1,"gold":500,"xp":90,"rep":10},
+  {"id":"meister","name":"Meistri puudutus","descr":"Puhasta täna üks kala meisterliku kvaliteediga.","stat":"q4","goal":1,"fixed":true,"ws":2,"gold":500,"xp":90,"rep":10},
+  {"id":"filee","name":"Fileetarne","descr":"Anna täna partneritele %s fileed.","stat":"order_filee","goal":8,"ws":2,"gold":450,"xp":80,"rep":9},
+  {"id":"suits","name":"Suitsupäev","descr":"Valmista täna %s suitsukala.","stat":"suitsukala","goal":4,"ws":3,"gold":400,"xp":80,"rep":8},
+  {"id":"supp","name":"Supipott","descr":"Keeda täna %s kalasuppi.","stat":"kalasupp","goal":3,"ws":3,"gold":400,"xp":80,"rep":8},
+  {"id":"soot","name":"Söödakeetja","descr":"Valmista täna %s kalasööta.","stat":"kalasoot","goal":8,"ws":4,"gold":350,"xp":70,"rep":7}
+]'::jsonb $$;
+create or replace function public.fx_proc_daily(u uuid, p public.fisher_proc) returns jsonb language plpgsql as $$
+declare d fisher_proc_daily; lv int := greatest(1, coalesce(p.ws, 1)); m numeric; g numeric;
+begin
+  select * into d from fisher_proc_daily where user_id = u and day = fx_today();
+  if d.user_id is null then
+    insert into fisher_proc_daily(user_id, day, base, picks)
+      values (u, fx_today(), coalesce(p.stats, '{}'), (select array_agg(x ->> 'id') from (select x from jsonb_array_elements(fx_proc_daily_pool()) x where (x ->> 'ws')::int <= lv order by random() limit 3) z))
+      on conflict do nothing;
+    select * into d from fisher_proc_daily where user_id = u and day = fx_today();
+  end if;
+  m := 1 + 0.25 * (lv - 1); g := 1 + 0.3 * (lv - 1);
+  return jsonb_build_object('day', d.day, 'bonus', cardinality(d.claimed) >= 3, 'list', (select jsonb_agg(jsonb_build_object(
+      'id', x ->> 'id', 'name', x ->> 'name',
+      'goal', case when (x ->> 'fixed')::boolean then (x ->> 'goal')::int else ceil((x ->> 'goal')::int * m)::int end,
+      'descr', replace(x ->> 'descr', '%s', (case when (x ->> 'fixed')::boolean then (x ->> 'goal')::int else ceil((x ->> 'goal')::int * m)::int end)::text),
+      'have', greatest(0, coalesce((p.stats ->> (x ->> 'stat'))::int, 0) - coalesce((d.base ->> (x ->> 'stat'))::int, 0)),
+      'gold', round((x ->> 'gold')::int * g), 'xp', round((x ->> 'xp')::int * g), 'rep', round((x ->> 'rep')::int * g),
+      'claimed', (x ->> 'id') = any(d.claimed)) order by array_position(d.picks, x ->> 'id'))
+    from jsonb_array_elements(fx_proc_daily_pool()) x where (x ->> 'id') = any(d.picks)));
+end $$;
 create or replace function public.fx_ws_cost(l int) returns jsonb language sql immutable as $$
   select (array['{}','{"gold":800,"wood":60,"stone":20}','{"gold":2000,"wood":120,"stone":60}','{"gold":3500,"wood":150,"stone":100}','{"gold":6000,"wood":200,"stone":150}','{"gold":12000,"wood":300,"stone":300}']::jsonb[])[l] $$;
 create or replace function public.fx_tool_cost(t text, l int) returns jsonb language sql immutable as $$
@@ -6819,6 +6865,7 @@ begin
     'fish', (select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'species', c.species, 'rarity', c.rarity, 'weight', c.weight, 'fresh', round(fx_fresh(u, c), 2),
         'age', c.age, 'len', c.length_cm, 'acls', c.age_cls, 'clicks', fx_clean_clicks(c.weight, c.rarity)) order by c.species, c.weight desc), '[]') from fish_catches c where c.user_id = u and c.status = 'kept'),
     'orders', (select coalesce(jsonb_agg(to_jsonb(o) - 'user_id' order by o.idx), '[]') from fisher_proc_orders o where o.user_id = u and o.day = fx_today()),
+    'daily', fx_proc_daily(u, p),
     'quests', (select jsonb_agg(qq || jsonb_build_object('have', case when qq ->> 'stat' = '_lvl' then lv else coalesce((p.stats ->> (qq ->> 'stat'))::int, 0) end,
         'claimed', exists (select 1 from fisher_proc_quests z where z.user_id = u and z.q = qq ->> 'id'))) from jsonb_array_elements(fx_proc_quests()) qq),
     'ws_cost', (select jsonb_agg(fx_ws_cost(l) order by l) from generate_series(1, 6) l),
@@ -7046,6 +7093,26 @@ begin
   update fisher_proc set xp = xp + (q ->> 'xp')::int, rep = rep + (q ->> 'rep')::int where user_id = u;
   for k in select jsonb_object_keys(coalesce(q -> 'mats', '{}')) loop perform fx_mat_add(u, k, (q -> 'mats' ->> k)::int); end loop;
   return proc_state() || jsonb_build_object('claimed', q);
+end $$;
+-- igapäevase ülesande preemia; kõigi kolme täitmisel lisaks päeva boonus
+create or replace function public.proc_daily_claim(p_id text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); p fisher_proc; dl jsonb; q jsonb; n int; bonus jsonb := null;
+begin
+  perform fx_fisher(u); p := fx_proc(u); dl := fx_proc_daily(u, p);
+  select x into q from jsonb_array_elements(dl -> 'list') x where x ->> 'id' = p_id;
+  if q is null then raise exception 'Seda ülesannet täna pole'; end if;
+  if (q ->> 'claimed')::boolean then raise exception 'Preemia on juba kätte saadud'; end if;
+  if (q ->> 'have')::int < (q ->> 'goal')::int then raise exception 'Ülesanne pole veel täidetud'; end if;
+  update fisher_proc_daily set claimed = claimed || p_id where user_id = u and day = fx_today() and not (p_id = any(claimed)) returning cardinality(claimed) into n;
+  if n is null then raise exception 'Preemia on juba kätte saadud'; end if;
+  update fishers set gold = gold + (q ->> 'gold')::int where user_id = u;
+  update fisher_proc set xp = xp + (q ->> 'xp')::int, rep = rep + (q ->> 'rep')::int where user_id = u;
+  if n >= 3 then
+    bonus := jsonb_build_object('gold', 300 + 200 * greatest(1, p.ws), 'mat', case when random() < 0.5 then 'kuldsoomus' else 'luukonks' end, 'qty', case when random() < 0.5 then 1 else 3 end);
+    update fishers set gold = gold + (bonus ->> 'gold')::int where user_id = u;
+    perform fx_mat_add(u, bonus ->> 'mat', (bonus ->> 'qty')::int);
+  end if;
+  return proc_state() || jsonb_build_object('dclaimed', q, 'dbonus', bonus);
 end $$;
 -- kalasupp kuningriigi kööki (toit)
 create or replace function public.proc_feed(p_qty int) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -7631,7 +7698,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
