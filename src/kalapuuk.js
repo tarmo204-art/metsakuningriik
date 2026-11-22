@@ -1633,6 +1633,7 @@ async function loadKT(silent) {
   try {
     const d = await rpc('fish_kalatund'); KT.off = new Date(d.now).getTime() - Date.now(); KT.at = Date.now();
     if (KT.wasActive === false && d.active) { toast('Kalatund algas! Tund aega ühist püüki: iga kala annab punkte ja teeb bossikalale kahju. Mine kalale!', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
+    if (KT.d && KT.d.boss && d.boss && !d.boss.killed_at && (KT.d.boss.stage || 1) < 2 && d.boss.stage === 2) toast(`Järvekoletis on alistatud${d.boss.killer1 ? ` (viimase löögi andis ${d.boss.killer1})` : ''} – aga ta tõusis uuesti, 1,5 korda tugevamana! Alistage ta teist korda!`, 'gold', 'fish');
     if (KT.d && KT.d.boss && d.boss && !KT.d.boss.killed_at && d.boss.killed_at) toast(`Bossikala on alistatud! Viimase löögi andis ${d.boss.killer}. Kõik, kes aitasid, saavad pärast Kalatundi auhinna.`, 'gold', 'fish');
     const same = KT.d && JSON.stringify({ ...d, now: 0 }) === JSON.stringify({ ...KT.d, now: 0 });
     KT.wasActive = d.active; KT.d = d; KT.same = same;
@@ -1666,8 +1667,8 @@ function ktPrizeView() {
   const L = KT.won || []; if (!L.length) return null;
   const medal = p => p === 1 ? '🥇 1. koht – Kalatunni meister' : p === 2 ? '🥈 2. koht – Hõbekalur' : p === 3 ? '🥉 3. koht – Pronkskalur' : `${p}. koht`;
   return `<h2>🏆 Kalatunni auhinnad</h2><div class="kt-intro">${L.map(p => `<div class="kt-ib"><b>Kalatund ${new Date(p.day).toLocaleDateString('et-EE', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-    <ul><li>Sinu lõplik punktisumma: <b>${fmt(p.pts)}</b></li><li>Paremusjärjestus: <b>${medal(p.place)}</b></li>${p.boss ? '<li>🐉 Järvekoletis alistati – said eriauhinna!</li>' : ''}</ul>
-    <p class="lead" style="margin-top:6px"><b>Teenitud preemiad:</b> 💰 ${fmt(p.gold)} kulda · ⭐ ${fmt(p.xp)} kogemust${(p.items || []).length ? ' · 💎 ' + esc(itemsTxt(p.items, true)) : ''}</p></div>`).join('')}</div>
+    <ul><li>Sinu lõplik punktisumma: <b>${fmt(p.pts)}</b></li><li>Paremusjärjestus: <b>${medal(p.place)}</b></li>${p.boss ? `<li>🐉 Järvekoletis alistati${p.kills === 2 ? ' <b>kaks korda</b>' : ''} – said eriauhinna! Sinu kahju koletisele: <b>${fmt(p.dmg || 0)}</b></li>` : ''}</ul>
+    <p class="lead" style="margin-top:6px"><b>Teenitud preemiad:</b> 💰 ${fmt(p.gold)} kulda · ⭐ ${fmt(p.xp)} kogemust${(p.items || []).length ? ' · 💎 ' + esc(itemsTxt(p.items, true)) : ''}${Object.entries(p.mats || {}).map(([k, q]) => ` · ${q} × ${k === 'kuldsoomus' ? 'kuldne soomus' : k === 'iidneluu' ? 'iidne luu' : k}`).join('')}${p.bait ? ` · ✨ ${p.bait} × haldjatolm` : ''}</p></div>`).join('')}</div>
     <div class="mbtns"><button class="btn" type="button" data-act="closeModal">🎁 Võtan vastu!</button></div>`;
 }
 function tabKalatund() {
@@ -1686,8 +1687,8 @@ function tabKalatund() {
     ${d.unclaimed ? `<div><button class="btn" type="button" data-fa="ktClaim">Võta Kalatunni auhinnad (${d.unclaimed})</button></div>` : ''}</div>`;
   if (b || d.active) {
     const hp = b ? b.hp : 1, mx = b ? b.max_hp : 1, pct = Math.max(0, Math.round(hp / mx * 100));
-    h += `<div class="fv-card"><div class="kt-boss ${b && b.killed_at ? 'dead' : ''}"><canvas id="ktBossCv" aria-label="Bossikala"></canvas><div class="bn">Järvekoletis ${b && b.killed_at ? '· alistatud!' : ''}</div>
-      <div class="kt-hp"><span><span>${b && b.killed_at ? `Viimase löögi andis ${esc(b.killer || '?')}` : 'Bossi elu'}</span><span>${fmt(hp)} / ${fmt(mx)}</span></span><div class="bar"><i style="width:${pct}%"></i></div></div></div>
+    h += `<div class="fv-card"><div class="kt-boss ${b && b.killed_at ? 'dead' : ''} ${b && b.stage === 2 ? 'st2' : ''}"><canvas id="ktBossCv" aria-label="Bossikala"></canvas><div class="bn">Järvekoletis ${b && b.killed_at ? '· alistatud kaks korda!' : b && b.stage === 2 ? '· tõusis uuesti, vihasemana!' : ''}</div>
+      <div class="kt-hp"><span><span>${b && b.killed_at ? `Viimase löögi andis ${esc(b.killer || '?')}` : `${b && b.stages === 2 ? `Koletis ${b.stage || 1}/2 · ` : ''}Bossi elu`}</span><span>${fmt(hp)} / ${fmt(mx)}</span></span><div class="bar"><i style="width:${pct}%"></i></div></div></div>
       <p class="lead" style="font-size:13px">Bossi elud sõltuvad sellest, mitu kalurit viimasel nädalal püüdis. Üksi on teda raske alistada, koos sõpradega palju lihtsam. ${d.players ? `Täna on osalenud ${d.players} kalurit.` : ''}</p></div>`;
   }
   h += `<div class="fv-card"><h2>${d.active ? '🔴 Edetabel otse' : '🏆 Tänane Kalatunni tulemus'}</h2>${d.top.length ? lbHtml({ who: 'Kalur', cols: ['Punkte', 'Kalu', 'Bossile'], main: 0, hideM: [2], podium: (!d.active || d.top.length >= 3) && !d.top.slice(0, 3).some(r => r.bot), rows: d.top.map(r => ({ place: r.bot ? '🎣' : r.place, name: r.name, sub: r.bot ? r.emoji + ' Järve kalur · ei võta preemiaid' : r.title, me: r.me, vals: [fmt(r.pts), r.fish, fmt(r.dmg)] })) }) : (d.active ? '<p class="lead">Keegi pole veel kala püüdnud. Ole esimene!</p>' : '<div class="kt-ib"><b>🎣 Täna pole Kalatundi veel toimunud!</b><p class="lead">Oota järgmist Kalatundi ja valmistu võitluseks parima kaluri tiitli nimel!</p></div>')}

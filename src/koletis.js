@@ -12,6 +12,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 @keyframes ktRage{50%{color:#ff7a5a;text-shadow:0 0 22px rgba(255,40,20,.95),0 2px 6px #000}}
 @media (max-width:520px){.kt-boss canvas{height:220px}}
 @media (prefers-reduced-motion:reduce){.kt-boss.rage .bn{animation:none}}
+.kt-boss.st2 #ktBossCv{filter:hue-rotate(-35deg) saturate(1.35) brightness(1.05)}.kt-stage{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:rgba(255,90,70,.25);border:1px solid rgba(255,120,100,.6);font-size:12px;font-weight:800}
 </style>`);
 
 const KO = { hits: [], last: null, hitT: -9, snow: null, fry: null };

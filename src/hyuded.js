@@ -220,6 +220,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
         if (+r.kt.pts > 0) list.push([`+${fmt(+r.kt.pts)} KALA-PUNKTI!`, 'punkt', 'Kalatund']);
         if (+r.kt.dmg >= 150) list.push(['SUUR TABAMUS!', 'tabamus', `−${fmt(+r.kt.dmg)} elu`]);
         else if (+r.kt.dmg > 0) list.push(['BOSSILE TEHTUD KAHJU!', 'kahju', `−${fmt(+r.kt.dmg)} elu`]);
+        if (r.kt.rise) list.push(['KOLETIS TÕUSIS UUESTI!', 'alistatud', 'Esimene alistatud – teine on 1,5× tugevam!']);
         if (r.kt.killed) { list.push(['KOLETIS ON ALISTATUD!', 'alistatud', 'Järvekoletis on alistatud!']); list.push(['KOGUKONDLIK VÕIT!', 'kogukond', 'Auhinnad saab Kalatunni vahekaardilt']) }
       }
     } else if (r.kind === 'chest' && +r.gold > 0) list.push([`+${fmt(+r.gold)} KULDA!`, 'kuld', 'Veealune aardekirst']);

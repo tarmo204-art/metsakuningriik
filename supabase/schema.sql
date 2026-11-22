@@ -1569,6 +1569,11 @@ create table if not exists public.bot_aq_likes (visitor uuid not null references
 create table if not exists public.kingdom_monument_bot (stage int not null, bot text not null, total int not null default 0, primary key (stage, bot));
 create table if not exists public.kalatund_bot_score (day date not null, bot text not null, pts int not null default 0, fish int not null default 0, dmg int not null default 0, primary key (day, bot));
 alter table public.kalatund_boss add column if not exists killer_bot text;
+-- Kalatunni koletis tuleb kaks korda: pärast esimest alistamist tõuseb ta uuesti (tugevamana)
+alter table public.kalatund_boss add column if not exists max_hp2 int;
+alter table public.kalatund_boss add column if not exists killed1_at timestamptz;
+alter table public.kalatund_boss add column if not exists killer1 uuid;
+alter table public.kalatund_boss add column if not exists killer1_bot text;
 alter table public.fish_market alter column seller drop not null;
 alter table public.fish_market alter column catch_id drop not null;
 alter table public.fish_market add column if not exists bot text;
@@ -3583,10 +3588,15 @@ $$ select (d::timestamp + make_interval(hours => fx_kt_hour())) at time zone 'Eu
 create or replace function public.fx_kt_dmg(d date) returns int language sql stable as $$
   select (coalesce((select sum(dmg) from public.kalatund_score where day = d), 0) + coalesce((select sum(dmg) from public.kalatund_bot_score where day = d), 0))::int $$;
 create or replace function public.fx_kt_get(d date) returns kalatund_boss language plpgsql stable as $$
-declare b kalatund_boss;
+declare b kalatund_boss; dm int;
 begin
   select * into b from kalatund_boss where day = d;
-  if b.day is not null then b.hp := case when b.killed_at is not null then 0 else greatest(0, b.max_hp - fx_kt_dmg(d)) end; end if;
+  if b.day is null then return b; end if;
+  dm := fx_kt_dmg(d);
+  if b.killed_at is not null then b.hp := 0; if b.max_hp2 is not null then b.max_hp := b.max_hp2; end if;
+  elsif b.max_hp2 is null or dm < b.max_hp then b.hp := greatest(0, b.max_hp - dm);       -- 1. koletis
+  else b.hp := greatest(0, b.max_hp + b.max_hp2 - dm); b.max_hp := b.max_hp2;              -- 2. koletis (tõusis uuesti)
+  end if;
   return b;
 end $$;
 create or replace function public.fx_kt_boss(d date) returns kalatund_boss language plpgsql as $$
@@ -3596,32 +3606,39 @@ begin
   if b.day is null then
     select count(distinct user_id) into n from fish_catches where caught_at > now() - interval '7 days' and not bought;
     n := 1000 + 600 * greatest(1, n) + 250 * (select count(*) from fish_bots);
-    insert into kalatund_boss(day, hp, max_hp) values (d, n, n) on conflict (day) do nothing;
+    insert into kalatund_boss(day, hp, max_hp, max_hp2) values (d, n, n, round(n * 1.5)) on conflict (day) do nothing;
   end if;
   return fx_kt_get(d);
 end $$;
 -- kutsutakse fish_land seest: lisab punktid ja teeb bossile kahju
 create or replace function public.fx_kt_add(u uuid, p_species text, p_rarity int, p_w numeric, p_giant boolean) returns jsonb language plpgsql as $$
-declare d date := fx_today(); w record; avgw numeric; v_pts int; b kalatund_boss; v_dmg int; killed boolean := false;
+declare d date := fx_today(); w record; avgw numeric; v_pts int; b kalatund_boss; v_dmg int; killed boolean := false; rise boolean := false;
 begin
   select * into w from fx_kt_win(d);
   if now() < w.p_from or now() >= w.p_to then return null; end if;
   select (min_w + max_w) / 2 into avgw from fish_species where id = p_species;
   v_pts := greatest(1, round((array[5,10,25,60,150,400])[least(6, greatest(1, p_rarity))] * (0.6 + 0.4 * least(3, p_w / greatest(avgw, 0.01))) * case when p_giant then 1.5 else 1 end));
   b := fx_kt_boss(d);
-  v_dmg := case when b.killed_at is null then greatest(0, least(b.hp, v_pts)) else 0 end;
+  -- kui koletis on lõplikult alistatud, siis punkte enam ei tule
+  if b.killed_at is not null then return null; end if;
+  v_dmg := greatest(0, least(b.hp, v_pts));
   insert into kalatund_score(day, user_id, pts, fish, dmg, best_rarity) values (d, u, v_pts, 1, v_dmg, p_rarity)
   on conflict (day, user_id) do update set pts = kalatund_score.pts + v_pts, fish = kalatund_score.fish + 1,
     dmg = kalatund_score.dmg + v_dmg, best_rarity = greatest(kalatund_score.best_rarity, p_rarity);
   if v_dmg > 0 and b.hp - v_dmg <= 0 then
     -- ainult üks saab viimase löögi (rida lukustatakse vaid sel ühel hetkel)
-    update kalatund_boss set killed_at = now(), killer = u, hp = 0 where day = d and killed_at is null;
-    if found then killed := true;
-      perform fx_news(u, 'boss', jsonb_build_object('day', d));
-      perform fx_news(u, 'boss_team', fx_boss_team(d));
+    if b.killed1_at is null and b.max_hp2 is not null and fx_kt_dmg(d) < b.max_hp + b.max_hp2 then
+      update kalatund_boss set killed1_at = now(), killer1 = u where day = d and killed1_at is null;
+      if found then rise := true; perform fx_news(u, 'boss', jsonb_build_object('day', d, 'stage', 1)); end if;
+    else
+      update kalatund_boss set killed_at = now(), killer = u, hp = 0, killed1_at = coalesce(killed1_at, now()), killer1 = coalesce(killer1, u) where day = d and killed_at is null;
+      if found then killed := true;
+        perform fx_news(u, 'boss', jsonb_build_object('day', d));
+        perform fx_news(u, 'boss_team', fx_boss_team(d));
+      end if;
     end if;
   end if;
-  return jsonb_build_object('pts', v_pts, 'dmg', v_dmg, 'hp', greatest(0, b.hp - v_dmg), 'max_hp', b.max_hp, 'killed', killed);
+  return jsonb_build_object('pts', v_pts, 'dmg', v_dmg, 'hp', greatest(0, b.hp - v_dmg), 'max_hp', b.max_hp, 'killed', killed, 'rise', rise);
 end $$;
 
 create or replace function public.fx_kt_top(d date, u uuid, lim int) returns jsonb language sql stable as $$
@@ -3651,6 +3668,9 @@ begin
   return jsonb_build_object('now', now(), 'active', act, 'start', w.p_from, 'end', w.p_to, 'next', nxt, 'hour', fx_kt_hour(),
     'top', fx_kt_top(d, u, 10), 'mine', mine, 'players', part + (select count(*) from kalatund_bot_score where day = d), 'unclaimed', unclaimed,
     'boss', case when b.day is null then null else jsonb_build_object('hp', b.hp, 'max_hp', b.max_hp, 'killed_at', b.killed_at,
+       'stage', case when b.killed_at is not null or b.killed1_at is not null or (b.max_hp2 is not null and fx_kt_dmg(d) >= (select max_hp from kalatund_boss where day = d)) then 2 else 1 end,
+       'stages', case when b.max_hp2 is null then 1 else 2 end, 'killed1_at', b.killed1_at,
+       'killer1', coalesce((select name from profiles where id = b.killer1), (select name from fish_bots where id = b.killer1_bot)),
        'killer', coalesce((select name from profiles where id = b.killer), (select name from fish_bots where id = b.killer_bot))) end,
     'yesterday', jsonb_build_object('top', (select coalesce(jsonb_agg(e) filter (where (e->>'place')::int <= 3), '[]') from jsonb_array_elements(fx_kt_top(d - 1, u, 3)) e),
        'boss', case when yb.day is null then null else jsonb_build_object('killed', yb.killed_at is not null, 'killer', coalesce((select name from profiles where id = yb.killer), (select name from fish_bots where id = yb.killer_bot))) end));
@@ -3658,7 +3678,7 @@ end $$;
 
 create or replace function public.fish_kt_claim() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); d date := fx_today(); w record; k record; pl int; b kalatund_boss; v_gold int; v_xp int; got jsonb := '[]';
-  levels int[] := '{}'; items jsonb; topdmg uuid; f fishers;
+  levels int[] := '{}'; items jsonb; topdmg uuid; f fishers; mats jsonb; nbait int; kills int;
 begin
   select * into f from fx_fisher(u);
   select * into w from fx_kt_win(d);
@@ -3669,11 +3689,24 @@ begin
     select place into pl from (select user_id, row_number() over (order by pts desc, fish desc, user_id) as place from kalatund_score where day = k.day) x where x.user_id = u;
     v_gold := 100 + case pl when 1 then 1500 when 2 then 800 when 3 then 400 else 0 end;
     v_xp := 60 + case pl when 1 then 500 when 2 then 250 when 3 then 120 else 0 end;
-    items := '[]';
+    items := '[]'; mats := '{}'; nbait := 0; kills := 0;
     select * into b from kalatund_boss where day = k.day;
-    if b.killed_at is not null and k.dmg > 0 then
-      v_gold := v_gold + 300 + f.level * 10; v_xp := v_xp + 200;
+    if (b.killed_at is not null or b.killed1_at is not null) and k.dmg > 0 then
+      -- Järvekoletis on kord päevas – alistamine annab suure auhinna
+      kills := case when b.max_hp2 is null then 1 when b.killed_at is not null then 2 else 1 end;
+      v_gold := v_gold + 800 + f.level * 25; v_xp := v_xp + 400;
       items := fx_give_random(u, 4, 1);
+      perform fx_mat_add(u, 'kuldsoomus', 2); mats := jsonb_build_object('kuldsoomus', 2); nbait := 5;
+      if kills = 2 then -- teine, tugevam koletis ka alistatud
+        v_gold := v_gold + 1500 + f.level * 40; v_xp := v_xp + 700;
+        items := items || fx_give_random(u, 5, 1);
+        perform fx_mat_add(u, 'kuldsoomus', 3); perform fx_mat_add(u, 'iidneluu', 1); mats := jsonb_build_object('kuldsoomus', 5, 'iidneluu', 1); nbait := 10;
+      end if;
+      -- viimase löögi andja saab lisaks
+      if b.killer = u or b.killer1 = u then v_gold := v_gold + 500; end if;
+      -- kahju järgi: mida rohkem koletist lõid, seda rohkem kulda (kuni +1500)
+      v_gold := v_gold + least(1500, k.dmg);
+      update fishers set baits = jsonb_set(baits, '{haldjatolm}', to_jsonb(coalesce((baits ->> 'haldjatolm')::int, 0) + nbait)) where user_id = u;
       select user_id into topdmg from kalatund_score where day = k.day order by dmg desc, pts desc limit 1;
       if topdmg = u then update fishers set titles = case when not ('Bossikala alistaja' = any(titles)) then titles || 'Bossikala alistaja'::text else titles end where user_id = u; end if;
     end if;
@@ -3681,7 +3714,7 @@ begin
       titles = case when pl = 1 and not ('Kalatunni kuningas' = any(titles)) then titles || 'Kalatunni kuningas'::text else titles end where user_id = u;
     if pl = 1 then perform fx_news(u, 'kalatund', jsonb_build_object('day', k.day, 'pts', k.pts)); end if;
     levels := levels || fx_add_xp(u, v_xp);
-    got := got || jsonb_build_object('day', k.day, 'place', pl, 'pts', k.pts, 'gold', v_gold, 'xp', v_xp, 'boss', b.killed_at is not null and k.dmg > 0, 'items', items);
+    got := got || jsonb_build_object('day', k.day, 'place', pl, 'pts', k.pts, 'gold', v_gold, 'xp', v_xp, 'boss', kills > 0, 'kills', kills, 'items', items, 'mats', mats, 'bait', nbait, 'dmg', k.dmg);
   end loop;
   return jsonb_build_object('prizes', got, 'levels', to_jsonb(levels), 'ach', fx_check_ach(u));
 end $$;
@@ -6307,12 +6340,17 @@ begin
   select (min_w + max_w) / 2 into avgw from public.fish_species where id = p_species;
   v_pts := greatest(1, round((array[5,10,25,60,150,400])[least(6, greatest(1, p_rarity))] * (0.6 + 0.4 * least(3, p_w / greatest(coalesce(avgw, 1), 0.01)))));
   b := public.fx_kt_boss(d);
-  v_dmg := case when b.killed_at is null then greatest(0, least(b.hp, v_pts)) else 0 end;
+  if b.killed_at is not null then return; end if;
+  v_dmg := greatest(0, least(b.hp, v_pts));
   insert into public.kalatund_bot_score(day, bot, pts, fish, dmg) values (d, p_bot, v_pts, 1, v_dmg)
   on conflict (day, bot) do update set pts = kalatund_bot_score.pts + v_pts, fish = kalatund_bot_score.fish + 1, dmg = kalatund_bot_score.dmg + v_dmg;
   if v_dmg > 0 and b.hp - v_dmg <= 0 then
-    update public.kalatund_boss set killed_at = now(), killer = null, killer_bot = p_bot, hp = 0 where day = d and killed_at is null;
-    if found then insert into public.fish_news(at, user_id, bot, kind, data) values (now(), null, p_bot, 'boss_team', public.fx_boss_team(d)); end if;
+    if b.killed1_at is null and b.max_hp2 is not null and public.fx_kt_dmg(d) < b.max_hp + b.max_hp2 then
+      update public.kalatund_boss set killed1_at = now(), killer1_bot = p_bot where day = d and killed1_at is null;
+    else
+      update public.kalatund_boss set killed_at = now(), killer = null, killer_bot = p_bot, hp = 0, killed1_at = coalesce(killed1_at, now()) where day = d and killed_at is null;
+      if found then insert into public.fish_news(at, user_id, bot, kind, data) values (now(), null, p_bot, 'boss_team', public.fx_boss_team(d)); end if;
+    end if;
   end if;
 end $$;
 -- tegelaste elu väljaspool vett (kord tiksu kohta): kuningriigid kasvavad, turul müüakse ja ostetakse, monumenti ehitatakse
