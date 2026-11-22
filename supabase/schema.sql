@@ -1368,6 +1368,27 @@ update public.fish_species set rarity = 6, real = false, price = 1600, xp = 900,
   baits = '{valgus,haldjatolm,kuldvobler}', times = '{öö}', max_len = 240, max_age = 80, element = 'pimedus', g_k = 0.04, g_linf = null, g_cls = null
 where id = 'merikurat';
 
+-- ---------------------------------------------------------------------
+-- 2z5e. Virmaliste õnge jaoks: raskemad kalad (üle 500 kg) ja uus lant Virmalislant
+--   Nende raskeimad isendid murravad nõrgema õnge – vaja on Virmaliste õnge (tugevus 900).
+-- ---------------------------------------------------------------------
+insert into public.fish_baits (id,name,price,min_level,wait_mult,rarity_bonus,consumable,descr,sort) values
+ ('virmalislant','Virmalislant',60000,48,0.62,0.26,false,'Virmaliste värvides helkiv lusiklant, mis ei kulu kunagi. Võtavad ainult röövkalad – ja põhjamere hiiglased.',10)
+on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, wait_mult=excluded.wait_mult,
+  rarity_bonus=excluded.rarity_bonus, consumable=excluded.consumable, descr=excluded.descr, sort=excluded.sort;
+insert into public.fish_species (id,name,rarity,min_w,max_w,price,xp,spots,min_level,night_only,winter_only,difficulty,look,descr,sort,weather) values
+ ('tormituur','Tormituur',5,120,650,3200,1600,'{meri,saarestik}',46,false,false,10,'{"s":"l","c":["#4a5a64","#1a2228","#c8d4d8","#6a7a84"],"sp":1}',
+  'Iidne hiidtuur, kes tõuseb põhjast ainult tormi eel. Tema luukilbid on kõvad nagu kivi.',121,null),
+ ('hiidhai','Hiidhai',6,180,850,5200,2700,'{avameri,sugavik}',48,false,false,10,'{"s":"l","c":["#5a6a78","#1c242e","#e6ecf0","#3a4a58"]}',
+  'Ürgne hiidhai, kelle hambad on peopesa suurused. Arvati ammu väljasurnuks.',122,null),
+ ('virmalislohe','Virmalislõhe',6,140,720,4800,2500,'{jaa,salajane}',50,false,false,10,'{"s":"l","c":["#1a5a6a","#0a1e2a","#c8fff0","#8a6aff"],"g":"#7affc8","sp":1}',
+  'Müütiline põhjala lõhe, kelle soomustel peegelduvad virmalised. Ujub välja vaid tähistaeva all.',123,null)
+on conflict (id) do update set name=excluded.name, rarity=excluded.rarity, min_w=excluded.min_w, max_w=excluded.max_w, price=excluded.price, xp=excluded.xp,
+  spots=excluded.spots, min_level=excluded.min_level, difficulty=excluded.difficulty, look=excluded.look, descr=excluded.descr, sort=excluded.sort;
+update public.fish_species set baits = '{virmalislant,krevett}', times = '{öö,hommik}', max_len = 650, max_age = 150, real = false, element = 'vesi', arch = 'sturgeon', body = 'haug', wx_tags = '{}' where id = 'tormituur';
+update public.fish_species set baits = '{virmalislant,draakonilant}', times = '{öö,õhtu,hommik,päev}', max_len = 1600, max_age = 400, real = false, element = 'vesi', arch = 'tuna', body = 'haug', wx_tags = '{pred}' where id = 'hiidhai';
+update public.fish_species set baits = '{virmalislant,haldjatolm}', times = '{öö}', max_len = 420, max_age = 600, real = false, element = 'jää', arch = 'salmon', body = 'haug', wx_tags = '{pred}' where id = 'virmalislohe';
+
 -- lantide kirjeldused: lanti võtavad ainult röövkalad
 update public.fish_baits set descr = v.d from (values
   ('hobelant','Peibutis, mis ei kulu. Võtavad ainult röövkalad (haug, ahven, koha, forell…).'),
@@ -2411,16 +2432,15 @@ begin
       for i in 1..6 loop acc := acc + w[i]; if roll <= acc then rar := i; exit; end if; rar := i; end loop;
       -- Lant (hõbelant, kuldvobler, draakonilant, soomuslant) võtavad AINULT röövkalad: kala, kelle söötade hulgas
       -- on lant või kes on röövkala. Rahulikud kalad (latikas, karpkala, särg…) lanti ei võta.
-      lure := p_bait = any(array['hobelant','kuldvobler','draakonilant','soomuslant']);
+      lure := p_bait = any(array['hobelant','kuldvobler','draakonilant','soomuslant','virmalislant']);
       if s.id is null and lure then
-        rr := rar;
-        while rr >= 1 loop
+        -- otsi alates veeretatud haruldusest allapoole; kui seal lanti võtvat kala pole (nt avamerel pole tavalisi röövkalu), siis ülespoole
+        foreach rr in array (array(select generate_series(rar, 1, -1)) || array(select generate_series(rar + 1, 6))) loop
           select * into s from fish_species fs where fs.rarity = rr and p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null
             and (not fs.night_only or night) and (not fs.winter_only or winter or p_spot = 'jaa')
-            and (fs.weather is null or wthr = any(fs.weather)) and (fs.baits && array['hobelant','kuldvobler','draakonilant','soomuslant'] or 'pred' = any(fs.wx_tags))
+            and (fs.weather is null or wthr = any(fs.weather)) and (fs.baits && array['hobelant','kuldvobler','draakonilant','soomuslant','virmalislant'] or 'pred' = any(fs.wx_tags))
             order by -ln(greatest(random(), 1e-9)) / ((case when p_bait = any(fs.baits) then 4 else 1 end) * (case when dp = any(fs.times) then 2.5 else 1 end) * fx_season_k(fs.season) * fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) limit 1;
           exit when s.id is not null;
-          rr := rr - 1;
         end loop;
         if s.id is null then raise exception 'Siin ei võta praegu ükski kala lanti – proovi elussööta (vihmauss, vagel, mais)'; end if;
       end if;

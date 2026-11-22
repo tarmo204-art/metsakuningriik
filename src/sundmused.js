@@ -101,7 +101,7 @@ function drawShark(c, L, t, big) {
 }
 {
   const baseFishRealE = drawFishReal;
-  drawFishReal = function (c, L, look, t, sid) { if (sid === 'ogahai' || sid === 'heeringahai') return drawShark(c, L, t, sid === 'heeringahai'); return baseFishRealE(c, L, look, t, sid) };
+  drawFishReal = function (c, L, look, t, sid) { if (sid === 'ogahai' || sid === 'heeringahai' || sid === 'hiidhai') return drawShark(c, L, t, sid !== 'ogahai'); return baseFishRealE(c, L, look, t, sid) };
 }
 
 /* ---------- sündmuse stseen ---------- */

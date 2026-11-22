@@ -278,6 +278,27 @@ function drawBaitReal(c, S, id, t) {
       for (let i = 0; i < 5; i++) { const k = (t * .5 + i / 5) % 1; c.fillStyle = `rgba(255,${150 + i * 15},60,${(1 - k).toFixed(2)})`; c.beginPath(); c.arc(-r * .6 + i * r * .32 + Math.sin(t + i) * r * .05, -r * .4 - k * r * .7, r * .035 * (1 - k * .5), 0, 6.283); c.fill() }
       break;
     }
+    /* ---------- virmalislant (virmaliste värvides lusiklant) ---------- */
+    case 'virmalislant': {
+      glowAt(c, 0, 0, r * 1.5, '#7affc8', .3 + Math.sin(t * 2) * .1);
+      sbShadow(c, r * .05, r * .6, r * .8, r * .16);
+      c.rotate(-.35 + Math.sin(t * 2.4) * .12);
+      sbSwivel(c, 0, -r * .72, r * .9, S);
+      const sp = () => { c.beginPath(); c.moveTo(0, -r * .62); c.bezierCurveTo(r * .42, -r * .55, r * .5, r * .25, 0, r * .62); c.bezierCurveTo(-r * .5, r * .25, -r * .42, -r * .55, 0, -r * .62); c.closePath() };
+      sp(); const sh = t * .35, g = c.createLinearGradient(-r * .5, -r * .6, r * .5, r * .6);
+      ['#1affb0', '#2ad8ff', '#8a6aff', '#ff6ad8', '#1affb0'].forEach((col, i) => g.addColorStop((i / 4 + sh) % 1, col)); c.fillStyle = g; c.fill();
+      c.save(); sp(); c.clip();
+      // virmaliste vöödid
+      for (let i = 0; i < 4; i++) { c.strokeStyle = `rgba(255,255,255,${.18 + .12 * Math.sin(t * 3 + i)})`; c.lineWidth = sbW(S, .02); c.beginPath(); for (let k = 0; k <= 12; k++) { const x = -r * .5 + k * r / 12, y = -r * .35 + i * r * .25 + Math.sin(k * .7 + t * 2 + i) * r * .06; k ? c.lineTo(x, y) : c.moveTo(x, y) } c.stroke() }
+      c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.ellipse(-r * .14, -r * .22, r * .08, r * .3, .25, 0, 6.283); c.fill();
+      c.restore();
+      sp(); c.strokeStyle = 'rgba(10,40,50,.65)'; c.lineWidth = sbW(S, .01); c.stroke();
+      // tähesädemed
+      for (let i = 0; i < 4; i++) { const k = (t * .6 + i / 4) % 1, x = Math.sin(i * 2.1 + t) * r * .55, y = -r * .5 + k * r * 1.1; c.fillStyle = `rgba(200,255,240,${(1 - k).toFixed(2)})`; c.beginPath(); c.arc(x, y, r * .035, 0, 6.283); c.fill() }
+      sbRing(c, 0, r * .66, r * .06, S);
+      sbTreble(c, 0, r * .72, r * .5, S);
+      break;
+    }
     default: circ(c, 0, 0, r * .5, '#aaa');
   }
   c.restore();
