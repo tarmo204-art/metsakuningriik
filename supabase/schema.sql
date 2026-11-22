@@ -390,7 +390,8 @@ insert into public.fish_rods (id,name,price,min_level,strength,catch_bonus,reel_
  ('maagiline','Maagiline õng',12500,28,85,0.16,0.12,7),
  ('draakon','Draakoniõng',23000,34,140,0.20,0.14,8),
  ('legend','Legendaarne õng',42000,41,260,0.25,0.16,9),
- ('muutiline','Müütiline õng',80000,48,500,0.32,0.19,10)
+ ('muutiline','Müütiline õng',80000,48,500,0.32,0.19,10),
+ ('virmalised','Virmaliste õng',150000,50,900,0.38,0.22,11)
 on conflict (id) do update set name=excluded.name, price=excluded.price, min_level=excluded.min_level, strength=excluded.strength,
   catch_bonus=excluded.catch_bonus, reel_bonus=excluded.reel_bonus, sort=excluded.sort;
 
