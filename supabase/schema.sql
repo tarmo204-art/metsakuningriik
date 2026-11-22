@@ -1359,6 +1359,15 @@ update public.fish_species set baits = '{valgus,haldjatolm,kuldvobler}', times =
   element = 'vesi', arch = 'eel', body = 'angerjas' where id = 'sygavvalitseja';
 
 -- ---------------------------------------------------------------------
+-- 2z5d. Merikurat on nüüd müütiline süvamere-kuningas (uus välimus, harvem ja väärtuslikum)
+-- ---------------------------------------------------------------------
+update public.fish_species set rarity = 6, real = false, price = 1600, xp = 900, min_w = 8, max_w = 60, difficulty = 10,
+  look = '{"s":"d","c":["#3b1f5e","#09050f","#c9a8ff","#1c0f2e"],"g":"#7cf0ff","fx":"angler2"}',
+  descr = 'Müütiline süvamere-kuningas: kolm helendavat latrit, hõõguvad praod kehal ja klaasjad hambad. Jahib ainult öösel Sügavikus.',
+  baits = '{valgus,haldjatolm,kuldvobler}', times = '{öö}', max_len = 240, max_age = 80, element = 'pimedus', g_k = 0.04, g_linf = null, g_cls = null
+where id = 'merikurat';
+
+-- ---------------------------------------------------------------------
 -- 2z6. Kala vanus: liigipõhine kasvumudel (von Bertalanffy) ja iga kala individuaalne vanus
 --   Igal liigil on oma kasvumudel fish_species veergudes (g_*). Tühjad väärtused täidetakse
 --   liigi andmete põhjal (max_len, max_age); päris kaladel on kalateaduse põhised väärtused.
