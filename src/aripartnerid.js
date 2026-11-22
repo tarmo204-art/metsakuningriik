@@ -44,6 +44,31 @@ function bzWant(o) {
   const kind = w.type === 'mat' ? (['filee', 'filee_hea'].includes(w.mat) ? 'Fileeritud kala' : 'Töödeldud kaup') : w.type === 'hybrid' ? 'Muteerunud kala' : w.type === 'item' ? 'Aare (Sadama retkedelt ja varahoidlast)' : w.type === 'smoked' ? 'Suitsukala' : 'Toorkala';
   return { pic, name, chips, kind };
 }
+// kui sobivat kala pole: kus, millise sööda ja millal seda püüda saab + nupp otse püügikohta
+function bzSpotOk(id) { const S2 = FD.spot[id]; if (!S2 || !FS) return false; return FS.level >= S2.min_level && (!S2.boat || (FS.boats || []).includes(S2.boat)) && !(typeof licMiss === 'function' && licMiss(id)) && !(id === 'udulaht' && !(FS.cabin || []).includes('sild')) }
+function bzHint(o, need) {
+  const w = o.want || {}; if (o.have >= need || w.type !== 'fish' || !w.species || !FD.sp[w.species]) return '';
+  const sp = FD.sp[w.species], spots = (sp.spots || []).filter(id => FD.spot[id]), ok = spots.filter(bzSpotOk), lock = spots.filter(id => !bzSpotOk(id));
+  const haveB = b => { const B = FD.bait[b]; return B && (!B.consumable || ((FS.baits || {})[b] || 0) > 0) };
+  const bait = (sp.baits || []).find(haveB) || (sp.baits || [])[0], B = bait && FD.bait[bait], rod = FD.rod[FS.rod];
+  const lines = [];
+  lines.push(`📍 <b>${ok.length ? ok.map(id => esc(FD.spot[id].name)).join(', ') : 'Sul pole veel ligipääsu'}</b>${lock.length ? ` <small>(lukus: ${lock.map(id => esc(FD.spot[id].name) + ' ' + FD.spot[id].min_level + '. tase').join(', ')})</small>` : ''}`);
+  if (B) lines.push(`🪱 Sööt: <b>${esc(B.name)}</b>${haveB(bait) ? (B.consumable ? ` (sul on ${fmt(FS.baits[bait])})` : '') : ' – <span class="no">osta Poest</span>'}`);
+  if (sp.night_only) lines.push('🌙 Ainult öösel'); else if (sp.times && sp.times.length && sp.times.length < 4) lines.push(`🕐 Parim aeg: ${sp.times.join(', ')}`);
+  if (sp.weather && sp.weather.length) lines.push(`🌦 Ilm: ${[].concat(sp.weather).join(', ')}`);
+  if (sp.winter_only) lines.push('❄ Ainult talvel');
+  if (w.minw && rod && +w.minw > +rod.strength) lines.push(`🎣 Vaja tugevamat õnge: kala kaalub üle ${fmt1(+w.minw)} kg, sinu õng kannab ${fmt1(+rod.strength)} kg`);
+  return `<div class="bz-hint"><b>Sul pole seda kala – mine püüa!</b>${lines.map(l => `<div>${l}</div>`).join('')}${ok.length ? `<button class="btn sm" type="button" data-bzgo="${ok[0]}|${haveB(bait) ? bait : ''}">🎣 Mine püüdma (${esc(FD.spot[ok[0]].name)})</button>` : ''}</div>`;
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-bzgo]'); if (!b) return;
+  const [spot, bait] = b.dataset.bzgo.split('|');
+  FV.tab = 'puuk'; FV.spot = spot; FV.result = null; FV.phase = 'idle'; FV.msg = '';
+  if (bait && FS.bait !== bait) { try { await fShop('equip_bait', bait) } catch (er) { } }
+  renderFV(true); FV.oddsKey = ''; await loadOdds(); renderFV(true);
+  const sc = document.getElementById('fishView'); if (sc) sc.scrollTop = 0;
+  toast(`🎣 ${FD.spot[spot].name}: püügikoht valitud${bait ? ', sööt vahetatud' : ''}. Head püüki!`, 'good');
+});
 function bzCard(o) {
   const C = bzComp(o.company), W = bzWant(o), need = o.qty - o.progress, ok = o.have >= need || (o.kind === 'contract' && o.have > 0), act = o.status === 'active';
   const ev = o.event && BZ_EV[o.event], timer = act ? o.deadline : o.offer_until, short = Date.parse(timer) - Date.now() < 30 * 60000;
@@ -52,6 +77,7 @@ function bzCard(o) {
     <div class="bz-want"><div class="bz-pic">${W.pic}</div><div><b>${fmt(o.qty)} × ${esc(W.name)}</b><small>${W.kind}</small><div class="kt-chips">${W.chips.map(c => `<span class="kt-chip">${c}</span>`).join('')}</div></div></div>
     <div class="bz-have ${o.have >= need ? 'ok' : ''}">${o.kind === 'contract' ? `Tarnitud ${fmt(o.progress)}/${fmt(o.qty)} · ` : ''}Sul on sobivat: <b>${fmt(o.have)}/${fmt(need)}</b>
       ${o.kind === 'contract' ? `<div class="kt-bar"><i style="width:${(o.progress / o.qty * 100).toFixed(1)}%"></i></div>` : ''}</div>
+    ${bzHint(o, need)}
     <div class="kt-chips"><span class="kt-chip ok">🪙 ${fmt(o.gold)}</span><span class="kt-chip ok">⭐ ${o.rep} mainet</span><span class="kt-chip ok">🤝 +${o.trust} usaldust</span>${o.bonus ? `<span class="kt-chip ok">🎁 ${RAR2[o.bonus][0]} ese</span>` : ''}</div>
     <div class="bz-time ${short ? 'hot' : ''}">⏳ ${act ? 'Tähtaeg' : 'Pakkumine kehtib'}: <b data-bzt="${timer}">${bzLeft(timer)}</b>${!act ? ` · aega täitmiseks ${o.hours >= 24 ? Math.round(o.hours / 24) + ' p' : o.hours + ' h'}` : ''}</div>
     <div class="kt-act">${act
@@ -136,7 +162,7 @@ setInterval(() => {
 }
 document.head.insertAdjacentHTML('beforeend', `<style>
 .bz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.bz-card{overflow:hidden}
+.bz-card{overflow:hidden}.bz-hint{display:grid;gap:4px;padding:10px 12px;border-radius:12px;background:rgba(90,200,255,.08);border:1px dashed rgba(120,200,255,.4);font-size:13px}.bz-hint > b{font-size:13.5px;color:#bfe6ff}.bz-hint small{opacity:.75}.bz-hint .no{color:#ffb4a0}.bz-hint .btn{justify-self:start;margin-top:4px}
 .bz-card,.bz-co{position:relative;display:grid;gap:9px;align-content:start;padding:14px;border-radius:16px;
   background:radial-gradient(120% 80% at 0% 0%,color-mix(in srgb,var(--cc) 22%,transparent),transparent 60%),linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.2));
   border:1px solid color-mix(in srgb,var(--cc) 45%,rgba(134,205,224,.16));box-shadow:0 6px 16px rgba(0,0,0,.22)}
