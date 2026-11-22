@@ -216,7 +216,7 @@ function fxBite() { fxDrops(FX.bx, FX.by, 16); fxRing(FX.bx, FX.by + 6, 46); fxR
 function fxHit(perfect) {
   const x = FX.bx + rnd(-30, 30), y = FX.h * .62;
   fxDrops(x, y, perfect ? 22 : 12, 1.1); fxRing(x, y, perfect ? 60 : 40);
-  fxText(FX.w / 2, FX.h * .72, perfect ? 'TÄPNE!' : 'HEA!', perfect ? '#ffe27a' : '#b8ff9a', perfect ? 28 : 22);
+  if (!perfect) fxText(FX.w / 2, FX.h * .72, 'HEA!', '#b8ff9a', 22);
   FX.shake = perfect ? .18 : .1;
 }
 function fxMiss() { fxText(FX.w / 2, FX.h * .72, 'MÖÖDA!', '#ff9a8a', 22); FX.shake = .3 }

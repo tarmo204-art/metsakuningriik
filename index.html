@@ -6415,7 +6415,7 @@ function fxBite() { fxDrops(FX.bx, FX.by, 16); fxRing(FX.bx, FX.by + 6, 46); fxR
 function fxHit(perfect) {
   const x = FX.bx + rnd(-30, 30), y = FX.h * .62;
   fxDrops(x, y, perfect ? 22 : 12, 1.1); fxRing(x, y, perfect ? 60 : 40);
-  fxText(FX.w / 2, FX.h * .72, perfect ? 'TÄPNE!' : 'HEA!', perfect ? '#ffe27a' : '#b8ff9a', perfect ? 28 : 22);
+  if (!perfect) fxText(FX.w / 2, FX.h * .72, 'HEA!', '#b8ff9a', 22);
   FX.shake = perfect ? .18 : .1;
 }
 function fxMiss() { fxText(FX.w / 2, FX.h * .72, 'MÖÖDA!', '#ff9a8a', 22); FX.shake = .3 }
@@ -10138,7 +10138,7 @@ function kvCollectShow(col) {
   const baseRpcK = rpc;
   rpc = async function (fn, args) {
     const r = await baseRpcK(fn, args);
-    try { if (fn === 'fish_cast' && r && r.bait_saved) { KV.saveAt = performance.now(); setTimeout(() => fxText(FX.w * .86, FX.h * .7, '🪣 Sööt jäi alles', '#cdf3ff', 15), 200) } } catch (e) { }
+    try { if (fn === 'fish_cast' && r && r.bait_saved) { KV.saveAt = performance.now() } } catch (e) { }
     return r;
   };
   const baseTabPoodK = tabPood;
@@ -12918,7 +12918,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
 /* ---------- ühendused mängusündmustega ---------- */
 {
   const _fx = drawFx; drawFx = function (c, w, h, dt, t) { _fx(c, w, h, dt, t); try { shDraw(c, w, h, dt) } catch (e) { } };
-  const _hit = fxHit; fxHit = function (perfect) { _hit(perfect); shout(perfect ? 'TÄPNE!' : 'HEA!', perfect ? 'tapne' : 'hea') };
+  const _hit = fxHit; fxHit = function (perfect) { _hit(perfect); if (!perfect) shout('HEA!', 'hea') };
   const _miss = fxMiss; fxMiss = function () { _miss(); shout('MÖÖDA!', 'mooda') };
   const _lose = doLose; doLose = async function (msg) { if (!FV.loss || FV.loss.k !== 'release') shout('PÄÄSES!', 'paases'); return _lose.apply(this, arguments) };
   // kala pääses viimasel hetkel või murdis õnge (need ei käi läbi doLose)
@@ -12952,6 +12952,7 @@ function shBg(c, w, h, cx, cy, a, st, low) {
     for (const it of r.items || []) { const d = FD.item && FD.item[it.id]; if (d && d.rarity >= 3) list.push(['HARULDASE ESEME LEID!', 'ese', d.name]) }
     for (const a of r.ach || []) { list.push(['UUS SAAVUTUS AVATUD!', 'saavutus', a.name]); if (a.title) list.push(['TIITEL SAADUD!', 'tiitel', `„${a.title}“`]) }
     // Eelmise kala veel näitamata tavalised hüüdsõnad visatakse ära – efektid ei jää järjest püüdes maha
+    SH.q = SH.q.filter(x => x.kind !== 'xp'); // vana kogemuse loendur asendub uuega
     const KEEP = ['r4', 'r5', 'r6', 'giant', 'suurim', 'uusliik', 'rekord', 'saavutus', 'tiitel', 'alistatud', 'kogukond', 'tabamus', 'ese', 'kuld'];
     SH.q = SH.q.filter(x => KEEP.includes(x.kind));
     if (SH.cur && !KEEP.includes(SH.cur.kind)) SH.cur.t0 = Math.min(SH.cur.t0, performance.now() - 60000);
@@ -12960,13 +12961,11 @@ function shBg(c, w, h, cx, cy, a, st, low) {
     if (r.kind === 'fish' && r.rarity <= 2 && !big.length) {
       if (FX.leap) { FX.leap.dur = 1100; FX.leap.quick = true }
       const xp = +r.xp || 0;
-      if (xp) setTimeout(() => { try { fxText(FX.w / 2, FX.h * .3, `+${fmt(xp)} XP`, '#9fe8ff', 20) } catch (e) { } }, 1000);
+      if (xp) setTimeout(() => shout(`+${fmt(xp)} XP`, 'xp', '', xp), 1000);
       return;
     }
     // Muul juhul ainult olulised hüüdsõnad; kogemus läheb esimese alla väikese kirjana
-    const xpTxt = +r.xp > 0 ? `+${fmt(+r.xp)} XP` : '';
-    const out = list.filter(([t, k]) => k !== 'xp' && k !== 'eriline' && k !== 'boonus');
-    if (out.length && xpTxt) out[0] = [out[0][0], out[0][1], [out[0][2], xpTxt].filter(Boolean).join(' · '), out[0][3]];
+    const out = list.filter(([t, k]) => k !== 'eriline' && k !== 'boonus');
     if (r.kind === 'fish' && r.rarity <= 3 && FX.leap) FX.leap.dur = 1600;
     // kala hüppab veest välja – hüüdsõnad tulevad maandumise hetkel järjest
     const delay = r.kind === 'fish' ? (FX.leap && FX.leap.dur ? FX.leap.dur - 50 : shLow() ? 1800 : 2250) : 300;

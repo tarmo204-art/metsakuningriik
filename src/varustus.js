@@ -522,7 +522,7 @@ function kvCollectShow(col) {
   const baseRpcK = rpc;
   rpc = async function (fn, args) {
     const r = await baseRpcK(fn, args);
-    try { if (fn === 'fish_cast' && r && r.bait_saved) { KV.saveAt = performance.now(); setTimeout(() => fxText(FX.w * .86, FX.h * .7, '🪣 Sööt jäi alles', '#cdf3ff', 15), 200) } } catch (e) { }
+    try { if (fn === 'fish_cast' && r && r.bait_saved) { KV.saveAt = performance.now() } } catch (e) { }
     return r;
   };
   const baseTabPoodK = tabPood;
