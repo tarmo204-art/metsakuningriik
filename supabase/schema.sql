@@ -3583,9 +3583,15 @@ alter table public.kalatund_prize enable row level security;
 revoke all on public.kalatund_score, public.kalatund_boss, public.kalatund_prize from anon, authenticated;
 
 create or replace function public.fx_kt_hour() returns int language sql immutable as $$ select 20 $$;
+-- Kalatunni pikendus (nt kui server oli hõivatud): lisaminutid päeva kohta
+create table if not exists public.kalatund_ext (day date primary key, mins int not null default 0, why text);
+alter table public.kalatund_ext enable row level security;
+revoke all on public.kalatund_ext from anon, authenticated;
+insert into public.kalatund_ext(day, mins, why) values ('2026-11-22', 5, 'Vabandame – server oli Kalatunni ajal hõivatud. Kalatund kestab 5 minutit kauem!')
+  on conflict (day) do nothing;
 create or replace function public.fx_kt_win(d date) returns table(p_from timestamptz, p_to timestamptz) language sql stable as
 $$ select (d::timestamp + make_interval(hours => fx_kt_hour())) at time zone 'Europe/Tallinn',
-          (d::timestamp + make_interval(hours => fx_kt_hour() + 1)) at time zone 'Europe/Tallinn' $$;
+          (d::timestamp + make_interval(hours => fx_kt_hour() + 1, mins => coalesce((select mins from public.kalatund_ext where day = d), 0))) at time zone 'Europe/Tallinn' $$;
 -- Bossi elu arvutatakse kõigi tehtud kahjude summast (kalatund_score + kalatund_bot_score).
 -- Nii ei pea iga püütud kala bossi ühte rida lukustama – Kalatunnis, kui kõik püüavad korraga,
 -- tekitas see järjekorra ja päringud aegusid ("statement timeout").
@@ -3670,6 +3676,7 @@ begin
   select count(*) into unclaimed from kalatund_score k where k.user_id = u and k.day >= d - 7
     and (k.day < d or now() >= w.p_to) and not exists (select 1 from kalatund_prize z where z.user_id = u and z.day = k.day);
   return jsonb_build_object('now', now(), 'active', act, 'start', w.p_from, 'end', w.p_to, 'next', nxt, 'hour', fx_kt_hour(),
+    'ext', (select jsonb_build_object('mins', mins, 'why', why) from kalatund_ext where day = d and mins > 0),
     'top', fx_kt_top(d, u, 10), 'mine', mine, 'players', part + (select count(*) from kalatund_bot_score where day = d), 'unclaimed', unclaimed,
     'boss', case when b.day is null then null else jsonb_build_object('hp', b.hp, 'max_hp', b.max_hp, 'killed_at', b.killed_at,
        'stage', case when b.killed_at is not null or b.killed1_at is not null or (b.max_hp2 is not null and fx_kt_dmg(d) >= (select max_hp from kalatund_boss where day = d)) then 2 else 1 end,

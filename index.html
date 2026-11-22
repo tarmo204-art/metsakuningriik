@@ -6070,6 +6070,7 @@ async function loadKT(silent) {
   try {
     const d = await rpc('fish_kalatund'); KT.off = new Date(d.now).getTime() - Date.now(); KT.at = Date.now();
     if (KT.wasActive === false && d.active) { toast('Kalatund algas! Tund aega ühist püüki: iga kala annab punkte ja teeb bossikalale kahju. Mine kalale!', 'gold', 'fish'); if (typeof sfx === 'function') sfx('chime') }
+    if (d.ext && d.active && typeof toastOnce === 'function') toastOnce('ktext' + (d.start || ''), 86400000, `⏱ ${d.ext.why || `Kalatund kestab ${d.ext.mins} minutit kauem!`}`, 'gold');
     if (KT.d && KT.d.boss && d.boss && !d.boss.killed_at && (KT.d.boss.stage || 1) < 2 && d.boss.stage === 2) toast(`Järvekoletis on alistatud${d.boss.killer1 ? ` (viimase löögi andis ${d.boss.killer1})` : ''} – aga ta tõusis uuesti, 1,5 korda tugevamana! Alistage ta teist korda!`, 'gold', 'fish');
     if (KT.d && KT.d.boss && d.boss && !KT.d.boss.killed_at && d.boss.killed_at) toast(`Bossikala on alistatud! Viimase löögi andis ${d.boss.killer}. Kõik, kes aitasid, saavad pärast Kalatundi auhinna.`, 'gold', 'fish');
     const same = KT.d && JSON.stringify({ ...d, now: 0 }) === JSON.stringify({ ...KT.d, now: 0 });
@@ -6112,7 +6113,7 @@ function tabKalatund() {
   const d = KT.d; if (!d) { setTimeout(loadKT, 0); return '<div class="fv-card"><p class="lead">Laadin Kalatundi…</p></div>' }
   const end = new Date(d.end).getTime(), next = new Date(d.next).getTime(), m = d.mine || { pts: 0, fish: 0, dmg: 0 }, b = d.boss;
   const myPlace = (d.top.find(r => r.me) || {}).place;
-  let h = `<div class="fv-card kt-hero"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Kalatund</h2>${d.active ? '<span class="kt-live">OTSE · KÄIB PRAEGU</span>' : `<span class="kt-wait">Iga päev kell ${d.hour}:00–${d.hour + 1}:00</span>`}</div>
+  let h = `<div class="fv-card kt-hero"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Kalatund</h2>${d.active ? `<span class="kt-live">OTSE · KÄIB PRAEGU${d.ext ? ` · +${d.ext.mins} MIN` : ''}</span>` : `<span class="kt-wait">Iga päev kell ${d.hour}:00–${d.hour + 1}:00</span>`}</div>
     <div class="kt-intro"><p class="lead">Kord päevas toimub ühe tunni jooksul eriline kalapüügiüritus, kus kõik kuningriigi kalurid saavad ühiselt osaleda.</p>
     <p class="lead">Eesmärk on püüda võimalikult palju kalu, koguda punkte ja vähendada järve sügavustes peituva võimsa järvekoletise elupunkte. Iga püütud kala annab mängijale punkte ning aitab kaasa koletise alistamisele.</p>
     <div class="kt-ib"><b>🏆 Parimad kalurid saavad väärilise tasu:</b><ul><li>1.–3. koht saavad suure väärtusega auhinnad.</li><li>Kõik osalejad saavad tänukingi osalemise eest.</li></ul></div>
