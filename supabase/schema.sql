@@ -1574,6 +1574,10 @@ alter table public.kalatund_boss add column if not exists max_hp2 int;
 alter table public.kalatund_boss add column if not exists killed1_at timestamptz;
 alter table public.kalatund_boss add column if not exists killer1 uuid;
 alter table public.kalatund_boss add column if not exists killer1_bot text;
+-- tänane koletis saab ka teise elu (kui ta oli juba alistatud, tõuseb ta uuesti)
+update public.kalatund_boss set max_hp2 = round(max_hp * 1.5),
+  killed1_at = killed_at, killer1 = killer, killer1_bot = killer_bot, killed_at = null, killer = null, killer_bot = null
+where day = (now() at time zone 'Europe/Tallinn')::date and max_hp2 is null;
 alter table public.fish_market alter column seller drop not null;
 alter table public.fish_market alter column catch_id drop not null;
 alter table public.fish_market add column if not exists bot text;
