@@ -229,9 +229,9 @@ function drawFx(c, w, h, dt, t) {
   // kala hüpe veest
   const L2 = FX.leap;
   if (L2) {
-    const u = (performance.now() - L2.t0) / 2300, k = u >= 1 ? 1 : u < .3 ? u / .3 * .38 : u < .78 ? .38 + (u - .3) / .48 * .24 : .62 + (u - .78) / .22 * .38, sp = FD.sp[L2.sid];
+    const u = (performance.now() - L2.t0) / (L2.dur || 2300), k = u >= 1 ? 1 : u < .3 ? u / .3 * .38 : u < .78 ? .38 + (u - .3) / .48 * .24 : .62 + (u - .78) / .22 * .38, sp = FD.sp[L2.sid];
     // aegluubis: tipus ekraan tumeneb ja tekivad kiirusejooned
-    const slo = u > .25 && u < .82 ? Math.sin((u - .25) / .57 * Math.PI) : 0;
+    const slo = !L2.quick && u > .25 && u < .82 ? Math.sin((u - .25) / .57 * Math.PI) : 0;
     if (slo > 0) { c.fillStyle = `rgba(0,10,20,${slo * .35})`; c.fillRect(0, 0, w, h); const vg = c.createRadialGradient(w / 2, h / 2, h * .2, w / 2, h / 2, w * .7); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${slo * .5})`); c.fillStyle = vg; c.fillRect(0, 0, w, h) }
     if (k >= 1) {
       if (!L2.landed) {

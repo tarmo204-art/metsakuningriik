@@ -228,9 +228,26 @@ function shBg(c, w, h, cx, cy, a, st, low) {
     if (r.kind === 'fish' && r.rarity >= 3 && FS.gear && (+FS.gear.upg > 0 || FS.gear.ench)) list.push(['⚡ VARUSTUSE BOONUS!', 'boonus']);
     for (const it of r.items || []) { const d = FD.item && FD.item[it.id]; if (d && d.rarity >= 3) list.push(['HARULDASE ESEME LEID!', 'ese', d.name]) }
     for (const a of r.ach || []) { list.push(['UUS SAAVUTUS AVATUD!', 'saavutus', a.name]); if (a.title) list.push(['TIITEL SAADUD!', 'tiitel', `„${a.title}“`]) }
-    // kala hüppab veest välja ~2,3 s – hüüdsõnad tulevad maandumise hetkel järjest
-    const delay = r.kind === 'fish' ? (shLow() ? 1800 : 2250) : 300;
-    setTimeout(() => list.forEach(([t, k, s, v]) => shout(t, k, s, v)), delay);
+    // Eelmise kala veel näitamata tavalised hüüdsõnad visatakse ära – efektid ei jää järjest püüdes maha
+    const KEEP = ['r4', 'r5', 'r6', 'giant', 'suurim', 'uusliik', 'rekord', 'saavutus', 'tiitel', 'alistatud', 'kogukond', 'tabamus', 'ese', 'kuld'];
+    SH.q = SH.q.filter(x => KEEP.includes(x.kind));
+    if (SH.cur && !KEEP.includes(SH.cur.kind)) SH.cur.t0 = Math.min(SH.cur.t0, performance.now() - 60000);
+    // Tavaline kala (tavaline/ebatavaline, midagi erilist pole): kiire hüpe ja väike +XP, ilma hüüdsõnade jadata
+    const big = list.filter(([t, k]) => KEEP.includes(k) || k === 'punkt' || k === 'kahju');
+    if (r.kind === 'fish' && r.rarity <= 2 && !big.length) {
+      if (FX.leap) { FX.leap.dur = 1100; FX.leap.quick = true }
+      const xp = +r.xp || 0;
+      if (xp) setTimeout(() => { try { fxText(FX.w / 2, FX.h * .3, `+${fmt(xp)} XP`, '#9fe8ff', 20) } catch (e) { } }, 1000);
+      return;
+    }
+    // Muul juhul ainult olulised hüüdsõnad; kogemus läheb esimese alla väikese kirjana
+    const xpTxt = +r.xp > 0 ? `+${fmt(+r.xp)} XP` : '';
+    const out = list.filter(([t, k]) => k !== 'xp' && k !== 'eriline' && k !== 'boonus');
+    if (out.length && xpTxt) out[0] = [out[0][0], out[0][1], [out[0][2], xpTxt].filter(Boolean).join(' · '), out[0][3]];
+    if (r.kind === 'fish' && r.rarity <= 3 && FX.leap) FX.leap.dur = 1600;
+    // kala hüppab veest välja – hüüdsõnad tulevad maandumise hetkel järjest
+    const delay = r.kind === 'fish' ? (FX.leap && FX.leap.dur ? FX.leap.dur - 50 : shLow() ? 1800 : 2250) : 300;
+    setTimeout(() => out.forEach(([t, k, s, v]) => shout(t, k, s, v)), delay);
   };
   // Kalatunni auhindade võtmine: bossi eriauhind
   const _rpc = rpc;
