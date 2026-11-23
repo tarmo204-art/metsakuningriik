@@ -16720,6 +16720,12 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .dr-up p{margin:0;font-size:13.5px;color:var(--muted)}
 .dr-batt{display:flex;align-items:center;gap:6px;font-size:12px;color:#cfe3ea}.dr-batt i{position:relative;width:30px;height:13px;border:1.5px solid #cfe3ea;border-radius:3px;display:block}.dr-batt i::after{content:"";position:absolute;right:-4px;top:3px;width:2px;height:5px;background:#cfe3ea;border-radius:1px}.dr-batt i b{position:absolute;left:1px;top:1px;bottom:1px;border-radius:1px;background:var(--bc,#7aff9a)}
 .dr-batt.chg i b{animation:drChg 1.6s ease-in-out infinite}@keyframes drChg{50%{opacity:.45}}
+.dr-parts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.dr-part{--c:#5fd4c4;display:grid;grid-template-columns:40px 1fr;gap:4px 10px;align-items:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(134,205,224,.14)}
+.dr-part.max{border-color:rgba(255,226,160,.45)}
+.dr-part .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:20px;background:radial-gradient(circle at 50% 35%,rgba(95,212,196,.35),rgba(0,0,0,.3) 75%);box-shadow:inset 0 0 0 1.5px rgba(95,212,196,.5)}
+.dr-part .tx{display:grid;gap:3px;min-width:0}.dr-part .tx b{font-size:14.5px;color:#eef4f0}.dr-part .tx small{font-size:12px;color:var(--muted)}.dr-part .v{font-size:12px;color:#d8e8e4}
+.dr-part .btn{grid-column:1/-1;margin-top:4px}
 .dr-warn{padding:8px 10px;border-radius:10px;background:rgba(255,170,80,.12);border:1px solid rgba(255,170,80,.3);font-size:13.5px;color:#ffd8a0}
 @media (max-width:600px){.dr-stat{grid-template-columns:repeat(2,minmax(0,1fr))}.dr-scene canvas{height:190px}.dr-bar{width:90px}}
 </style>`);
@@ -16745,7 +16751,7 @@ function drDraw(cv, t) {
   const dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr) }
   const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const d = DR.d || {}, lvl = d.lvl || 1, active = !!d.spot, cap = d.cfg ? +d.cfg.cap : 8, rdy = +d.ready || 0;
+  const d = DR.d || {}, lvl = d.lvl || 1, active = !!d.spot, cap = +d.cap || (d.cfg ? +d.cfg.cap : 8), rdy = +d.ready || 0, P = d.parts || {};
   const hr = new Date().getHours(), night = hr < 6 || hr >= 21;
   // taevas
   let g = c.createLinearGradient(0, 0, 0, H * .62);
@@ -16767,6 +16773,7 @@ function drDraw(cv, t) {
     c.strokeStyle = 'rgba(240,240,240,.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(dx, dy + sz * .2); c.quadraticCurveTo(dx + 6, (dy + fy) / 2, fx, fy); c.stroke();
     c.fillStyle = '#ff5a4a'; c.beginPath(); c.ellipse(fx, fy - 2, 3.5, 4.5, 0, 0, 7); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.ellipse(fx, fy - 5, 3.5, 2, 0, 0, 7); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(fx, fy + 2, 8 + Math.sin(t * 3) * 2, 2.5, 0, 0, 7); c.stroke();
+    if (P.sonar) for (let k = 0; k < 2; k++) { const ph = (t * .6 + k * .5) % 1; c.strokeStyle = `rgba(120,240,255,${(.5 * (1 - ph)).toFixed(2)})`; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fx, fy + 4, 10 + ph * 60, 3 + ph * 14, 0, 0, Math.PI); c.stroke() } // kalasonar
   }
   // sadamasild, kus droon laeb
   if (!active) { const px = W * .5, pw = Math.min(W, 520) * .5; c.fillStyle = '#5a3d24'; c.fillRect(px - pw / 2, hy + 10, pw, 7); c.fillStyle = '#3a2716'; for (let i = 0; i < 5; i++) c.fillRect(px - pw / 2 + 6 + i * (pw - 16) / 4, hy + 17, 4, 18);
@@ -16792,10 +16799,12 @@ function drDraw(cv, t) {
     const sp = active && !d.why ? 1 : .35, a = .5 + .5 * Math.sin(t * 40 * sp);
     c.fillStyle = `rgba(220,235,245,${.18 + .12 * a})`; c.beginPath(); c.ellipse(px, py, sz * .42, sz * .06, 0, 0, 7); c.fill();
     c.strokeStyle = 'rgba(30,40,50,.7)'; c.lineWidth = 1.4; c.beginPath(); const L = sz * .42 * Math.cos(t * 30 * sp + sx); c.moveTo(px - L, py); c.lineTo(px + L, py); c.stroke();
+    if (P.mootor) { c.fillStyle = '#ff9a3a'; c.beginPath(); c.arc(px - L, py, 2, 0, 7); c.arc(px + L, py, 2, 0, 7); c.fill() }
   }
   g = c.createLinearGradient(0, dy - sz * .3, 0, dy + sz * .25); g.addColorStop(0, '#f4f7f8'); g.addColorStop(.5, col); g.addColorStop(1, '#2a4652');
   c.fillStyle = g; c.beginPath(); c.roundRect(dx - sz * .38, dy - sz * .24, sz * .76, sz * .4, sz * .14); c.fill();
   c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1; c.stroke();
+  if (P.aku) { c.fillStyle = '#2b3a44'; c.fillRect(dx - sz * .2, dy - sz * .34, sz * .4, sz * .11); c.fillStyle = (+d.bat || 0) < 20 ? '#ff6a5a' : '#7aff9a'; c.fillRect(dx - sz * .18, dy - sz * .32, sz * .36 * Math.max(.05, (+d.bat || 0) / 100), sz * .07) } // lisaaku
   // kaamera-silm ja tuled
   c.fillStyle = '#0e1a20'; c.beginPath(); c.arc(dx, dy + sz * .02, sz * .09, 0, 7); c.fill();
   c.fillStyle = 'rgba(120,220,255,.85)'; c.beginPath(); c.arc(dx - sz * .025, dy - sz * .005, sz * .03, 0, 7); c.fill();
@@ -16825,7 +16834,7 @@ function drTab() {
       <div class="dr-up"><p><b style="color:#eef4f0">Droon „${n.name}“</b> · korvi mahub ${n.cap} kala · ${can ? `hind ${fmt(n.cost)} kulda` : `avaneb kalapüügi ${n.need}. tasemel`}</p>
       <button class="btn" type="button" data-dr="buy" ${can && !DR.busy ? '' : 'disabled'}>Osta droon · ${fmt(n.cost)}</button></div></div>`;
   }
-  const cfg = d.cfg, cap = +cfg.cap, rdy = +d.ready, sp = d.spot && FD.spot[d.spot], bt = d.bait && FD.bait[d.bait];
+  const cfg = d.cfg, cap = +d.cap || +cfg.cap, rdy = +d.ready, sp = d.spot && FD.spot[d.spot], bt = d.bait && FD.bait[d.bait];
   const pct = Math.min(100, rdy / cap * 100);
   let h = `<div class="fv-card" style="padding:12px"><div class="dr-scene"><canvas id="drCv" aria-label="Droon ${esc(cfg.name)}"></canvas>
     <div class="dr-cap"><b>Droon „${esc(cfg.name)}“</b><small>${sp ? `Püüab: ${esc(sp.name)}${bt ? ` · ${esc(bt.name)}` : ''}` : 'Ootab sadamas'}</small></div>
@@ -16858,11 +16867,19 @@ function drTab() {
     <div class="dr-lbl">Sööt</div><div class="dr-chips">${baits.length ? baits.map(b => `<button type="button" class="${DR.pick.bait === b.id ? 'on' : ''}" data-dr-bait="${b.id}">${esc(b.name)}${b.consumable ? ` · ${(FS.baits || {})[b.id]}` : ''}</button>`).join('') : '<span class="lead">Sul pole sööta – osta seda poest.</span>'}</div>
     <div class="dr-row"><button class="btn" type="button" data-dr="send" ${DR.pick.spot && DR.pick.bait && !DR.busy ? '' : 'disabled'}>🛸 Saada droon</button>
     <small class="lead" style="font-size:12.5px">${sp ? 'Senine saak korjatakse enne automaatselt kokku.' : `Iga kala võtab ühe söödaühiku. Lant ei kulu.`}</small></div></div>`;
+  // osad
+  const PI = { aku: '🔋', mootor: '🌀', korv: '🧺', sonar: '📡', soodur: '🪱' }, PD = d.pdef || {};
+  h += `<div class="fv-card"><h2>Drooni osad</h2><p class="lead" style="margin:0">Iga osa saab uuendada kuni drooni enda tasemeni (praegu ${d.lvl}). Uuenda drooni, et avada osade järgmised tasemed.</p>
+    <div class="dr-parts">${Object.keys(PD).map(k => { const p = PD[k], cur = +(d.parts || {})[k] || 0, cost = p.base * (cur + 1) * (cur + 1), lock = cur >= d.lvl, max = cur >= 5;
+      return `<div class="dr-part ${max ? 'max' : ''}"><div class="ic" aria-hidden="true">${PI[k] || '⚙️'}</div><div class="tx"><b>${esc(p.name)}</b><small>${esc(p.txt)}</small>
+        <div class="osk-pip">${[0, 1, 2, 3, 4].map(i => `<i class="${i < cur ? 'on' : ''}" style="${i >= d.lvl ? 'opacity:.35' : ''}"></i>`).join('')}</div>
+        <span class="v">${cur ? `Praegu +${p.per * cur}%` : 'Pole veel paigaldatud'}${!max && !lock ? ` · järgmine +${p.per * (cur + 1)}%` : ''}</span></div>
+        <button class="btn sm ${lock || max ? 'ghost' : ''}" type="button" data-dr="part" data-arg="${k}" ${lock || max || DR.busy ? 'disabled' : ''}>${max ? 'Parim' : lock ? `Vaja drooni ${cur + 1}. taset` : `${cur ? 'Uuenda' : 'Paigalda'} · ${fmt(cost)}`}</button></div>` }).join('')}</div></div>`;
   // uuendus
   const n = d.next;
   h += `<div class="fv-card"><h2>Drooni uuendus</h2>${n ? `<div class="dr-up"><p><b style="color:#eef4f0">„${esc(n.name)}“</b>: üks kala ${String(n.min).replace('.', ',')} min (praegu ${String(cfg.min).replace('.', ',')}), korvi mahub ${n.cap} (praegu ${cap}), aku kestab ${n.fly} min (praegu ${cfg.fly})${n.maxr > cfg.maxr ? `, püüab ka ${n.maxr === 3 ? 'haruldasi' : 'eepilisi'} kalu` : ''}.${FS.level < n.need ? ` Avaneb kalapüügi ${n.need}. tasemel.` : ''}</p>
     <button class="btn" type="button" data-dr="buy" ${FS.level >= n.need && !DR.busy ? '' : 'disabled'}>Uuenda · ${fmt(n.cost)}</button></div>` : '<p class="lead" style="margin:0">⭐ Sinu droon on parim, mis olemas on.</p>'}
-    <p class="lead" style="margin:0;font-size:12.5px">💡 Oskuste puu oskus „Droonimeister“ teeb drooni veel kiiremaks.</p></div>`;
+    <p class="lead" style="margin:0;font-size:12.5px">💡 Oskuste puus teeb „Droonimeister“ drooni kiiremaks ja „Droonimehaanik“ annab akule rohkem vastupidavust.</p></div>`;
   return h;
 }
 function drMin(sec) { const m = sec / 60; return (Math.round(m * 10) / 10).toString().replace('.', ',') + ' min' }
@@ -16872,13 +16889,14 @@ function drBatt(d) {
   return `<div class="dr-batt ${chg ? 'chg' : ''}" title="Aku"><i style="--bc:${col}"><b style="width:${(b * .26).toFixed(1)}px"></b></i>${Math.round(b)}%${fish != null ? ` · veel ${fish} kala` : chg ? ' · laeb' : ''}</div>`;
 }
 function drChargeBtn(d) { return +d.bat < 99.5 ? ` <button class="btn ghost" type="button" data-dr="charge" ${DR.busy ? 'disabled' : ''}>⚡ Kiirlaadimine · ${fmt(d.charge_cost)}</button>` : '' }
-async function drAct(a) {
+async function drAct(a, arg) {
   if (DR.busy) return; DR.busy = true; renderFV(true);
   try {
     let r;
     if (a === 'buy') { r = await rpc('drone_buy'); toast(`🛸 Droon „${r.bought.name}“ on sinu!`, 'good') }
     else if (a === 'send') { r = await rpc('drone_send', { p_spot: DR.pick.spot, p_bait: DR.pick.bait }); toast(`🛸 Droon lendas: ${FD.spot[r.sent] ? FD.spot[r.sent].name : r.sent}`, 'good'); if (r.collected) DR.got = r.collected }
     else if (a === 'recall') { r = await rpc('drone_recall'); toast('Droon lendas sadamasse laadima.', 'info'); if (r.collected) DR.got = r.collected }
+    else if (a === 'part') { r = await rpc('drone_part_up', { p_part: arg }); toast(`🔧 ${r.pdef[r.part].name}: tase ${r.parts[r.part]}`, 'good'); if (r.collected) DR.got = r.collected; if (typeof kassaSync === 'function') kassaSync() }
     else if (a === 'charge') { r = await rpc('drone_charge'); toast(`⚡ Aku on täis (−${fmt(r.charged)} kulda)`, 'good'); if (r.collected) DR.got = r.collected; if (typeof kassaSync === 'function') kassaSync() }
     else if (a === 'collect') { r = await rpc('drone_collect'); DR.got = r.collected; toast(`🧺 Droon tõi ${r.collected.fish.length} kala (+${fmt(r.collected.xp)} kogemust)`, 'good') }
     DR.d = r; DR.d._at = Date.now();
@@ -16890,7 +16908,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-dr],[data-dr-spot],[data-dr-bait]'); if (!b || b.disabled) return;
   if (b.dataset.drSpot) { DR.pick.spot = b.dataset.drSpot; renderFV(true) }
   else if (b.dataset.drBait) { DR.pick.bait = b.dataset.drBait; renderFV(true) }
-  else drAct(b.dataset.dr);
+  else drAct(b.dataset.dr, b.dataset.arg);
 });
 FTABS.droon = 'Droon';
 FTAB_FN.droon = drTab;

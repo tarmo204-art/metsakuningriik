@@ -2024,7 +2024,10 @@ insert into public.fish_skill_defs (id, branch, tier, name, descr, max, per, uni
  ('kaupmees','kaup',0,'Kaupmees','Kalade müügihind tõuseb',5,2,'%','🪙',9),
  ('aardekutt','kaup',1,'Aardekütt','Aardekirstudest tuleb rohkem kulda',5,8,'%','💰',10),
  ('topeltnakk','kaup',2,'Kaks ühe korraga','Võimalus saada korraga teine kala',5,0.6,'%','🐟',11),
- ('droonimeister','kaup',3,'Droonimeister','Droon püüab kiiremini',5,5,'%','🛸',12)
+ ('droonimeister','kaup',3,'Droonimeister','Droon püüab kiiremini',5,5,'%','🛸',12),
+ ('haardemeister','vote',4,'Haardemeister','Kerimisel on kala kinni hoidmise ala laiem',3,2,'%','🪝',13),
+ ('muudiuurija','tead',4,'Müütide uurija','Legendaarsete ja müütiliste kalade võimalus suureneb',3,10,'%','🐉',14),
+ ('droonimehaanik','kaup',4,'Droonimehaanik','Drooni aku kestab kauem',3,10,'%','🔋',15)
 on conflict (id) do update set branch = excluded.branch, tier = excluded.tier, name = excluded.name, descr = excluded.descr, max = excluded.max,
   per = excluded.per, unit = excluded.unit, icon = excluded.icon, sort = excluded.sort;
 create table if not exists public.fisher_skills (
@@ -2166,6 +2169,7 @@ begin
                  and s.min_level <= coalesce(f.level,1) and (not s.night_only or night)
                  and (not s.winter_only or winter or p_spot = 'jaa') and (s.weather is null or wthr = any(s.weather)));
     w[i] := base[i] * power(1 + bonus, i - 1);
+    if i >= 5 then w[i] := w[i] * (1 + 0.1 * public.fx_sk(u, 'muudiuurija')); end if; -- oskus: Müütide uurija
   end loop;
   -- kui mõnes klassis kala pole saadaval, liigub selle tõenäosus madalamasse klassi
   for i in reverse 6..2 loop
@@ -2532,7 +2536,7 @@ begin
   select * into f from fishers where user_id = u;
   select * into r from fish_rods where id = f.rod;
   select * into sp from fish_spots where id = c.spot;
-  r.reel_bonus := (fx_gear(u) ->> 'reel')::numeric + case when (fx_fit(u, c.spot) -> 'worn') ? 'pockets' then 0.03 else 0 end; r.strength := (fx_gear(u) ->> 'strength')::numeric;
+  r.reel_bonus := (fx_gear(u) ->> 'reel')::numeric + case when (fx_fit(u, c.spot) -> 'worn') ? 'pockets' then 0.03 else 0 end + 0.02 * fx_sk(u, 'haardemeister'); r.strength := (fx_gear(u) ->> 'strength')::numeric;
   if c.kind = 'fish' then
     select * into s from fish_species where id = c.species;
     diff := s.difficulty;
@@ -7914,6 +7918,16 @@ end $$;
 -- ---------------------------------------------------------------------
 alter table public.fisher_drone add column if not exists bat numeric not null default 100;
 alter table public.fisher_drone add column if not exists dock_at timestamptz;
+alter table public.fisher_drone add column if not exists parts jsonb not null default '{}';
+-- drooni osad: iga osa tase kuni drooni enda tasemeni (max 5)
+create or replace function public.fx_drone_part(u uuid, k text) returns int language sql stable as $$
+  select coalesce((select (parts ->> k)::int from public.fisher_drone where user_id = u), 0) $$;
+create or replace function public.fx_drone_parts_def() returns jsonb language sql immutable as $$
+  select '{"aku":{"name":"Suurem aku","base":4000,"per":15,"txt":"Aku kestab kauem"},
+           "mootor":{"name":"Kiired propellerid","base":5000,"per":6,"txt":"Üks kala tuleb kiiremini"},
+           "korv":{"name":"Suurem korv","base":3000,"per":20,"txt":"Korvi mahub rohkem kala"},
+           "sonar":{"name":"Kalasonar","base":6000,"per":4,"txt":"Võimalus, et droon leiab haruldasema kala"},
+           "soodur":{"name":"Söödasäästja","base":3500,"per":8,"txt":"Võimalus, et sööt jääb alles"}}'::jsonb $$;
 create or replace function public.fx_drone_cfg(l int) returns jsonb language sql immutable as $$
   select (case l
     when 1 then '{"lvl":1,"min":4,"cap":12,"fly":60,"maxr":2,"cost":20000,"need":10,"name":"Kärbes"}'
@@ -7922,18 +7936,20 @@ create or replace function public.fx_drone_cfg(l int) returns jsonb language sql
     when 4 then '{"lvl":4,"min":2.5,"cap":35,"fly":120,"maxr":4,"cost":150000,"need":40,"name":"Merikotkas"}'
     when 5 then '{"lvl":5,"min":2,"cap":50,"fly":150,"maxr":4,"cost":240000,"need":50,"name":"Tormilind"}'
     else null end)::jsonb $$;
+create or replace function public.fx_drone_cap(u uuid, l int) returns int language sql stable as $$
+  select round((public.fx_drone_cfg(l) ->> 'cap')::numeric * (1 + 0.2 * public.fx_drone_part(u, 'korv')))::int $$;
 -- mitu sekundit kulub droonil ühe kala püüdmiseks
 create or replace function public.fx_drone_sec(u uuid, l int) returns numeric language sql stable as $$
-  select (public.fx_drone_cfg(l) ->> 'min')::numeric * 60 * (1 - 0.05 * public.fx_sk(u, 'droonimeister')) $$;
+  select (public.fx_drone_cfg(l) ->> 'min')::numeric * 60 * (1 - 0.05 * public.fx_sk(u, 'droonimeister')) * (1 - 0.06 * public.fx_drone_part(u, 'mootor')) $$;
 -- aku protsent ühe kala kohta
 create or replace function public.fx_drone_drain(u uuid, l int) returns numeric language sql stable as $$
-  select public.fx_drone_sec(u, l) / ((public.fx_drone_cfg(l) ->> 'fly')::numeric * 60) * 100 $$;
+  select public.fx_drone_sec(u, l) / ((public.fx_drone_cfg(l) ->> 'fly')::numeric * 60 * (1 + 0.15 * public.fx_drone_part(u, 'aku')) * (1 + 0.1 * public.fx_sk(u, 'droonimehaanik'))) * 100 $$;
 create or replace function public.fx_drone_ready(u uuid) returns int language plpgsql stable as $$
 declare d fisher_drone; n int; b fish_baits;
 begin
   select * into d from fisher_drone where user_id = u;
   if d.user_id is null or d.spot is null or d.last_at is null then return 0; end if;
-  n := least((fx_drone_cfg(d.lvl) ->> 'cap')::int, floor(extract(epoch from now() - d.last_at) / fx_drone_sec(u, d.lvl))::int,
+  n := least(fx_drone_cap(u, d.lvl), floor(extract(epoch from now() - d.last_at) / fx_drone_sec(u, d.lvl))::int,
              floor(d.bat / fx_drone_drain(u, d.lvl) + 1e-6)::int);
   select * into b from fish_baits where id = d.bait;
   if b.consumable then select least(n, coalesce((baits ->> d.bait)::int, 0)) into n from fishers where user_id = u; end if;
@@ -7956,7 +7972,7 @@ begin
   if d.user_id is null then
     return jsonb_build_object('have', false, 'next', fx_drone_cfg(1), 'level', f.level, 'gold', f.gold);
   end if;
-  cfg := fx_drone_cfg(d.lvl); sec := fx_drone_sec(u, d.lvl); rdy := fx_drone_ready(u); cap := (cfg ->> 'cap')::int;
+  cfg := fx_drone_cfg(d.lvl); sec := fx_drone_sec(u, d.lvl); rdy := fx_drone_ready(u); cap := fx_drone_cap(u, d.lvl);
   drain := fx_drone_drain(u, d.lvl); v_bat := fx_drone_bat(u);
   select * into b from fish_baits where id = d.bait;
   left_b := case when b.consumable then coalesce((f.baits ->> d.bait)::int, 0) end;
@@ -7965,7 +7981,7 @@ begin
   return jsonb_build_object('have', true, 'lvl', d.lvl, 'cfg', cfg, 'next', fx_drone_cfg(d.lvl + 1), 'spot', d.spot, 'bait', d.bait,
     'ready', rdy, 'sec', round(sec), 'total', d.total, 'level', f.level, 'gold', f.gold, 'baits_left', left_b,
     'bat', round(v_bat, 1), 'drain', round(drain, 2), 'why', why, 'stuck', why is not null,
-    'charge_cost', ceil(100 - v_bat)::int * 15 * d.lvl,
+    'charge_cost', ceil(100 - v_bat)::int * 15 * d.lvl, 'cap', cap, 'fly', round(sec / (drain / 100) / 60), 'parts', d.parts, 'pdef', fx_drone_parts_def(),
     'full_at', case when d.spot is null and v_bat < 100 then now() + make_interval(secs => (100 - v_bat) / 100 * 40 * 60) end,
     'next_at', case when why is null and d.spot is not null then d.last_at + make_interval(secs => sec * (floor(el / sec) + 1)) end);
 end $$;
@@ -8013,6 +8029,24 @@ begin
   update fisher_drone set spot = null, last_at = null, dock_at = now() where user_id = u and spot is not null;
   return drone_state() || jsonb_build_object('recalled', true, 'collected', r -> 'collected');
 end $$;
+-- drooni osa uuendus: hind = alus × (tase+1)², osa tase ei saa olla kõrgem kui drooni tase
+create or replace function public.drone_part_up(p_part text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; def jsonb := fx_drone_parts_def() -> p_part; cur int; cost int;
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u for update;
+  if d.user_id is null then raise exception 'Sul pole veel drooni'; end if;
+  if def is null then raise exception 'Tundmatu osa'; end if;
+  cur := coalesce((d.parts ->> p_part)::int, 0);
+  if cur >= 5 then raise exception 'See osa on juba parim'; end if;
+  if cur >= d.lvl then raise exception 'Osa saab uuendada drooni tasemeni – uuenda enne drooni ennast'; end if;
+  cost := (def ->> 'base')::int * (cur + 1) * (cur + 1);
+  if f.gold < cost then raise exception 'Kulda ei jätku (vaja %)', cost; end if;
+  if d.spot is not null and fx_drone_ready(u) > 0 then perform drone_collect(); end if; -- saak korjatakse enne kokku
+  update fishers set gold = gold - cost where user_id = u;
+  update fisher_drone set parts = jsonb_set(parts, array[p_part], to_jsonb(cur + 1)), last_at = case when spot is not null then now() end where user_id = u;
+  return drone_state() || jsonb_build_object('part', p_part, 'paid', cost);
+end $$;
 -- kiirlaadimine: aku kohe täis (kulda 15 × drooni tase iga puuduva protsendi eest)
 create or replace function public.drone_charge() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; d fisher_drone; v_bat numeric; cost int; r jsonb := '{}';
@@ -8033,7 +8067,7 @@ end $$;
 create or replace function public.drone_collect() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; n int; i int; j int; w numeric[]; tot numeric; roll numeric; rar int; s fish_species;
   wt numeric; strength numeric; got jsonb := '[]'; cid bigint; xp int := 0; levels int[]; wthr text := fx_weather(); winter boolean := fx_is_winter();
-  night boolean := fx_is_night(); b fish_baits; maxr int; sec numeric; tn int;
+  night boolean := fx_is_night(); b fish_baits; maxr int; sec numeric; tn int; used int;
 begin
   f := fx_fisher(u);
   select * into d from fisher_drone where user_id = u for update;
@@ -8049,6 +8083,7 @@ begin
   for i in 1..n loop
     roll := random() * tot; rar := 1;
     for j in 1..maxr loop rar := j; roll := roll - coalesce(w[j], 0); exit when roll <= 0; end loop;
+    if rar < maxr and random() < 0.04 * fx_drone_part(u, 'sonar') then rar := rar + 1; end if; -- kalasonar
     s := null;
     while s.id is null and rar >= 1 loop
       select fs.* into s from fish_species fs where fs.rarity = rar and d.spot = any(fs.spots) and fs.min_level <= f.level and fs.event is null
@@ -8064,7 +8099,10 @@ begin
     got := got || jsonb_build_array(jsonb_build_object('id', cid, 'species', s.id, 'name', s.name, 'rarity', s.rarity, 'weight', wt));
     xp := xp + round(s.xp * 0.4);
   end loop;
-  if b.consumable then update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(greatest(0, coalesce((baits ->> b.id)::int, 0) - n))) where user_id = u; end if;
+  if b.consumable then
+    used := 0; for i in 1..n loop if random() >= 0.08 * fx_drone_part(u, 'soodur') then used := used + 1; end if; end loop; -- söödasäästja
+    update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(greatest(0, coalesce((baits ->> b.id)::int, 0) - used))) where user_id = u;
+  end if;
   update fishers set total = total + jsonb_array_length(got) where user_id = u;
   update fisher_drone set total = total + jsonb_array_length(got), bat = greatest(0, bat - n * fx_drone_drain(u, d.lvl)),
     last_at = case when n < tn then now() else last_at + make_interval(secs => sec * n) end where user_id = u;
@@ -8094,7 +8132,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'skills_state', 'skill_up', 'skills_reset', 'drone_state', 'drone_buy', 'drone_send', 'drone_recall', 'drone_collect', 'drone_charge', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'skills_state', 'skill_up', 'skills_reset', 'drone_state', 'drone_buy', 'drone_send', 'drone_recall', 'drone_collect', 'drone_charge', 'drone_part_up', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
