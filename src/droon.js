@@ -36,6 +36,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .dr-part .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:20px;background:radial-gradient(circle at 50% 35%,rgba(95,212,196,.35),rgba(0,0,0,.3) 75%);box-shadow:inset 0 0 0 1.5px rgba(95,212,196,.5)}
 .dr-part .tx{display:grid;gap:3px;min-width:0}.dr-part .tx b{font-size:14.5px;color:#eef4f0}.dr-part .tx small{font-size:12px;color:var(--muted)}.dr-part .v{font-size:12px;color:#d8e8e4}
 .dr-part .btn{grid-column:1/-1;margin-top:4px}
+.dr-auto.on{border-color:rgba(154,255,216,.35);background:linear-gradient(180deg,rgba(40,90,80,.45),rgba(14,32,40,.75))}
+.dr-on{padding:6px 12px;border-radius:999px;background:rgba(154,255,216,.15);color:#9affd8;font-weight:800;font-size:13px}
 .dr-warn{padding:8px 10px;border-radius:10px;background:rgba(255,170,80,.12);border:1px solid rgba(255,170,80,.3);font-size:13.5px;color:#ffd8a0}
 @media (max-width:600px){.dr-stat{grid-template-columns:repeat(2,minmax(0,1fr))}.dr-scene canvas{height:190px}.dr-bar{width:90px}}
 </style>`);
@@ -61,7 +63,7 @@ function drDraw(cv, t) {
   const dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr) }
   const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const d = DR.d || {}, lvl = d.lvl || 1, active = !!d.spot, cap = +d.cap || (d.cfg ? +d.cfg.cap : 8), rdy = +d.ready || 0, P = d.parts || {};
+  const d = DR.d || {}, lvl = d.lvl || 1, active = !!d.spot && !d.charging, cap = +d.cap || (d.cfg ? +d.cfg.cap : 8), rdy = +d.ready || 0, P = d.parts || {};
   const hr = new Date().getHours(), night = hr < 6 || hr >= 21;
   // taevas
   let g = c.createLinearGradient(0, 0, 0, H * .62);
@@ -91,7 +93,7 @@ function drDraw(cv, t) {
   // vari vee peal
   if (active) { c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(dx, hy + 26, sz * .9, 5, 0, 0, 7); c.fill() }
   // korv kaladega (täitub)
-  if (active || rdy) {
+  if (active) {
     const bx = dx, by = dy + sz * .52, bw = sz * .55, fill = Math.min(1, rdy / cap);
     c.strokeStyle = 'rgba(220,220,210,.75)'; c.lineWidth = 1; c.beginPath(); c.moveTo(dx - sz * .2, dy + sz * .16); c.lineTo(bx - bw / 2, by); c.moveTo(dx + sz * .2, dy + sz * .16); c.lineTo(bx + bw / 2, by); c.stroke();
     c.fillStyle = '#7a5530'; c.beginPath(); c.moveTo(bx - bw / 2, by); c.lineTo(bx + bw / 2, by); c.lineTo(bx + bw * .38, by + sz * .34); c.lineTo(bx - bw * .38, by + sz * .34); c.closePath(); c.fill();
@@ -123,7 +125,7 @@ function drDraw(cv, t) {
   c.fillStyle = blink ? lc : 'rgba(80,90,90,.6)'; c.beginPath(); c.arc(dx + sz * .27, dy - sz * .12, sz * .035, 0, 7); c.fill();
   if (blink) { c.fillStyle = low ? 'rgba(255,90,74,.3)' : active ? 'rgba(122,255,154,.25)' : 'rgba(255,190,90,.25)'; c.beginPath(); c.arc(dx + sz * .27, dy - sz * .12, sz * .1, 0, 7); c.fill() }
   // taseme tähed kerel
-  c.fillStyle = '#ffe2a0'; for (let i = 0; i < lvl; i++) { c.beginPath(); c.arc(dx - sz * .22 + i * sz * .06, dy + sz * .1, sz * .018, 0, 7); c.fill() }
+  c.fillStyle = '#ffe2a0'; for (let i = 0; i < lvl; i++) { c.beginPath(); c.arc(dx - sz * .22 + i * sz * .045, dy + sz * .1, sz * .018, 0, 7); c.fill() }
 }
 function drLoop() {
   const cv = document.getElementById('drCv');
@@ -140,23 +142,23 @@ function drTab() {
   if (!d.have) {
     const n = d.next, can = FS.level >= n.need;
     return `<div class="fv-card" style="padding:12px"><div class="dr-scene"><canvas id="drCv" aria-label="Kalapüügidroon"></canvas><div class="dr-cap"><b>Kalapüügidroon</b><small>Püüab sinu eest ka siis, kui oled eemal</small></div></div>
-      <p class="lead" style="margin:8px 4px 0">Saada droon püügikohta koos söödaga. Ta toob iga ${String(n.min).replace('.', ',')} minuti järel kala korvi. Igale kalale kulub veidi akut – täis akuga jõuab ta lennata ${n.fly} minutit. Sadamas laeb aku end ise uuesti täis. Tule tagasi, korja saak ära ja saada ta uuesti. Droon ei püüa legendaarseid ega müütilisi kalu – need jäävad sinu enda püüda.</p>
+      <p class="lead" style="margin:8px 4px 0">Saada droon püügikohta koos söödaga. Ta toob iga ${String(n.min).replace('.', ',')} minuti järel kala korvi. Igale kalale kulub veidi akut – täis akuga jõuab ta lennata ${n.fly} minutit. Sadamas laeb aku end ise uuesti täis. Tule tagasi, korja saak ära ja saada ta uuesti. Müütilisi kalu droon ei püüa – need jäävad sinu enda püüda. Legendaarseid toob ainult kõige parem droon.</p>
       <div class="dr-up"><p><b style="color:#eef4f0">Droon „${n.name}“</b> · korvi mahub ${n.cap} kala · ${can ? `hind ${fmt(n.cost)} kulda` : `avaneb kalapüügi ${n.need}. tasemel`}</p>
       <button class="btn" type="button" data-dr="buy" ${can && !DR.busy ? '' : 'disabled'}>Osta droon · ${fmt(n.cost)}</button></div></div>`;
   }
   const cfg = d.cfg, cap = +d.cap || +cfg.cap, rdy = +d.ready, sp = d.spot && FD.spot[d.spot], bt = d.bait && FD.bait[d.bait];
   const pct = Math.min(100, rdy / cap * 100);
   let h = `<div class="fv-card" style="padding:12px"><div class="dr-scene"><canvas id="drCv" aria-label="Droon ${esc(cfg.name)}"></canvas>
-    <div class="dr-cap"><b>Droon „${esc(cfg.name)}“</b><small>${sp ? `Püüab: ${esc(sp.name)}${bt ? ` · ${esc(bt.name)}` : ''}` : 'Ootab sadamas'}</small></div>
-    <div class="dr-basket"><b>${rdy}/${cap}</b><small>kala korvis</small><div class="dr-bar"><i style="width:${pct.toFixed(0)}%"></i></div>${drBatt(d)}</div></div>`;
+    <div class="dr-cap"><b>Droon „${esc(cfg.name)}“</b><small>${sp ? `${d.charging ? 'Laeb kodusadamas · ' : 'Püüab: '}${esc(sp.name)}${bt ? ` · ${esc(bt.name)}` : ''}` : 'Ootab sadamas'}</small>${d.auto ? '<small style="color:#9affd8">🤖 Autopiloot sees</small>' : ''}</div>
+    <div class="dr-basket"><b>${rdy}/${cap}</b><small>${d.auto ? 'kala laohoones' : 'kala korvis'}</small><div class="dr-bar"><i style="width:${pct.toFixed(0)}%"></i></div>${drBatt(d)}</div></div>`;
   if (sp) {
     const full = rdy >= cap;
     h += `<div class="dr-stat">
-      <div><small>Järgmine kala</small><b ${d.next_at ? `data-dr-next="${Date.parse(d.next_at)}"` : ''}>${d.next_at ? drLeft(Date.parse(d.next_at) - Date.now()) : full ? 'Korv on täis' : '—'}</b></div>
+      <div><small>${d.charging ? 'Tagasi püügil' : 'Järgmine kala'}</small><b ${d.next_at ? `data-dr-next="${Date.parse(d.next_at)}"` : ''}>${d.next_at ? drLeft(Date.parse(d.next_at) - Date.now()) : full ? (d.auto ? 'Ladu on täis' : 'Korv on täis') : '—'}</b></div>
       <div><small>Üks kala</small><b>${drMin(d.sec)}</b></div>
       <div><small>Sööta alles</small><b>${d.baits_left == null ? '∞' : Math.max(0, d.baits_left - rdy)}</b></div>
       <div><small>Kokku püütud</small><b>${fmt(d.total)}</b></div></div>
-      ${d.why === 'bat' ? '<div class="dr-warn">🔋 Aku on tühi – droon hõljub paigal. Kutsu ta sadamasse laadima või kasuta kiirlaadimist.</div>' : d.why === 'bait' ? '<div class="dr-warn">🪱 Sööt on otsas – korja saak ja saada droon uue söödaga.</div>' : full ? '<div class="dr-warn">🧺 Korv on täis – korja saak, et droon saaks edasi püüda.</div>' : ''}
+      ${d.why === 'bat' ? '<div class="dr-warn">🔋 Aku on tühi – droon hõljub paigal. Kutsu ta sadamasse laadima või kasuta kiirlaadimist.</div>' : d.why === 'bait' ? '<div class="dr-warn">🪱 Sööt on otsas – korja saak ja saada droon uue söödaga.</div>' : full ? `<div class="dr-warn">🧺 ${d.auto ? 'Laohoone' : 'Korv'} on täis – korja saak, et droon saaks edasi püüda.</div>` : d.charging ? '<div class="dr-warn" style="background:rgba(95,212,196,.1);border-color:rgba(95,212,196,.35);color:#c8f4ea">🤖 Autopiloot: aku sai tühjaks, droon lendas ise koju laadima ja jätkab siis püüki.</div>' : ''}
       <div class="dr-row"><button class="btn" type="button" data-dr="collect" ${rdy && !DR.busy ? '' : 'disabled'}>🧺 Korja saak${rdy ? ` (${rdy})` : ''}</button>
       <button class="btn ghost" type="button" data-dr="recall" ${DR.busy ? 'disabled' : ''}>Kutsu sadamasse</button>${drChargeBtn(d)}</div>`;
   } else {
@@ -166,6 +168,7 @@ function drTab() {
   if (DR.got) {
     const g = DR.got;
     h += `<div class="fv-card"><h2>Droon tõi ${g.fish.length} kala</h2><div class="dr-got">${g.fish.map(f => `<div style="--rc:${DR_COL[f.rarity] || '#8fd0e8'}"><b>${esc(f.name)}</b><small>${fKg(+f.weight)}</small></div>`).join('')}</div>
+      ${(g.items || []).length ? `<p class="lead" style="margin:0">🦾 Aardehaarats leidis: <b>${g.items.map(x => esc((FD.item && FD.item[x.id] && FD.item[x.id].name) || x.name || x.id)).join(', ')}</b></p>` : ''}
       <p class="lead" style="margin:0">✨ +${fmt(g.xp)} kogemust · kalad on sinu saagis</p></div>`;
   }
   // saatmine
@@ -177,21 +180,27 @@ function drTab() {
     <div class="dr-lbl">Sööt</div><div class="dr-chips">${baits.length ? baits.map(b => `<button type="button" class="${DR.pick.bait === b.id ? 'on' : ''}" data-dr-bait="${b.id}">${esc(b.name)}${b.consumable ? ` · ${(FS.baits || {})[b.id]}` : ''}</button>`).join('') : '<span class="lead">Sul pole sööta – osta seda poest.</span>'}</div>
     <div class="dr-row"><button class="btn" type="button" data-dr="send" ${DR.pick.spot && DR.pick.bait && !DR.busy ? '' : 'disabled'}>🛸 Saada droon</button>
     <small class="lead" style="font-size:12.5px">${sp ? 'Senine saak korjatakse enne automaatselt kokku.' : `Iga kala võtab ühe söödaühiku. Lant ei kulu.`}</small></div></div>`;
+  // autopiloot
+  h += `<div class="fv-card dr-auto ${d.auto ? 'on' : ''}"><div class="dr-up"><div><h2 style="margin:0 0 4px">🤖 Autopiloot</h2><p>${d.auto
+    ? 'Paigaldatud! Kui aku saab tühjaks, lendab droon ise koju laadima ja tühjendab korvi laohoonesse, siis jätkab püüki. Laohoonesse mahub 4 korvitäit kala.'
+    : 'Droon lendab ise koju laadima, kui aku saab tühjaks, ja tühjendab korvi laohoonesse – sina korjad saagi siis, kui jõuad. Laohoonesse mahub 4 korvitäit kala.'}</p></div>
+    ${d.auto ? '<span class="dr-on">Sees</span>' : `<button class="btn" type="button" data-dr="auto" ${d.lvl >= d.auto_need && !DR.busy ? '' : 'disabled'}>${d.lvl >= d.auto_need ? `Paigalda · ${fmt(d.auto_cost)}` : `Vaja drooni ${d.auto_need}. taset`}</button>`}</div></div>`;
   // osad
-  const PI = { aku: '🔋', mootor: '🌀', korv: '🧺', sonar: '📡', soodur: '🪱' }, PD = d.pdef || {};
+  const PI = { aku: '🔋', mootor: '🌀', korv: '🧺', sonar: '📡', soodur: '🪱', haarats: '🦾' }, PD = d.pdef || {};
   h += `<div class="fv-card"><h2>Drooni osad</h2><p class="lead" style="margin:0">Iga osa saab uuendada kuni drooni enda tasemeni (praegu ${d.lvl}). Uuenda drooni, et avada osade järgmised tasemed.</p>
-    <div class="dr-parts">${Object.keys(PD).map(k => { const p = PD[k], cur = +(d.parts || {})[k] || 0, cost = p.base * (cur + 1) * (cur + 1), lock = cur >= d.lvl, max = cur >= 5;
+    <div class="dr-parts">${Object.keys(PD).map(k => { const p = PD[k], cur = +(d.parts || {})[k] || 0, cost = p.base * (cur + 1) * (cur + 1), lock = cur >= d.lvl, max = cur >= 7;
       return `<div class="dr-part ${max ? 'max' : ''}"><div class="ic" aria-hidden="true">${PI[k] || '⚙️'}</div><div class="tx"><b>${esc(p.name)}</b><small>${esc(p.txt)}</small>
-        <div class="osk-pip">${[0, 1, 2, 3, 4].map(i => `<i class="${i < cur ? 'on' : ''}" style="${i >= d.lvl ? 'opacity:.35' : ''}"></i>`).join('')}</div>
-        <span class="v">${cur ? `Praegu +${p.per * cur}%` : 'Pole veel paigaldatud'}${!max && !lock ? ` · järgmine +${p.per * (cur + 1)}%` : ''}</span></div>
+        <div class="osk-pip">${[0, 1, 2, 3, 4, 5, 6].map(i => `<i class="${i < cur ? 'on' : ''}" style="${i >= d.lvl ? 'opacity:.35' : ''}"></i>`).join('')}</div>
+        <span class="v">${cur ? `Praegu +${drPct(p.per * cur)}%` : 'Pole veel paigaldatud'}${!max && !lock ? ` · järgmine +${drPct(p.per * (cur + 1))}%` : ''}</span></div>
         <button class="btn sm ${lock || max ? 'ghost' : ''}" type="button" data-dr="part" data-arg="${k}" ${lock || max || DR.busy ? 'disabled' : ''}>${max ? 'Parim' : lock ? `Vaja drooni ${cur + 1}. taset` : `${cur ? 'Uuenda' : 'Paigalda'} · ${fmt(cost)}`}</button></div>` }).join('')}</div></div>`;
   // uuendus
   const n = d.next;
-  h += `<div class="fv-card"><h2>Drooni uuendus</h2>${n ? `<div class="dr-up"><p><b style="color:#eef4f0">„${esc(n.name)}“</b>: üks kala ${String(n.min).replace('.', ',')} min (praegu ${String(cfg.min).replace('.', ',')}), korvi mahub ${n.cap} (praegu ${cap}), aku kestab ${n.fly} min (praegu ${cfg.fly})${n.maxr > cfg.maxr ? `, püüab ka ${n.maxr === 3 ? 'haruldasi' : 'eepilisi'} kalu` : ''}.${FS.level < n.need ? ` Avaneb kalapüügi ${n.need}. tasemel.` : ''}</p>
+  h += `<div class="fv-card"><h2>Drooni uuendus</h2>${n ? `<div class="dr-up"><p><b style="color:#eef4f0">„${esc(n.name)}“</b>: üks kala ${String(n.min).replace('.', ',')} min (praegu ${String(cfg.min).replace('.', ',')}), korvi mahub ${n.cap} (praegu ${cfg.cap}), aku kestab ${n.fly} min (praegu ${cfg.fly})${n.maxr > cfg.maxr ? `, püüab ka ${n.maxr === 3 ? 'haruldasi' : n.maxr === 4 ? 'eepilisi' : 'legendaarseid'} kalu` : ''}.${FS.level < n.need ? ` Avaneb kalapüügi ${n.need}. tasemel.` : ''}</p>
     <button class="btn" type="button" data-dr="buy" ${FS.level >= n.need && !DR.busy ? '' : 'disabled'}>Uuenda · ${fmt(n.cost)}</button></div>` : '<p class="lead" style="margin:0">⭐ Sinu droon on parim, mis olemas on.</p>'}
     <p class="lead" style="margin:0;font-size:12.5px">💡 Oskuste puus teeb „Droonimeister“ drooni kiiremaks ja „Droonimehaanik“ annab akule rohkem vastupidavust.</p></div>`;
   return h;
 }
+function drPct(v) { return (Math.round(v * 10) / 10).toString().replace('.', ',') }
 function drMin(sec) { const m = sec / 60; return (Math.round(m * 10) / 10).toString().replace('.', ',') + ' min' }
 function drBatt(d) {
   const b = Math.max(0, Math.min(100, +d.bat || 0)), col = b < 20 ? '#ff6a5a' : b < 50 ? '#ffc65a' : '#7aff9a', chg = !d.spot && b < 99.5;
@@ -207,6 +216,7 @@ async function drAct(a, arg) {
     else if (a === 'send') { r = await rpc('drone_send', { p_spot: DR.pick.spot, p_bait: DR.pick.bait }); toast(`🛸 Droon lendas: ${FD.spot[r.sent] ? FD.spot[r.sent].name : r.sent}`, 'good'); if (r.collected) DR.got = r.collected }
     else if (a === 'recall') { r = await rpc('drone_recall'); toast('Droon lendas sadamasse laadima.', 'info'); if (r.collected) DR.got = r.collected }
     else if (a === 'part') { r = await rpc('drone_part_up', { p_part: arg }); toast(`🔧 ${r.pdef[r.part].name}: tase ${r.parts[r.part]}`, 'good'); if (r.collected) DR.got = r.collected; if (typeof kassaSync === 'function') kassaSync() }
+    else if (a === 'auto') { r = await rpc('drone_auto_buy'); toast('🤖 Autopiloot on paigaldatud!', 'good'); if (typeof kassaSync === 'function') kassaSync() }
     else if (a === 'charge') { r = await rpc('drone_charge'); toast(`⚡ Aku on täis (−${fmt(r.charged)} kulda)`, 'good'); if (r.collected) DR.got = r.collected; if (typeof kassaSync === 'function') kassaSync() }
     else if (a === 'collect') { r = await rpc('drone_collect'); DR.got = r.collected; toast(`🧺 Droon tõi ${r.collected.fish.length} kala (+${fmt(r.collected.xp)} kogemust)`, 'good') }
     DR.d = r; DR.d._at = Date.now();
