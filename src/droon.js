@@ -2,7 +2,7 @@
    Kalapüügidroon – automaatne kalapüük
    Saada droon valitud püügikohta koos söödaga. Ta toob iga paari minuti järel ühe kala korvi,
    ka siis, kui mängust ära oled. Kui korv on täis (või sööt otsas), jääb droon ootama.
-   Droon ei püüa legendaarseid ega müütilisi kalu ega liiga rasket kala sinu õnge jaoks.
+   Droon püüab kõiki kalu, aga mitte liiga rasket kala sinu õnge jaoks.
    ===================================================================== */
 const DR = { d: null, loading: false, err: '', busy: false, pick: { spot: '', bait: '' }, got: null, raf: 0, t0: performance.now() };
 const DR_COL = ['', '#8fd0e8', '#7ae0b0', '#f2c060', '#ff8a6a', '#c49aff'];
@@ -142,7 +142,7 @@ function drTab() {
   if (!d.have) {
     const n = d.next, can = FS.level >= n.need;
     return `<div class="fv-card" style="padding:12px"><div class="dr-scene"><canvas id="drCv" aria-label="Kalapüügidroon"></canvas><div class="dr-cap"><b>Kalapüügidroon</b><small>Püüab sinu eest ka siis, kui oled eemal</small></div></div>
-      <p class="lead" style="margin:8px 4px 0">Saada droon püügikohta koos söödaga. Ta toob iga ${String(n.min).replace('.', ',')} minuti järel kala korvi. Igale kalale kulub veidi akut – täis akuga jõuab ta lennata ${n.fly} minutit. Sadamas laeb aku end ise uuesti täis. Tule tagasi, korja saak ära ja saada ta uuesti. Müütilisi kalu droon ei püüa – need jäävad sinu enda püüda. Legendaarseid toob ainult kõige parem droon.</p>
+      <p class="lead" style="margin:8px 4px 0">Saada droon püügikohta koos söödaga. Ta toob iga ${String(n.min).replace('.', ',')} minuti järel kala korvi. Igale kalale kulub veidi akut – täis akuga jõuab ta lennata ${n.fly} minutit. Sadamas laeb aku end ise uuesti täis. Tule tagasi, korja saak ära ja saada ta uuesti. Droon võib tuua kõiki kalu – ka legendaarseid ja müütilisi. Mida parem on sinu õnn ja sööt, seda haruldasemaid.</p>
       <div class="dr-up"><p><b style="color:#eef4f0">Droon „${n.name}“</b> · korvi mahub ${n.cap} kala · ${can ? `hind ${fmt(n.cost)} kulda` : `avaneb kalapüügi ${n.need}. tasemel`}</p>
       <button class="btn" type="button" data-dr="buy" ${can && !DR.busy ? '' : 'disabled'}>Osta droon · ${fmt(n.cost)}</button></div></div>`;
   }
@@ -195,7 +195,7 @@ function drTab() {
         <button class="btn sm ${lock || max ? 'ghost' : ''}" type="button" data-dr="part" data-arg="${k}" ${lock || max || DR.busy ? 'disabled' : ''}>${max ? 'Parim' : lock ? `Vaja drooni ${cur + 1}. taset` : `${cur ? 'Uuenda' : 'Paigalda'} · ${fmt(cost)}`}</button></div>` }).join('')}</div></div>`;
   // uuendus
   const n = d.next;
-  h += `<div class="fv-card"><h2>Drooni uuendus</h2>${n ? `<div class="dr-up"><p><b style="color:#eef4f0">„${esc(n.name)}“</b>: üks kala ${String(n.min).replace('.', ',')} min (praegu ${String(cfg.min).replace('.', ',')}), korvi mahub ${n.cap} (praegu ${cfg.cap}), aku kestab ${n.fly} min (praegu ${cfg.fly})${n.maxr > cfg.maxr ? `, püüab ka ${n.maxr === 3 ? 'haruldasi' : n.maxr === 4 ? 'eepilisi' : 'legendaarseid'} kalu` : ''}.${FS.level < n.need ? ` Avaneb kalapüügi ${n.need}. tasemel.` : ''}</p>
+  h += `<div class="fv-card"><h2>Drooni uuendus</h2>${n ? `<div class="dr-up"><p><b style="color:#eef4f0">„${esc(n.name)}“</b>: üks kala ${String(n.min).replace('.', ',')} min (praegu ${String(cfg.min).replace('.', ',')}), korvi mahub ${n.cap} (praegu ${cfg.cap}), aku kestab ${n.fly} min (praegu ${cfg.fly}).${FS.level < n.need ? ` Avaneb kalapüügi ${n.need}. tasemel.` : ''}</p>
     <button class="btn" type="button" data-dr="buy" ${FS.level >= n.need && !DR.busy ? '' : 'disabled'}>Uuenda · ${fmt(n.cost)}</button></div>` : '<p class="lead" style="margin:0">⭐ Sinu droon on parim, mis olemas on.</p>'}
     <p class="lead" style="margin:0;font-size:12.5px">💡 Oskuste puus teeb „Droonimeister“ drooni kiiremaks ja „Droonimehaanik“ annab akule rohkem vastupidavust.</p></div>`;
   return h;

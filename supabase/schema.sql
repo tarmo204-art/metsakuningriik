@@ -7915,7 +7915,7 @@ end $$;
 --   Droon toob iga paari minuti järel kala korvi. Igale kalale kulub akut; kui aku on tühi,
 --   korv täis või sööt otsas, jääb droon ootama. Sadamas (tagasi kutsutuna) laeb aku end 40 minutiga täis,
 --   kiirlaadimine maksab kulda. Autopiloodiga lendab droon ise koju laadima ja tühjendab korvi laohoonesse.
---   Müütilisi kalu droon ei püüa, legendaarseid ainult kõige parem droon.
+--   Droon püüab kõiki kalu (ka legendaarseid ja müütilisi) – haruldus sõltub sinu õnnest nagu tavalisel püügil.
 -- ---------------------------------------------------------------------
 alter table public.fisher_drone add column if not exists bat numeric not null default 100;
 alter table public.fisher_drone add column if not exists dock_at timestamptz;
@@ -7933,13 +7933,13 @@ create or replace function public.fx_drone_parts_def() returns jsonb language sq
            "haarats":{"name":"Aardehaarats","base":7000,"per":1.5,"txt":"Võimalus, et droon toob vee alt ka mõne eseme"}}'::jsonb $$;
 create or replace function public.fx_drone_cfg(l int) returns jsonb language sql immutable as $$
   select (case l
-    when 1 then '{"lvl":1,"min":4,"cap":12,"fly":60,"maxr":2,"cost":20000,"need":10,"name":"Kärbes"}'
-    when 2 then '{"lvl":2,"min":3.5,"cap":18,"fly":80,"maxr":3,"cost":45000,"need":20,"name":"Kiil"}'
-    when 3 then '{"lvl":3,"min":3,"cap":25,"fly":100,"maxr":3,"cost":90000,"need":30,"name":"Kajakas"}'
-    when 4 then '{"lvl":4,"min":2.5,"cap":35,"fly":120,"maxr":4,"cost":150000,"need":40,"name":"Merikotkas"}'
-    when 5 then '{"lvl":5,"min":2,"cap":50,"fly":150,"maxr":4,"cost":240000,"need":50,"name":"Tormilind"}'
-    when 6 then '{"lvl":6,"min":1.7,"cap":65,"fly":180,"maxr":4,"cost":380000,"need":60,"name":"Virmalisvalvur"}'
-    when 7 then '{"lvl":7,"min":1.5,"cap":80,"fly":210,"maxr":5,"cost":600000,"need":70,"name":"Fööniks"}'
+    when 1 then '{"lvl":1,"min":4,"cap":12,"fly":60,"maxr":6,"cost":20000,"need":10,"name":"Kärbes"}'
+    when 2 then '{"lvl":2,"min":3.5,"cap":18,"fly":80,"maxr":6,"cost":45000,"need":20,"name":"Kiil"}'
+    when 3 then '{"lvl":3,"min":3,"cap":25,"fly":100,"maxr":6,"cost":90000,"need":30,"name":"Kajakas"}'
+    when 4 then '{"lvl":4,"min":2.5,"cap":35,"fly":120,"maxr":6,"cost":150000,"need":40,"name":"Merikotkas"}'
+    when 5 then '{"lvl":5,"min":2,"cap":50,"fly":150,"maxr":6,"cost":240000,"need":50,"name":"Tormilind"}'
+    when 6 then '{"lvl":6,"min":1.7,"cap":65,"fly":180,"maxr":6,"cost":380000,"need":60,"name":"Virmalisvalvur"}'
+    when 7 then '{"lvl":7,"min":1.5,"cap":80,"fly":210,"maxr":6,"cost":600000,"need":70,"name":"Fööniks"}'
     else null end)::jsonb $$;
 create or replace function public.fx_drone_cap(u uuid, l int) returns int language sql stable as $$
   select round((public.fx_drone_cfg(l) ->> 'cap')::numeric * (1 + 0.2 * public.fx_drone_part(u, 'korv')))::int $$;
@@ -8131,7 +8131,7 @@ begin
     s := null;
     while s.id is null and rar >= 1 loop
       select fs.* into s from fish_species fs where fs.rarity = rar and d.spot = any(fs.spots) and fs.min_level <= f.level and fs.event is null
-        and fs.weather is null and (not fs.night_only or night) and (not fs.winter_only or winter or d.spot = 'jaa')
+        and (fs.weather is null or wthr = any(fs.weather)) and (not fs.night_only or night) and (not fs.winter_only or winter or d.spot = 'jaa')
         order by -ln(greatest(random(), 1e-9)) / (case when d.bait = any(fs.baits) then 4 else 1 end) limit 1;
       rar := rar - 1;
     end loop;
