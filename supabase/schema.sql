@@ -2565,7 +2565,7 @@ create or replace function public.fish_land(p_cast bigint) returns jsonb languag
 declare u uuid := fx_uid(); c fish_casts; f fishers; s fish_species; r fish_rods; sp fish_spots;
   chance numeric; wthr text := fx_weather(); v_night boolean := fx_is_night(); levels int[]; xp int; ach jsonb;
   newsp boolean; prevmax numeric; cid bigint; res jsonb; g int; items jsonb := '[]'; tier text; kt jsonb;
-  roll numeric; netsave boolean := false; s2 fish_species; w2 numeric; second jsonb; cid2 bigint; fit jsonb; dressed boolean;
+  roll numeric; netsave boolean := false; s2 fish_species; w2 numeric; second jsonb; cid2 bigint; fit jsonb; dressed boolean; src2 text;
 begin
   select * into c from fish_casts where id = p_cast and user_id = u for update;
   if c.id is null or c.state <> 'hooked' then return jsonb_build_object('ok', false, 'reason', 'gone'); end if;
@@ -2660,14 +2660,16 @@ begin
   -- harva leiab kala kõhust midagi
   if random() < 0.04 then items := fx_give_random(u, least(5, s.rarity + 1), 1); end if;
   -- ridvahoidja: teise õnge otsa tuli samal ajal kala
-  if random() < fx_kit_v(u, 'hoidja') + 0.006 * fx_sk(u, 'topeltnakk') then
+  -- teine kala: ridvahoidja (päris teine õng) või oskus „Kaks ühe korraga“ (sama konksu otsas teine kala)
+  src2 := case when random() < fx_kit_v(u, 'hoidja') then 'hoidja' when random() < 0.006 * fx_sk(u, 'topeltnakk') then 'oskus' end;
+  if src2 is not null then
     select fs.* into s2 from fish_species fs where fs.rarity <= 2 and c.spot = any(fs.spots) and fs.min_level <= f.level and fs.weather is null and fs.event is null
       and (not fs.night_only or v_night) and (not fs.winter_only or fx_is_winter() or c.spot = 'jaa') order by random() limit 1;
     if s2.id is not null then
       w2 := s2.min_w + (s2.max_w - s2.min_w) * power(random(), 2.2); w2 := round(w2, case when w2 < 1 then 3 else 2 end);
       insert into fish_catches(user_id, species, rarity, weight, spot, night, weather) values (u, s2.id, s2.rarity, w2, c.spot, v_night, wthr) returning id into cid2;
       update fishers set total = total + 1 where user_id = u;
-      second := jsonb_build_object('catch_id', cid2, 'species', s2.id, 'name', s2.name, 'rarity', s2.rarity, 'weight', w2);
+      second := jsonb_build_object('catch_id', cid2, 'species', s2.id, 'name', s2.name, 'rarity', s2.rarity, 'weight', w2, 'src', src2);
     end if;
   end if;
   update fishers set total = total + 1, rare = rare + (s.rarity >= 3)::int, night = fishers.night + v_night::int,

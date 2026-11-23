@@ -516,8 +516,10 @@ function kvCollectShow(col) {
     baseLandK2(r);
     if (!r || r.kind !== 'fish') return;
     if (r.net) { KV.netAt = performance.now(); fxText(FX.w / 2, FX.h * .3, '🥅 KAHV PÄÄSTIS!', '#9ff0c8', 24); if (typeof sfx === 'function') sfx('chime') }
-    if (r.second) { setTimeout(() => { KV.bellAt = performance.now(); fxText(FX.w * .75, FX.h * .22, '🔔 TEINE ÕNG!', '#ffe27a', 22); fxDrops(FX.w * .8, FX.h * .55, 14); if (typeof sfx === 'function') sfx('coin');
-      toast(`Teise õnge otsa tuli ka ${r.second.name.toLowerCase()}: ${fKg(+r.second.weight)}!`, 'good', 'fish') }, 1600) }
+    if (r.second && r.second.src === 'oskus') { setTimeout(() => { fxText(FX.w / 2, FX.h * .22, '🐟 KAKS ÜHE KORRAGA!', '#ffe27a', 22); fxDrops(FX.w / 2, FX.h * .55, 14); if (typeof sfx === 'function') sfx('coin');
+      toast(`Kaks ühe korraga! Sama konksu otsas oli ka ${r.second.name.toLowerCase()}: ${fKg(+r.second.weight)}`, 'good', 'fish') }, 1600) }
+    else if (r.second) { setTimeout(() => { KV.bellAt = performance.now(); fxText(FX.w * .75, FX.h * .22, '🔔 TEINE ÕNG!', '#ffe27a', 22); fxDrops(FX.w * .8, FX.h * .55, 14); if (typeof sfx === 'function') sfx('coin');
+      toast(`Ridvahoidjas oleva teise õnge otsa tuli ka ${r.second.name.toLowerCase()}: ${fKg(+r.second.weight)}!`, 'good', 'fish') }, 1600) }
   };
   const baseRpcK = rpc;
   rpc = async function (fn, args) {
