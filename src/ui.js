@@ -509,7 +509,7 @@ new ResizeObserver(() => { if (S && running) resizeMap() }).observe($('#mapWrap'
 window.claude?.hot?.snapshot?.(() => ({}));
 function fitTitle() {
   const h = document.querySelector('.start h1'); if (!h || !h.clientWidth) return;
-  let fs = 48; h.style.fontSize = fs + 'px';
+  let fs = innerWidth >= 900 ? 60 : 46; h.style.fontSize = fs + 'px';
   while (h.scrollWidth > h.clientWidth && fs > 18) { fs -= 1; h.style.fontSize = fs + 'px' }
 }
 window.addEventListener('resize', fitTitle);

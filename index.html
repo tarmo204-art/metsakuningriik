@@ -40,11 +40,32 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .btn.wide{width:100%}
 
 /* ---------- start screen ---------- */
-.start{position:fixed;inset:0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;overflow-y:auto;overflow-x:hidden;padding-top:max(28px,env(safe-area-inset-top,0px));padding-bottom:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 #startBg{position:fixed;inset:0;width:100%;height:100%;z-index:0}
-.start-card{position:relative;z-index:1;margin:auto;width:100%;max-width:440px;background:rgba(10,24,18,.74);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(195,211,164,.22);border-radius:20px;padding:28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.5);display:grid;gap:14px}
+.start-wrap{position:relative;z-index:1;margin:auto;width:100%;max-width:440px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.start-wrap > *,.brand > *{min-width:0;max-width:100%}
+.brand{display:grid;justify-items:center;text-align:center;gap:12px}
+.brand-logo{width:112px;height:112px;filter:drop-shadow(0 10px 28px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(242,181,82,.18));animation:brandIn .9s cubic-bezier(.2,.8,.2,1) both}
+@keyframes brandIn{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}
+.brand-txt{display:block;width:100%}.brand-txt h1{display:block;width:100%}.brand-tag{margin-top:2px!important}
+.start h1{font-family:var(--f-display);font-weight:400;font-size:44px;line-height:1.05;white-space:nowrap;max-width:100%;overflow:visible;color:#f6ebc6;letter-spacing:.01em;text-shadow:0 0 28px rgba(242,181,82,.35),0 2px 0 #1b3328}
+.brand-tag{margin:0;font-family:var(--f-head);font-size:16px;color:var(--amber-2);opacity:.9}
+.brand .lead{max-width:38ch}
+.brand-feats{display:none;list-style:none;margin:4px 0 0;padding:0;gap:10px}
+.brand-feats li{display:flex;align-items:center;gap:12px;color:#dfe8d6;font-size:15.5px}
+.brand-feats svg{width:34px;height:34px;flex:none;padding:7px;border-radius:50%;fill:var(--amber-2);background:rgba(242,181,82,.1);border:1px solid rgba(242,181,82,.28)}
+.start-card{position:relative;z-index:1;width:100%;background:linear-gradient(180deg,rgba(16,34,27,.86),rgba(9,21,16,.9));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(195,211,164,.2);border-radius:20px;padding:22px 22px 20px;box-shadow:0 30px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);display:grid;gap:14px}
+.start-card::before{content:"";position:absolute;left:24px;right:24px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(242,181,82,.75),transparent)}
+.start-foot{position:relative;z-index:1;margin-top:22px;font-size:12px;color:var(--faint);text-align:center}
 .eyebrow{font-family:var(--f-head);letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--lichen)}
-.start h1{font-family:var(--f-display);font-weight:400;font-size:44px;line-height:1.05;white-space:nowrap;max-width:100%;overflow:hidden;color:#f6ebc6;text-shadow:0 0 24px rgba(242,181,82,.35),0 2px 0 #2b4a3a}
+@media (min-width:900px){
+  .start-wrap{max-width:980px;grid-template-columns:minmax(0,1.1fr) 420px;align-items:center;gap:64px}
+  .brand{justify-items:start;text-align:left;gap:16px}
+  .brand-logo{width:150px;height:150px}
+  .brand-feats{display:grid}
+  .brand .lead{font-size:16.5px;color:#d5e0cc}
+}
+@media (max-height:700px) and (max-width:899px){.brand-logo{width:84px;height:84px}.brand .lead{display:none}}
 .start p.lead{margin:0;color:#cfdcc6}
 .field{display:grid;gap:5px}
 .field label{font-size:13px;color:var(--lichen);font-weight:500}
@@ -357,24 +378,86 @@ h1,h2,h3{text-wrap:balance;margin:0}
 }
 </style>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <linearGradient id="mkGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe7a6"/><stop offset=".45" stop-color="#f2b552"/><stop offset="1" stop-color="#b06d1e"/></linearGradient>
+  <linearGradient id="mkGoldR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9ae"/><stop offset=".5" stop-color="#d99a3c"/><stop offset="1" stop-color="#8a5414"/></linearGradient>
+  <radialGradient id="mkSky" cx=".5" cy=".38" r=".62"><stop offset="0" stop-color="#1f4a44"/><stop offset=".7" stop-color="#12302a"/><stop offset="1" stop-color="#0a1a15"/></radialGradient>
+  <linearGradient id="mkTree" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2f7a55"/><stop offset=".5" stop-color="#3f9466"/><stop offset=".5" stop-color="#25603f"/><stop offset="1" stop-color="#1c4a33"/></linearGradient>
+  <linearGradient id="mkLake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a8a9a"/><stop offset="1" stop-color="#1a4652"/></linearGradient>
+  <clipPath id="mkClip"><circle cx="100" cy="100" r="84"/></clipPath>
+  <mask id="mkMoonM"><circle cx="146" cy="62" r="13" fill="#fff"/><circle cx="152" cy="57" r="11" fill="#000"/></mask>
+  <symbol id="mkLogo" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="97" fill="#0b1a14"/>
+    <circle cx="100" cy="100" r="94" fill="none" stroke="url(#mkGoldR)" stroke-width="5"/>
+    <circle cx="100" cy="100" r="87.5" fill="none" stroke="#f2b552" stroke-opacity=".35" stroke-width="1"/>
+    <g clip-path="url(#mkClip)">
+      <rect x="0" y="0" width="200" height="200" fill="url(#mkSky)"/>
+      <g fill="#f6ebc6"><circle cx="52" cy="52" r="1.3"/><circle cx="68" cy="36" r="1"/><circle cx="128" cy="34" r=".9"/><circle cx="40" cy="78" r=".8"/><circle cx="160" cy="92" r="1"/><circle cx="118" cy="50" r=".7"/></g>
+      <circle cx="146" cy="62" r="13" fill="#f6ebc6" mask="url(#mkMoonM)"/>
+      <!-- tagumised kuused -->
+      <path d="M50 150 L50 140 L36 140 L47 128 L39 128 L49 116 L43 116 L56 98 L69 116 L63 116 L73 128 L65 128 L76 140 L62 140 L62 150Z" fill="#163a2c"/>
+      <path d="M140 152 L140 140 L126 140 L137 127 L130 127 L139 115 L134 115 L146 96 L158 115 L153 115 L162 127 L155 127 L166 140 L152 140 L152 152Z" fill="#163a2c"/>
+      <!-- maapind ja järv -->
+      <path d="M0 150 Q60 136 100 142 Q150 148 200 140 L200 200 L0 200Z" fill="#0e271e"/>
+      <ellipse cx="100" cy="166" rx="58" ry="11" fill="url(#mkLake)"/>
+      <path d="M62 165 h18 M90 169 h22 M120 164 h16" stroke="#9fe0e8" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/>
+      <!-- hüppav kala -->
+      <g transform="translate(152 150) rotate(-38)">
+        <path d="M-11 0 Q-4 -7 7 -2 L13 -7 L12 0 L13 7 L7 2 Q-4 7 -11 0Z" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width=".9" stroke-linejoin="round"/>
+        <circle cx="-6" cy="-1.2" r="1" fill="#2a1a05"/>
+      </g>
+      <path d="M134 165 q4 -5 8 0 M160 160 q3 -3 6 0" fill="none" stroke="#9fe0e8" stroke-width="1.3" stroke-linecap="round" opacity=".75"/>
+      <g fill="#9fe0e8" opacity=".8"><circle cx="146" cy="156" r="1.1"/><circle cx="142" cy="152" r=".8"/></g>
+      <!-- peakuusk -->
+      <rect x="95" y="146" width="10" height="13" rx="2" fill="#5a3a22"/>
+      <path d="M100 52 L117 78 L109 78 L126 102 L116 102 L134 126 L122 126 L142 150 L58 150 L78 126 L66 126 L84 102 L74 102 L91 78 L83 78Z" fill="url(#mkTree)"/>
+      <path d="M100 52 L117 78 L109 78 L126 102 L116 102 L134 126 L122 126 L142 150 L100 150Z" fill="#0b2a1c" opacity=".22"/>
+      <path d="M83 78 L91 78 M74 102 L84 102 M66 126 L78 126" stroke="#7ad19a" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+      <!-- tulikärbsed -->
+      <g fill="#e8ff9a"><circle cx="70" cy="112" r="1.6" opacity=".85"/><circle cx="132" cy="108" r="1.3" opacity=".7"/><circle cx="58" cy="134" r="1.1" opacity=".6"/></g>
+    </g>
+    <!-- kroon -->
+    <g transform="translate(100 40)">
+      <path d="M-20 10 L-23 -9 L-11 0 L0 -16 L11 0 L23 -9 L20 10Z" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="-21" y="9" width="42" height="7" rx="2" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width="1.6"/>
+      <circle cx="-23" cy="-10" r="2.6" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="23" cy="-10" r="2.6" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="0" cy="-17" r="3" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="0" cy="12.5" r="2.4" fill="#e8657a"/><circle cx="-12" cy="12.5" r="1.8" fill="#86cde0"/><circle cx="12" cy="12.5" r="1.8" fill="#97d983"/>
+    </g>
+  </symbol>
+</defs></svg>
 <div id="start" class="start">
   <canvas id="startBg" aria-hidden="true"></canvas>
-  <div class="start-card">
-    <div class="eyebrow">Rahulik metsamäng</div>
-    <h1>Metsakuningriik</h1>
-    <p class="lead">Sul on väike maalapp keset suurt metsa. Istuta puid, ehita hooneid, sõbrune loomadega, avasta uusi alasid ja kasvata sellest kuningriik.</p>
-    <div class="cont" id="contBox" hidden>
-      <button class="btn wide" id="btnContinue" type="button">Jätka mängu</button>
-      <small id="contInfo"></small>
+  <div class="start-wrap">
+    <header class="brand">
+      <svg class="brand-logo" viewBox="0 0 200 200" role="img" aria-label="Metsakuningriigi logo"><use href="#mkLogo"/></svg>
+      <div class="brand-txt">
+        <h1>Metsakuningriik</h1>
+        <p class="brand-tag">Rahulik metsamäng</p>
+      </div>
+      <p class="lead">Sul on väike maalapp keset suurt metsa. Istuta puid, ehita hooneid, sõbrune loomadega, avasta uusi alasid ja kasvata sellest kuningriik.</p>
+      <ul class="brand-feats">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 6 10h3l-4 6h5v6h4v-6h5l-4-6h3z"/></svg>Ehita ja kasvata oma kuningriiki</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12c3-5 9-6 13-3l4-3-1 6 1 6-4-3c-4 3-10 2-13-3zm5-1a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>Kalasta järvedel ja merel koos teistega</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18l-1.5-10-4.5 4-3-7-3 7-4.5-4zM3 20h18v2H3z"/></svg>Võistle edetabelis ja ühistes sündmustes</li>
+      </ul>
+    </header>
+    <div class="start-card">
+      <div class="cont" id="contBox" hidden>
+        <button class="btn wide" id="btnContinue" type="button">Jätka mängu</button>
+        <small id="contInfo"></small>
+      </div>
+      <div class="divider" id="newDivider" hidden>või alusta otsast</div>
+      <form id="newForm" autocomplete="off">
+        <div class="field"><label for="playerName">Valitseja nimi</label><input id="playerName" maxlength="20" placeholder="nt Metsaema Liis" required></div>
+        <div class="field"><label for="kingdomName">Kuningriigi nimi</label><input id="kingdomName" maxlength="24" placeholder="nt Sõnajalgade kuningriik"></div>
+        <button class="btn wide" type="submit" id="btnNew">Alusta uut mängu</button>
+        <div class="note" id="newNote" hidden>Sul on juba salvestatud mäng. Uus mäng kirjutab selle üle.</div>
+      </form>
     </div>
-    <div class="divider" id="newDivider" hidden>või alusta otsast</div>
-    <form id="newForm" autocomplete="off">
-      <div class="field"><label for="playerName">Valitseja nimi</label><input id="playerName" maxlength="20" placeholder="nt Metsaema Liis" required></div>
-      <div class="field"><label for="kingdomName">Kuningriigi nimi</label><input id="kingdomName" maxlength="24" placeholder="nt Sõnajalgade kuningriik"></div>
-      <button class="btn wide" type="submit" id="btnNew">Alusta uut mängu</button>
-      <div class="note" id="newNote" hidden>Sul on juba salvestatud mäng. Uus mäng kirjutab selle üle.</div>
-    </form>
   </div>
+  <footer class="start-foot">© 2026 Metsakuningriik</footer>
 </div>
 
 <div id="game" class="game" hidden>
@@ -2714,7 +2797,7 @@ new ResizeObserver(() => { if (S && running) resizeMap() }).observe($('#mapWrap'
 window.claude?.hot?.snapshot?.(() => ({}));
 function fitTitle() {
   const h = document.querySelector('.start h1'); if (!h || !h.clientWidth) return;
-  let fs = 48; h.style.fontSize = fs + 'px';
+  let fs = innerWidth >= 900 ? 60 : 46; h.style.fontSize = fs + 'px';
   while (h.scrollWidth > h.clientWidth && fs > 18) { fs -= 1; h.style.fontSize = fs + 'px' }
 }
 window.addEventListener('resize', fitTitle);
@@ -6630,9 +6713,20 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .auth{display:grid;gap:10px}
 .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(0,0,0,.28)}
 .auth-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px;font-weight:700}
-.auth-tabs button.on{background:var(--fern);color:var(--birch)}
+.auth-tabs button.on{background:linear-gradient(180deg,#356a57,#28503f);color:var(--birch);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 2px 6px rgba(0,0,0,.25)}
+.auth-tabs button{transition:background .2s,color .2s}
+.auth-h{display:grid;gap:4px}.auth-h b{font-family:var(--f-head);font-size:19px;color:#f6ebc6;font-weight:700}.auth-h span{font-size:13.5px;color:var(--muted)}
+.pw{position:relative}.pw input{padding-right:46px}
+.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;border-radius:8px;background:none;display:grid;place-items:center;color:var(--muted)}
+.pw-eye svg{width:20px;height:20px;fill:currentColor}.pw-eye.on{color:var(--amber-2)}.pw-eye:hover{color:var(--birch)}
+.auth-go{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(42,26,5,.3);border-top-color:var(--amber-ink);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.auth-links{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.auth-safe{display:flex;gap:8px;align-items:flex-start;margin:2px 0 0;padding-top:12px;border-top:1px solid rgba(195,211,164,.12);font-size:12.5px;color:var(--faint)}
+.auth-safe svg{width:16px;height:16px;flex:none;fill:var(--ok);opacity:.75;margin-top:1px}
 .auth form{display:grid;gap:10px;margin:0}
-.authmsg{font-size:13.5px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.25)}
+.authmsg{font-size:13.5px;padding:9px 12px;border-radius:10px;background:rgba(0,0,0,.25);border-left:3px solid currentColor}
 .authmsg.bad{color:var(--bad)} .authmsg.good{color:var(--ok)}
 .linkbtn{border:0;background:none;color:var(--lichen);text-decoration:underline;padding:2px;font-size:13px;justify-self:start}
 .who-box{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--lichen);padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -6657,17 +6751,18 @@ function renderAuth() {
     return;
   }
   const reg = CL.mode === 'register', forgot = CL.mode === 'forgot';
-  box.innerHTML = `${forgot ? '' : `<div class="auth-tabs"><button type="button" class="${reg ? '' : 'on'}" data-cl="mode" data-arg="login">Logi sisse</button><button type="button" class="${reg ? 'on' : ''}" data-cl="mode" data-arg="register">Loo konto</button></div>`}
+  box.innerHTML = `${forgot ? '<div class="auth-h"><b>Parooli taastamine</b><span>Saadame sinu e-postile lingi, millega saad uue parooli määrata.</span></div>' : `<div class="auth-tabs" role="tablist"><button type="button" class="${reg ? '' : 'on'}" data-cl="mode" data-arg="login">Logi sisse</button><button type="button" class="${reg ? 'on' : ''}" data-cl="mode" data-arg="register">Loo konto</button></div>`}
     <form id="authForm" autocomplete="on">
       <div class="field"><label for="authEmail">E-post</label><input id="authEmail" type="email" autocomplete="email" required></div>
-      ${forgot ? '' : `<div class="field"><label for="authPass">Parool</label><input id="authPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required></div>`}
+      ${forgot ? '' : `<div class="field"><label for="authPass">Parool</label><div class="pw"><input id="authPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required ${reg ? 'placeholder="Vähemalt 6 märki"' : ''}><button type="button" class="pw-eye" data-cl="pw" aria-label="Näita parooli" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.7 9.2 1.5 12c1.2 2.8 5 7 10.5 7s9.3-4.2 10.5-7C21.3 9.2 17.5 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-2.3a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4z"/></svg></button></div></div>`}
       ${reg ? `<div class="field"><label for="authName">Valitseja nimi</label><input id="authName" maxlength="20" placeholder="nt Metsaema Liis" required></div>
         <div class="field"><label for="authKingdom">Kuningriigi nimi</label><input id="authKingdom" maxlength="24" placeholder="nt Sõnajalgade kuningriik"></div>` : ''}
-      <button class="btn wide" type="submit" ${CL.busy ? 'disabled' : ''}>${CL.busy ? 'Oota…' : forgot ? 'Saada parooli taastamise link' : reg ? 'Loo konto ja alusta' : 'Logi sisse'}</button>
+      <button class="btn wide auth-go" type="submit" ${CL.busy ? 'disabled aria-busy="true"' : ''}>${CL.busy ? '<i class="spin" aria-hidden="true"></i>Oota…' : forgot ? 'Saada parooli taastamise link' : reg ? 'Loo konto ja alusta' : 'Logi sisse'}</button>
     </form>${msg}
-    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div class="auth-links">
       ${forgot ? '<button class="linkbtn" type="button" data-cl="mode" data-arg="login">Tagasi sisselogimisse</button>' : '<button class="linkbtn" type="button" data-cl="mode" data-arg="forgot">Unustasid parooli?</button>'}
-      <button class="linkbtn" type="button" data-cl="guest">Mängi ilma kontota</button></div>`;
+      <button class="linkbtn" type="button" data-cl="guest">Mängi ilma kontota</button></div>
+    <p class="auth-safe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5zm-1.2 14.2-3.6-3.6 1.4-1.4 2.2 2.2 4.6-4.6 1.4 1.4z"/></svg>Konto hoiab sinu kuningriigi turvaliselt serveris – saad mängida igas seadmes.</p>`;
   $('#authForm').addEventListener('submit', onAuthSubmit);
 }
 const _showStart = showStart;
@@ -6707,6 +6802,7 @@ document.addEventListener('click', async e => {
   const a = el.dataset.cl;
   if (a === 'mode') { CL.mode = el.dataset.arg; CL.msg = ''; renderAuth() }
   else if (a === 'guest') { CL.guest = true; CL.msg = ''; SAVE_KEY = GUEST_KEY; showStart() }
+  else if (a === 'pw') { const i = $('#authPass'); if (i) { const show = i.type === 'password'; i.type = show ? 'text' : 'password'; el.setAttribute('aria-pressed', show); el.setAttribute('aria-label', show ? 'Peida parool' : 'Näita parooli'); el.classList.toggle('on', show); i.focus() } }
   else if (a === 'toLogin') { CL.guest = false; CL.mode = 'login'; showStart() }
   else if (a === 'logout') {
     try { if (S) save(); await cloudSave(true) } catch (e2) { }

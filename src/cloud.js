@@ -29,9 +29,20 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .auth{display:grid;gap:10px}
 .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(0,0,0,.28)}
 .auth-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px;font-weight:700}
-.auth-tabs button.on{background:var(--fern);color:var(--birch)}
+.auth-tabs button.on{background:linear-gradient(180deg,#356a57,#28503f);color:var(--birch);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 2px 6px rgba(0,0,0,.25)}
+.auth-tabs button{transition:background .2s,color .2s}
+.auth-h{display:grid;gap:4px}.auth-h b{font-family:var(--f-head);font-size:19px;color:#f6ebc6;font-weight:700}.auth-h span{font-size:13.5px;color:var(--muted)}
+.pw{position:relative}.pw input{padding-right:46px}
+.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;border-radius:8px;background:none;display:grid;place-items:center;color:var(--muted)}
+.pw-eye svg{width:20px;height:20px;fill:currentColor}.pw-eye.on{color:var(--amber-2)}.pw-eye:hover{color:var(--birch)}
+.auth-go{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(42,26,5,.3);border-top-color:var(--amber-ink);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.auth-links{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.auth-safe{display:flex;gap:8px;align-items:flex-start;margin:2px 0 0;padding-top:12px;border-top:1px solid rgba(195,211,164,.12);font-size:12.5px;color:var(--faint)}
+.auth-safe svg{width:16px;height:16px;flex:none;fill:var(--ok);opacity:.75;margin-top:1px}
 .auth form{display:grid;gap:10px;margin:0}
-.authmsg{font-size:13.5px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.25)}
+.authmsg{font-size:13.5px;padding:9px 12px;border-radius:10px;background:rgba(0,0,0,.25);border-left:3px solid currentColor}
 .authmsg.bad{color:var(--bad)} .authmsg.good{color:var(--ok)}
 .linkbtn{border:0;background:none;color:var(--lichen);text-decoration:underline;padding:2px;font-size:13px;justify-self:start}
 .who-box{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--lichen);padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -56,17 +67,18 @@ function renderAuth() {
     return;
   }
   const reg = CL.mode === 'register', forgot = CL.mode === 'forgot';
-  box.innerHTML = `${forgot ? '' : `<div class="auth-tabs"><button type="button" class="${reg ? '' : 'on'}" data-cl="mode" data-arg="login">Logi sisse</button><button type="button" class="${reg ? 'on' : ''}" data-cl="mode" data-arg="register">Loo konto</button></div>`}
+  box.innerHTML = `${forgot ? '<div class="auth-h"><b>Parooli taastamine</b><span>Saadame sinu e-postile lingi, millega saad uue parooli määrata.</span></div>' : `<div class="auth-tabs" role="tablist"><button type="button" class="${reg ? '' : 'on'}" data-cl="mode" data-arg="login">Logi sisse</button><button type="button" class="${reg ? 'on' : ''}" data-cl="mode" data-arg="register">Loo konto</button></div>`}
     <form id="authForm" autocomplete="on">
       <div class="field"><label for="authEmail">E-post</label><input id="authEmail" type="email" autocomplete="email" required></div>
-      ${forgot ? '' : `<div class="field"><label for="authPass">Parool</label><input id="authPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required></div>`}
+      ${forgot ? '' : `<div class="field"><label for="authPass">Parool</label><div class="pw"><input id="authPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required ${reg ? 'placeholder="Vähemalt 6 märki"' : ''}><button type="button" class="pw-eye" data-cl="pw" aria-label="Näita parooli" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.7 9.2 1.5 12c1.2 2.8 5 7 10.5 7s9.3-4.2 10.5-7C21.3 9.2 17.5 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-2.3a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4z"/></svg></button></div></div>`}
       ${reg ? `<div class="field"><label for="authName">Valitseja nimi</label><input id="authName" maxlength="20" placeholder="nt Metsaema Liis" required></div>
         <div class="field"><label for="authKingdom">Kuningriigi nimi</label><input id="authKingdom" maxlength="24" placeholder="nt Sõnajalgade kuningriik"></div>` : ''}
-      <button class="btn wide" type="submit" ${CL.busy ? 'disabled' : ''}>${CL.busy ? 'Oota…' : forgot ? 'Saada parooli taastamise link' : reg ? 'Loo konto ja alusta' : 'Logi sisse'}</button>
+      <button class="btn wide auth-go" type="submit" ${CL.busy ? 'disabled aria-busy="true"' : ''}>${CL.busy ? '<i class="spin" aria-hidden="true"></i>Oota…' : forgot ? 'Saada parooli taastamise link' : reg ? 'Loo konto ja alusta' : 'Logi sisse'}</button>
     </form>${msg}
-    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div class="auth-links">
       ${forgot ? '<button class="linkbtn" type="button" data-cl="mode" data-arg="login">Tagasi sisselogimisse</button>' : '<button class="linkbtn" type="button" data-cl="mode" data-arg="forgot">Unustasid parooli?</button>'}
-      <button class="linkbtn" type="button" data-cl="guest">Mängi ilma kontota</button></div>`;
+      <button class="linkbtn" type="button" data-cl="guest">Mängi ilma kontota</button></div>
+    <p class="auth-safe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5zm-1.2 14.2-3.6-3.6 1.4-1.4 2.2 2.2 4.6-4.6 1.4 1.4z"/></svg>Konto hoiab sinu kuningriigi turvaliselt serveris – saad mängida igas seadmes.</p>`;
   $('#authForm').addEventListener('submit', onAuthSubmit);
 }
 const _showStart = showStart;
@@ -106,6 +118,7 @@ document.addEventListener('click', async e => {
   const a = el.dataset.cl;
   if (a === 'mode') { CL.mode = el.dataset.arg; CL.msg = ''; renderAuth() }
   else if (a === 'guest') { CL.guest = true; CL.msg = ''; SAVE_KEY = GUEST_KEY; showStart() }
+  else if (a === 'pw') { const i = $('#authPass'); if (i) { const show = i.type === 'password'; i.type = show ? 'text' : 'password'; el.setAttribute('aria-pressed', show); el.setAttribute('aria-label', show ? 'Peida parool' : 'Näita parooli'); el.classList.toggle('on', show); i.focus() } }
   else if (a === 'toLogin') { CL.guest = false; CL.mode = 'login'; showStart() }
   else if (a === 'logout') {
     try { if (S) save(); await cloudSave(true) } catch (e2) { }

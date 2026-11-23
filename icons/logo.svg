@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="400" height="400">
+<defs>
+  <linearGradient id="mkGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe7a6"/><stop offset=".45" stop-color="#f2b552"/><stop offset="1" stop-color="#b06d1e"/></linearGradient>
+  <linearGradient id="mkGoldR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9ae"/><stop offset=".5" stop-color="#d99a3c"/><stop offset="1" stop-color="#8a5414"/></linearGradient>
+  <radialGradient id="mkSky" cx=".5" cy=".38" r=".62"><stop offset="0" stop-color="#1f4a44"/><stop offset=".7" stop-color="#12302a"/><stop offset="1" stop-color="#0a1a15"/></radialGradient>
+  <linearGradient id="mkTree" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2f7a55"/><stop offset=".5" stop-color="#3f9466"/><stop offset=".5" stop-color="#25603f"/><stop offset="1" stop-color="#1c4a33"/></linearGradient>
+  <linearGradient id="mkLake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a8a9a"/><stop offset="1" stop-color="#1a4652"/></linearGradient>
+  <clipPath id="mkClip"><circle cx="100" cy="100" r="84"/></clipPath>
+  <mask id="mkMoonM"><circle cx="146" cy="62" r="13" fill="#fff"/><circle cx="152" cy="57" r="11" fill="#000"/></mask>
+  <symbol id="mkLogo" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="97" fill="#0b1a14"/>
+    <circle cx="100" cy="100" r="94" fill="none" stroke="url(#mkGoldR)" stroke-width="5"/>
+    <circle cx="100" cy="100" r="87.5" fill="none" stroke="#f2b552" stroke-opacity=".35" stroke-width="1"/>
+    <g clip-path="url(#mkClip)">
+      <rect x="0" y="0" width="200" height="200" fill="url(#mkSky)"/>
+      <g fill="#f6ebc6"><circle cx="52" cy="52" r="1.3"/><circle cx="68" cy="36" r="1"/><circle cx="128" cy="34" r=".9"/><circle cx="40" cy="78" r=".8"/><circle cx="160" cy="92" r="1"/><circle cx="118" cy="50" r=".7"/></g>
+      <circle cx="146" cy="62" r="13" fill="#f6ebc6" mask="url(#mkMoonM)"/>
+      <!-- tagumised kuused -->
+      <path d="M50 150 L50 140 L36 140 L47 128 L39 128 L49 116 L43 116 L56 98 L69 116 L63 116 L73 128 L65 128 L76 140 L62 140 L62 150Z" fill="#163a2c"/>
+      <path d="M140 152 L140 140 L126 140 L137 127 L130 127 L139 115 L134 115 L146 96 L158 115 L153 115 L162 127 L155 127 L166 140 L152 140 L152 152Z" fill="#163a2c"/>
+      <!-- maapind ja järv -->
+      <path d="M0 150 Q60 136 100 142 Q150 148 200 140 L200 200 L0 200Z" fill="#0e271e"/>
+      <ellipse cx="100" cy="166" rx="58" ry="11" fill="url(#mkLake)"/>
+      <path d="M62 165 h18 M90 169 h22 M120 164 h16" stroke="#9fe0e8" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/>
+      <!-- hüppav kala -->
+      <g transform="translate(152 150) rotate(-38)">
+        <path d="M-11 0 Q-4 -7 7 -2 L13 -7 L12 0 L13 7 L7 2 Q-4 7 -11 0Z" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width=".9" stroke-linejoin="round"/>
+        <circle cx="-6" cy="-1.2" r="1" fill="#2a1a05"/>
+      </g>
+      <path d="M134 165 q4 -5 8 0 M160 160 q3 -3 6 0" fill="none" stroke="#9fe0e8" stroke-width="1.3" stroke-linecap="round" opacity=".75"/>
+      <g fill="#9fe0e8" opacity=".8"><circle cx="146" cy="156" r="1.1"/><circle cx="142" cy="152" r=".8"/></g>
+      <!-- peakuusk -->
+      <rect x="95" y="146" width="10" height="13" rx="2" fill="#5a3a22"/>
+      <path d="M100 52 L117 78 L109 78 L126 102 L116 102 L134 126 L122 126 L142 150 L58 150 L78 126 L66 126 L84 102 L74 102 L91 78 L83 78Z" fill="url(#mkTree)"/>
+      <path d="M100 52 L117 78 L109 78 L126 102 L116 102 L134 126 L122 126 L142 150 L100 150Z" fill="#0b2a1c" opacity=".22"/>
+      <path d="M83 78 L91 78 M74 102 L84 102 M66 126 L78 126" stroke="#7ad19a" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+      <!-- tulikärbsed -->
+      <g fill="#e8ff9a"><circle cx="70" cy="112" r="1.6" opacity=".85"/><circle cx="132" cy="108" r="1.3" opacity=".7"/><circle cx="58" cy="134" r="1.1" opacity=".6"/></g>
+    </g>
+    <!-- kroon -->
+    <g transform="translate(100 40)">
+      <path d="M-20 10 L-23 -9 L-11 0 L0 -16 L11 0 L23 -9 L20 10Z" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="-21" y="9" width="42" height="7" rx="2" fill="url(#mkGold)" stroke="#6a3f0c" stroke-width="1.6"/>
+      <circle cx="-23" cy="-10" r="2.6" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="23" cy="-10" r="2.6" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="0" cy="-17" r="3" fill="#ffe7a6" stroke="#6a3f0c" stroke-width="1.2"/>
+      <circle cx="0" cy="12.5" r="2.4" fill="#e8657a"/><circle cx="-12" cy="12.5" r="1.8" fill="#86cde0"/><circle cx="12" cy="12.5" r="1.8" fill="#97d983"/>
+    </g>
+  </symbol>
+</defs>
+<use href="#mkLogo" width="200" height="200"/>
+</svg>
