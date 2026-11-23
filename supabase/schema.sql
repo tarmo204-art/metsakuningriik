@@ -7908,31 +7908,48 @@ end $$;
 
 -- ---------------------------------------------------------------------
 -- 6z-droon. Kalapüügidroon: püüab valitud kohas sinu söödaga ka siis, kui oled eemal
---   Droon toob kala iga paari minuti järel, kuni korv saab täis. Legendaarseid ja müütilisi ta ei püüa.
+--   Droon toob iga paari minuti järel kala korvi. Igale kalale kulub akut; kui aku on tühi,
+--   korv täis või sööt otsas, jääb droon ootama. Sadamas (tagasi kutsutuna) laeb aku end 40 minutiga täis,
+--   kiirlaadimine maksab kulda. Legendaarseid ja müütilisi kalu droon ei püüa.
 -- ---------------------------------------------------------------------
+alter table public.fisher_drone add column if not exists bat numeric not null default 100;
+alter table public.fisher_drone add column if not exists dock_at timestamptz;
 create or replace function public.fx_drone_cfg(l int) returns jsonb language sql immutable as $$
   select (case l
-    when 1 then '{"lvl":1,"min":12,"cap":8,"maxr":2,"cost":20000,"need":10,"name":"Kärbes"}'
-    when 2 then '{"lvl":2,"min":10,"cap":12,"maxr":3,"cost":45000,"need":20,"name":"Kiil"}'
-    when 3 then '{"lvl":3,"min":8,"cap":16,"maxr":3,"cost":90000,"need":30,"name":"Kajakas"}'
-    when 4 then '{"lvl":4,"min":7,"cap":22,"maxr":4,"cost":150000,"need":40,"name":"Merikotkas"}'
-    when 5 then '{"lvl":5,"min":6,"cap":30,"maxr":4,"cost":240000,"need":50,"name":"Tormilind"}'
+    when 1 then '{"lvl":1,"min":4,"cap":12,"fly":60,"maxr":2,"cost":20000,"need":10,"name":"Kärbes"}'
+    when 2 then '{"lvl":2,"min":3.5,"cap":18,"fly":80,"maxr":3,"cost":45000,"need":20,"name":"Kiil"}'
+    when 3 then '{"lvl":3,"min":3,"cap":25,"fly":100,"maxr":3,"cost":90000,"need":30,"name":"Kajakas"}'
+    when 4 then '{"lvl":4,"min":2.5,"cap":35,"fly":120,"maxr":4,"cost":150000,"need":40,"name":"Merikotkas"}'
+    when 5 then '{"lvl":5,"min":2,"cap":50,"fly":150,"maxr":4,"cost":240000,"need":50,"name":"Tormilind"}'
     else null end)::jsonb $$;
 -- mitu sekundit kulub droonil ühe kala püüdmiseks
 create or replace function public.fx_drone_sec(u uuid, l int) returns numeric language sql stable as $$
   select (public.fx_drone_cfg(l) ->> 'min')::numeric * 60 * (1 - 0.05 * public.fx_sk(u, 'droonimeister')) $$;
+-- aku protsent ühe kala kohta
+create or replace function public.fx_drone_drain(u uuid, l int) returns numeric language sql stable as $$
+  select public.fx_drone_sec(u, l) / ((public.fx_drone_cfg(l) ->> 'fly')::numeric * 60) * 100 $$;
 create or replace function public.fx_drone_ready(u uuid) returns int language plpgsql stable as $$
 declare d fisher_drone; n int; b fish_baits;
 begin
   select * into d from fisher_drone where user_id = u;
   if d.user_id is null or d.spot is null or d.last_at is null then return 0; end if;
-  n := least((fx_drone_cfg(d.lvl) ->> 'cap')::int, floor(extract(epoch from now() - d.last_at) / fx_drone_sec(u, d.lvl))::int);
+  n := least((fx_drone_cfg(d.lvl) ->> 'cap')::int, floor(extract(epoch from now() - d.last_at) / fx_drone_sec(u, d.lvl))::int,
+             floor(d.bat / fx_drone_drain(u, d.lvl) + 1e-6)::int);
   select * into b from fish_baits where id = d.bait;
   if b.consumable then select least(n, coalesce((baits ->> d.bait)::int, 0)) into n from fishers where user_id = u; end if;
   return greatest(0, n);
 end $$;
+-- aku praegu (sadamas laeb, püügil kulub iga toodud kalaga)
+create or replace function public.fx_drone_bat(u uuid) returns numeric language plpgsql stable as $$
+declare d fisher_drone;
+begin
+  select * into d from fisher_drone where user_id = u;
+  if d.user_id is null then return 0; end if;
+  if d.spot is null then return least(100, d.bat + coalesce(extract(epoch from now() - d.dock_at), 0) / (40 * 60) * 100); end if;
+  return greatest(0, d.bat - fx_drone_ready(u) * fx_drone_drain(u, d.lvl));
+end $$;
 create or replace function public.drone_state() returns jsonb language plpgsql security definer set search_path = public as $$
-declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; sec numeric; rdy int; b fish_baits; left_b int; cap int; el numeric;
+declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; sec numeric; rdy int; b fish_baits; left_b int; cap int; el numeric; v_bat numeric; drain numeric; why text;
 begin
   f := fx_fisher(u);
   select * into d from fisher_drone where user_id = u;
@@ -7940,15 +7957,17 @@ begin
     return jsonb_build_object('have', false, 'next', fx_drone_cfg(1), 'level', f.level, 'gold', f.gold);
   end if;
   cfg := fx_drone_cfg(d.lvl); sec := fx_drone_sec(u, d.lvl); rdy := fx_drone_ready(u); cap := (cfg ->> 'cap')::int;
+  drain := fx_drone_drain(u, d.lvl); v_bat := fx_drone_bat(u);
   select * into b from fish_baits where id = d.bait;
   left_b := case when b.consumable then coalesce((f.baits ->> d.bait)::int, 0) end;
   el := case when d.last_at is not null then extract(epoch from now() - d.last_at) end;
+  why := case when d.spot is null then null when rdy >= cap then 'full' when v_bat < drain - 1e-6 then 'bat' when left_b is not null and rdy >= left_b then 'bait' end;
   return jsonb_build_object('have', true, 'lvl', d.lvl, 'cfg', cfg, 'next', fx_drone_cfg(d.lvl + 1), 'spot', d.spot, 'bait', d.bait,
     'ready', rdy, 'sec', round(sec), 'total', d.total, 'level', f.level, 'gold', f.gold, 'baits_left', left_b,
-    'stuck', d.spot is not null and left_b is not null and rdy >= left_b and rdy < cap,
-    'next_at', case when d.spot is not null and rdy < cap and (left_b is null or rdy < left_b)
-      then d.last_at + make_interval(secs => sec * (floor(el / sec) + 1)) end,
-    'since', d.last_at);
+    'bat', round(v_bat, 1), 'drain', round(drain, 2), 'why', why, 'stuck', why is not null,
+    'charge_cost', ceil(100 - v_bat)::int * 15 * d.lvl,
+    'full_at', case when d.spot is null and v_bat < 100 then now() + make_interval(secs => (100 - v_bat) / 100 * 40 * 60) end,
+    'next_at', case when why is null and d.spot is not null then d.last_at + make_interval(secs => sec * (floor(el / sec) + 1)) end);
 end $$;
 create or replace function public.drone_buy() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; d fisher_drone; nx jsonb;
@@ -7961,12 +7980,12 @@ begin
   if f.gold < (nx ->> 'cost')::int then raise exception 'Kulda ei jätku (vaja %)', nx ->> 'cost'; end if;
   if d.user_id is not null and fx_drone_ready(u) > 0 then perform drone_collect(); end if; -- senine saak korjatakse enne kokku
   update fishers set gold = gold - (nx ->> 'cost')::int where user_id = u;
-  if d.user_id is null then insert into fisher_drone(user_id) values (u);
+  if d.user_id is null then insert into fisher_drone(user_id, bat, dock_at) values (u, 100, now());
   else update fisher_drone set lvl = lvl + 1, last_at = case when spot is not null then now() end where user_id = u; end if;
   return drone_state() || jsonb_build_object('bought', nx);
 end $$;
 create or replace function public.drone_send(p_spot text, p_bait text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare u uuid := fx_uid(); f fishers; d fisher_drone; sp fish_spots; b fish_baits;
+declare u uuid := fx_uid(); f fishers; d fisher_drone; sp fish_spots; b fish_baits; v_bat numeric;
 begin
   f := fx_fisher(u);
   select * into d from fisher_drone where user_id = u for update;
@@ -7982,20 +8001,39 @@ begin
   if b.consumable and coalesce((f.baits ->> b.id)::int, 0) < 1 then raise exception 'Sul pole seda sööta'; end if;
   if not b.consumable and b.price > 0 and not (f.baits ? b.id) then raise exception 'Sul pole seda lanti'; end if;
   if fx_drone_ready(u) > 0 then perform drone_collect(); end if;
-  update fisher_drone set spot = p_spot, bait = p_bait, last_at = now() where user_id = u;
+  v_bat := fx_drone_bat(u);
+  if v_bat < fx_drone_drain(u, d.lvl) then raise exception 'Drooni aku on tühi – lase sel sadamas laadida või kasuta kiirlaadimist'; end if;
+  update fisher_drone set spot = p_spot, bait = p_bait, last_at = now(), bat = v_bat, dock_at = null where user_id = u;
   return drone_state() || jsonb_build_object('sent', p_spot);
 end $$;
 create or replace function public.drone_recall() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); r jsonb := '{}';
 begin
   if fx_drone_ready(u) > 0 then r := drone_collect(); end if;
-  update fisher_drone set spot = null, last_at = null where user_id = u;
+  update fisher_drone set spot = null, last_at = null, dock_at = now() where user_id = u and spot is not null;
   return drone_state() || jsonb_build_object('recalled', true, 'collected', r -> 'collected');
+end $$;
+-- kiirlaadimine: aku kohe täis (kulda 15 × drooni tase iga puuduva protsendi eest)
+create or replace function public.drone_charge() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; v_bat numeric; cost int; r jsonb := '{}';
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u;
+  if d.user_id is null then raise exception 'Sul pole veel drooni'; end if;
+  if d.spot is not null and fx_drone_ready(u) > 0 then r := drone_collect(); end if;
+  v_bat := fx_drone_bat(u);
+  if v_bat >= 99.5 then raise exception 'Aku on juba täis'; end if;
+  cost := ceil(100 - v_bat)::int * 15 * d.lvl;
+  select * into f from fishers where user_id = u;
+  if f.gold < cost then raise exception 'Kiirlaadimine maksab % kulda', cost; end if;
+  update fishers set gold = gold - cost where user_id = u;
+  update fisher_drone set bat = 100, last_at = case when spot is not null then now() end, dock_at = case when spot is null then now() end where user_id = u;
+  return drone_state() || jsonb_build_object('charged', cost, 'collected', r -> 'collected');
 end $$;
 create or replace function public.drone_collect() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; n int; i int; j int; w numeric[]; tot numeric; roll numeric; rar int; s fish_species;
   wt numeric; strength numeric; got jsonb := '[]'; cid bigint; xp int := 0; levels int[]; wthr text := fx_weather(); winter boolean := fx_is_winter();
-  night boolean := fx_is_night(); b fish_baits; maxr int; sec numeric;
+  night boolean := fx_is_night(); b fish_baits; maxr int; sec numeric; tn int;
 begin
   f := fx_fisher(u);
   select * into d from fisher_drone where user_id = u for update;
@@ -8003,6 +8041,7 @@ begin
   n := fx_drone_ready(u);
   if n < 1 then raise exception 'Droon pole veel ühtegi kala toonud'; end if;
   cfg := fx_drone_cfg(d.lvl); maxr := (cfg ->> 'maxr')::int; sec := fx_drone_sec(u, d.lvl);
+  tn := floor(extract(epoch from now() - d.last_at) / sec)::int; -- nii palju oleks aja järgi jõudnud
   select * into b from fish_baits where id = d.bait;
   w := fx_rarity_weights(u, d.spot, d.bait);
   strength := (fx_gear(u) ->> 'strength')::numeric;
@@ -8027,8 +8066,8 @@ begin
   end loop;
   if b.consumable then update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(greatest(0, coalesce((baits ->> b.id)::int, 0) - n))) where user_id = u; end if;
   update fishers set total = total + jsonb_array_length(got) where user_id = u;
-  update fisher_drone set total = total + jsonb_array_length(got),
-    last_at = case when n >= (cfg ->> 'cap')::int then now() else last_at + make_interval(secs => sec * n) end where user_id = u;
+  update fisher_drone set total = total + jsonb_array_length(got), bat = greatest(0, bat - n * fx_drone_drain(u, d.lvl)),
+    last_at = case when n < tn then now() else last_at + make_interval(secs => sec * n) end where user_id = u;
   xp := xp * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   return drone_state() || jsonb_build_object('collected', jsonb_build_object('fish', got, 'xp', xp, 'spot', d.spot), 'lvlup', to_jsonb(levels), 'ach', fx_check_ach(u));
@@ -8055,7 +8094,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'skills_state', 'skill_up', 'skills_reset', 'drone_state', 'drone_buy', 'drone_send', 'drone_recall', 'drone_collect', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'skills_state', 'skill_up', 'skills_reset', 'drone_state', 'drone_buy', 'drone_send', 'drone_recall', 'drone_collect', 'drone_charge', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);
