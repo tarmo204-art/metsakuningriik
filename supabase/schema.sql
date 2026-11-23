@@ -2006,6 +2006,39 @@ insert into public.fish_companies (id, sort, name, icon, color, descr, likes) va
  ('korts', 11, 'Sadamakõrts', '🍺', '#b8742a', 'Lärmakas kõrts sadama ääres. Meremehed tahavad iga päev suitsukala ja kalasuppi.', 'Suitsukala, kalasupp, värske väike kala')
 on conflict (id) do update set sort = excluded.sort, name = excluded.name, icon = excluded.icon, color = excluded.color, descr = excluded.descr, likes = excluded.likes;
 
+-- ---------------------------------------------------------------------
+-- 3z-osk. Kaluri oskuste puu ja kalapüügidroon (tabelid)
+-- ---------------------------------------------------------------------
+create table if not exists public.fish_skill_defs (
+  id text primary key, branch text not null, tier int not null, name text not null, descr text not null,
+  max int not null default 5, per numeric not null, unit text not null default '%', icon text not null default '', sort int not null default 0);
+insert into public.fish_skill_defs (id, branch, tier, name, descr, max, per, unit, icon, sort) values
+ ('kiirnakk','vote',0,'Kiire näkk','Kala näkkab kiiremini',5,3,'%','⚡',1),
+ ('kindelkasi','vote',1,'Kindel käsi','Õng murdub raske kala all harvemini',5,8,'%','✋',2),
+ ('saastlik','vote',2,'Säästlik kalur','Võimalus, et sööt jääb alles',5,4,'%','🪱',3),
+ ('meistriritv','vote',3,'Meistri ritv','Õnge tugevus suureneb',5,4,'%','🎣',4),
+ ('kalatundja','tead',0,'Kalatundja','Püügist saad rohkem kogemust',5,3,'%','📖',5),
+ ('onnekasi','tead',1,'Õnnelik käsi','Haruldaste kalade õnn suureneb',5,1,'%','🍀',6),
+ ('hiiglased','tead',2,'Hiiglaste jälgija','Hiiglasliku isendi võimalus suureneb',5,10,'%','🐋',7),
+ ('raskesaak','tead',3,'Raske saak','Kalad on raskemad',5,2,'%','⚖️',8),
+ ('kaupmees','kaup',0,'Kaupmees','Kalade müügihind tõuseb',5,2,'%','🪙',9),
+ ('aardekutt','kaup',1,'Aardekütt','Aardekirstudest tuleb rohkem kulda',5,8,'%','💰',10),
+ ('topeltnakk','kaup',2,'Kaks ühe korraga','Võimalus saada korraga teine kala',5,0.6,'%','🐟',11),
+ ('droonimeister','kaup',3,'Droonimeister','Droon püüab kiiremini',5,5,'%','🛸',12)
+on conflict (id) do update set branch = excluded.branch, tier = excluded.tier, name = excluded.name, descr = excluded.descr, max = excluded.max,
+  per = excluded.per, unit = excluded.unit, icon = excluded.icon, sort = excluded.sort;
+create table if not exists public.fisher_skills (
+  user_id uuid primary key references auth.users(id) on delete cascade, ranks jsonb not null default '{}', resets int not null default 0);
+create table if not exists public.fisher_drone (
+  user_id uuid primary key references auth.users(id) on delete cascade, lvl int not null default 1, spot text, bait text,
+  last_at timestamptz, total int not null default 0, bought_at timestamptz not null default now());
+alter table public.fish_skill_defs enable row level security;
+drop policy if exists "oskused loetavad" on public.fish_skill_defs;
+create policy "oskused loetavad" on public.fish_skill_defs for select using (true);
+alter table public.fisher_skills enable row level security;
+alter table public.fisher_drone enable row level security;
+
+-- ---------------------------------------------------------------------
 -- 4. Abifunktsioonid (ei ole mängijale otse kättesaadavad)
 -- ---------------------------------------------------------------------
 create or replace function public.fx_uid() returns uuid language plpgsql stable as $$
@@ -2125,7 +2158,7 @@ begin
   select * into b from public.fish_baits where id = p_bait;
   bonus := case when p_spot = 'udulaht' then 0.06 * public.fx_room_mul(u, 'majakas') else 0 end + coalesce((public.fx_gear(u, p_spot) ->> 'catch')::numeric, coalesce(r.catch_bonus,0)) + coalesce(b.rarity_bonus,0) + coalesce(sp.bonus,0)
            + public.fx_weather_bonus(public.fx_weather()) + case when night then 0.05 else 0 end + 0.03 * coalesce(f.luck,0)
-           + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end + public.fx_lab_aura(u, 'onn') * 0.2;
+           + case when public.fx_myth(u, 'kuuong') then 0.03 else 0 end + public.fx_lab_aura(u, 'onn') * 0.2 + 0.01 * public.fx_sk(u, 'onnekasi');
   -- Õnnetund: mängija enda õnn (varustus, sööt, koht, ilm…) kolmekordne
   if bonus > 0 and public.fx_onn_on() then bonus := bonus * 3; end if;
   for i in 1..6 loop
@@ -2395,7 +2428,7 @@ begin
   if b.consumable then
     cnt := coalesce((f.baits ->> b.id)::int, 0);
     if cnt < 1 then raise exception 'Sul pole seda sööta. Osta seda poest.'; end if;
-    if random() >= coalesce((fx_house(u)).bait_save, 0) then
+    if random() >= coalesce((fx_house(u)).bait_save, 0) + 0.04 * fx_sk(u, 'saastlik') then
       if random() < fx_kit_v(u, 'ammber') then bsaved := true;
       else update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(cnt - 1)) where user_id = u; end if;
     end if;
@@ -2465,13 +2498,15 @@ begin
     end loop;
     if s.id is null then raise exception 'Siin pole praegu kalu'; end if;
     wt := s.min_w + (s.max_w - s.min_w) * power(random(), case when evb then 1.3 when fx_onn_on() then 0.63 else 2.2 end);
+    wt := wt * (1 + 0.02 * fx_sk(u, 'raskesaak')); -- oskus: Raske saak
     -- Õnnetunnil on hiiglase võimalus (varustuse järgi) kahekordne
-    if random() < 0.03 * (g ->> 'giant')::numeric * (case when fx_onn_on() then 2 else 1 end) then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
+    if random() < 0.03 * (g ->> 'giant')::numeric * (case when fx_onn_on() then 2 else 1 end) * (1 + 0.1 * fx_sk(u, 'hiiglased')) then giant := true; wt := s.max_w * (1.25 + random() * 0.35); end if;
     wt := round(wt, case when wt < 1 then 3 else 2 end);
   end if;
   -- kalade üldine aktiivsus selles kohas mõjutab, kui kiiresti näkkab
   select avg(fx_act(fs.temp_pref, fs.wx_tags, wthr, wtemp, wpre, dp)) into avgact from fish_species fs where p_spot = any(fs.spots) and fs.min_level <= lv and fs.event is null;
   wait_ms := round((1800 + random() * 5200) * greatest(0.75, least(1.3, 1.25 - 0.25 * coalesce(avgact, 1))) * b.wait_mult * (case when p_spot = 'udulaht' then 1 - 0.15 * greatest(1, fx_room_mul(u, 'sild')) else 1 end) * fx_weather_wait(wthr) * fx_wev_wait(p_spot) * (g ->> 'wait')::numeric * (1 - korv) * (case when fit ->> 'tier' = 'hea' and (fit ->> 'need')::int > 0 then 0.9 else 1 end));
+  wait_ms := round(wait_ms * (1 - 0.03 * fx_sk(u, 'kiirnakk'))); -- oskus: Kiire näkk
   if kind = 'fish' and (fit -> 'worn') ? 'polar' and wthr in ('paike','pilves') then peek := round(least(1, sqrt(wt / 15.0)), 2); end if;
   insert into fish_casts(user_id, spot, bait, kind, species, junk, weight, giant, bite_at)
   values (u, p_spot, b.id, kind, s.id, junk, wt, giant, now() + make_interval(secs => wait_ms / 1000.0))
@@ -2559,6 +2594,7 @@ begin
   elsif c.kind = 'chest' then
     tier := coalesce(nullif(c.junk, ''), 'puu');
     g := case tier when 'kuld' then 400 + f.level * 60 when 'hobe' then 150 + f.level * 30 else 60 + f.level * 15 end + floor(random() * 60)::int;
+    g := round(g * (1 + 0.08 * fx_sk(u, 'aardekutt'))); -- oskus: Aardekütt
     update fish_casts set state = 'landed' where id = c.id;
     update fishers set chests = chests + 1, gold = gold + g where user_id = u;
     items := fx_give_random(u, case tier when 'kuld' then 5 when 'hobe' then 3 else 2 end, case tier when 'kuld' then 3 when 'hobe' then 2 else 1 end);
@@ -2577,6 +2613,7 @@ begin
     chance := least(1, (c.weight / r.strength - 1) * 1.3) + case when wthr = 'torm' then 0.1 else 0 end;
     if fx_myth(u, 'hobesoomus') then chance := chance * 0.5; end if;
     chance := chance * (1 - fx_lab_aura(u, 'kaitse') * 2);
+    chance := chance * (1 - 0.08 * fx_sk(u, 'kindelkasi')); -- oskus: Kindel käsi
     roll := random();
     if roll < chance and roll >= chance * (1 - fx_kit_v(u, 'kahv', true)) then netsave := true; end if;
     if roll < chance * (1 - fx_kit_v(u, 'kahv', true)) then
@@ -2619,7 +2656,7 @@ begin
   -- harva leiab kala kõhust midagi
   if random() < 0.04 then items := fx_give_random(u, least(5, s.rarity + 1), 1); end if;
   -- ridvahoidja: teise õnge otsa tuli samal ajal kala
-  if random() < fx_kit_v(u, 'hoidja') then
+  if random() < fx_kit_v(u, 'hoidja') + 0.006 * fx_sk(u, 'topeltnakk') then
     select fs.* into s2 from fish_species fs where fs.rarity <= 2 and c.spot = any(fs.spots) and fs.min_level <= f.level and fs.weather is null and fs.event is null
       and (not fs.night_only or v_night) and (not fs.winter_only or fx_is_winter() or c.spot = 'jaa') order by random() limit 1;
     if s2.id is not null then
@@ -2634,7 +2671,7 @@ begin
     biggest_species = case when c.weight > biggest then s.id else biggest_species end
     where user_id = u;
   xp := round(s.xp * (1 + sp.difficulty * 0.1) * case when c.giant then 1.5 else 1 end * case when newsp then 2 else 1 end);
-  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus') + case when v_night then 0.15 * fx_room_mul(u, 'laternatuba') else 0 end + case when dressed then 0.10 else 0 end)) * fx_xp_mult();
+  xp := round(xp * (1 + coalesce((fx_house(u)).xp_bonus, 0) + case when fx_myth(u, 'hobesarv') then 0.10 else 0 end + fx_lab_aura(u, 'tarkus') + case when v_night then 0.15 * fx_room_mul(u, 'laternatuba') else 0 end + case when dressed then 0.10 else 0 end + 0.03 * fx_sk(u, 'kalatundja'))) * fx_xp_mult();
   levels := fx_add_xp(u, xp);
   if 50 = any(levels) or 25 = any(levels) then perform fx_news(u, 'level', jsonb_build_object('level', (select max(x) from unnest(levels) x))); end if;
   ach := fx_check_ach(u);
@@ -2668,7 +2705,7 @@ end $$;
 create or replace function public.fx_sell_bonus(u uuid) returns numeric language plpgsql as $$
 begin
   return 1 + coalesce((fx_house(u)).sell_bonus, 0) + fx_star_bonus((select prestige from fishers where user_id = u))
-    + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + 0.08 * fx_room_mul(u, 'suitsukoda') + fx_trophy_bonus(u) + fx_lab_aura(u, 'kuld');
+    + case when fx_myth(u, 'udukroon') then 0.10 else 0 end + 0.08 * fx_room_mul(u, 'suitsukoda') + fx_trophy_bonus(u) + fx_lab_aura(u, 'kuld') + 0.02 * fx_sk(u, 'kaupmees');
 end $$;
 -- Ühe kala praegune müügihind (ei muuda midagi; sama arv näidatakse ka mängijale)
 create or replace function public.fx_sell_price(u uuid, c fish_catches, p_bonus numeric default null) returns int language plpgsql as $$
@@ -3277,7 +3314,7 @@ begin
   select * into m from public.fisher_rods where user_id = u and rod = r.id;
   up := coalesce(m.upg, 0);
   if m.ench is not null and coalesce(m.ench_lvl, 0) > 0 then select * into e from public.fish_enchants where id = m.ench; v := e.vals[m.ench_lvl]; end if;
-  st := r.strength * (1 + 0.1 * up); cb := r.catch_bonus + 0.01 * up; rb := r.reel_bonus + 0.02 * up;
+  st := r.strength * (1 + 0.1 * up) * (1 + 0.04 * public.fx_sk(u, 'meistriritv')); cb := r.catch_bonus + 0.01 * up; rb := r.reel_bonus + 0.02 * up;
   case e.id
     when 'tugevus' then st := st * (1 + v);
     when 'onn' then cb := cb + v;
@@ -7821,6 +7858,183 @@ begin
   return cabin_state() || jsonb_build_object('saun', jsonb_build_object('xp', xp, 'bait', b));
 end $$;
 
+-- ---------------------------------------------------------------------
+-- 6z-osk. Kaluri oskuste puu
+--   1 oskuspunkt iga kalapüügi taseme eest (alates 2. tasemest). 3 haru × 4 oskust × 5 astet.
+--   Haru järgmine oskus avaneb, kui sellesse harusse on pandud 3 punkti rohkem (0 / 3 / 6 / 9).
+-- ---------------------------------------------------------------------
+create or replace function public.fx_sk(u uuid, k text) returns int language sql stable as $$
+  select coalesce((select (ranks ->> k)::int from public.fisher_skills where user_id = u), 0) $$;
+create or replace function public.skills_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; rk jsonb; rs int; spent int;
+begin
+  f := fx_fisher(u);
+  select ranks, resets into rk, rs from fisher_skills where user_id = u;
+  rk := coalesce(rk, '{}'); rs := coalesce(rs, 0);
+  select coalesce(sum(value::int), 0) into spent from jsonb_each_text(rk);
+  return jsonb_build_object('defs', (select jsonb_agg(to_jsonb(d) order by d.sort) from fish_skill_defs d), 'ranks', rk,
+    'points', greatest(0, f.level - 1), 'spent', spent, 'free', greatest(0, f.level - 1 - spent), 'level', f.level,
+    'reset_cost', case when rs = 0 then 0 else 300 * f.level end, 'gold', f.gold);
+end $$;
+create or replace function public.skill_up(p_id text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fish_skill_defs; rk jsonb; spent int; inb int; cur int;
+begin
+  f := fx_fisher(u);
+  select * into d from fish_skill_defs where id = p_id;
+  if d.id is null then raise exception 'Tundmatu oskus'; end if;
+  insert into fisher_skills(user_id) values (u) on conflict do nothing;
+  select ranks into rk from fisher_skills where user_id = u for update;
+  cur := coalesce((rk ->> d.id)::int, 0);
+  if cur >= d.max then raise exception 'See oskus on juba täiesti arendatud'; end if;
+  select coalesce(sum(value::int), 0) into spent from jsonb_each_text(rk);
+  if spent >= f.level - 1 then raise exception 'Sul pole vabu oskuspunkte. Uus punkt tuleb järgmisel kalapüügi tasemel.'; end if;
+  select coalesce(sum((rk ->> x.id)::int), 0) into inb from fish_skill_defs x where x.branch = d.branch;
+  if inb < d.tier * 3 then raise exception 'Selle oskuse avamiseks pane sellesse harusse veel % punkti', d.tier * 3 - inb; end if;
+  update fisher_skills set ranks = jsonb_set(ranks, array[d.id], to_jsonb(cur + 1)) where user_id = u;
+  return skills_state() || jsonb_build_object('up', d.id);
+end $$;
+create or replace function public.skills_reset() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; rs int; cost int;
+begin
+  f := fx_fisher(u);
+  select resets into rs from fisher_skills where user_id = u for update;
+  if rs is null then raise exception 'Sul pole veel ühtegi oskust'; end if;
+  cost := case when rs = 0 then 0 else 300 * f.level end;
+  if f.gold < cost then raise exception 'Oskuste ümberjagamine maksab % kulda', cost; end if;
+  update fishers set gold = gold - cost where user_id = u;
+  update fisher_skills set ranks = '{}', resets = resets + 1 where user_id = u;
+  return skills_state() || jsonb_build_object('reset', true, 'paid', cost);
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 6z-droon. Kalapüügidroon: püüab valitud kohas sinu söödaga ka siis, kui oled eemal
+--   Droon toob kala iga paari minuti järel, kuni korv saab täis. Legendaarseid ja müütilisi ta ei püüa.
+-- ---------------------------------------------------------------------
+create or replace function public.fx_drone_cfg(l int) returns jsonb language sql immutable as $$
+  select (case l
+    when 1 then '{"lvl":1,"min":12,"cap":8,"maxr":2,"cost":20000,"need":10,"name":"Kärbes"}'
+    when 2 then '{"lvl":2,"min":10,"cap":12,"maxr":3,"cost":45000,"need":20,"name":"Kiil"}'
+    when 3 then '{"lvl":3,"min":8,"cap":16,"maxr":3,"cost":90000,"need":30,"name":"Kajakas"}'
+    when 4 then '{"lvl":4,"min":7,"cap":22,"maxr":4,"cost":150000,"need":40,"name":"Merikotkas"}'
+    when 5 then '{"lvl":5,"min":6,"cap":30,"maxr":4,"cost":240000,"need":50,"name":"Tormilind"}'
+    else null end)::jsonb $$;
+-- mitu sekundit kulub droonil ühe kala püüdmiseks
+create or replace function public.fx_drone_sec(u uuid, l int) returns numeric language sql stable as $$
+  select (public.fx_drone_cfg(l) ->> 'min')::numeric * 60 * (1 - 0.05 * public.fx_sk(u, 'droonimeister')) $$;
+create or replace function public.fx_drone_ready(u uuid) returns int language plpgsql stable as $$
+declare d fisher_drone; n int; b fish_baits;
+begin
+  select * into d from fisher_drone where user_id = u;
+  if d.user_id is null or d.spot is null or d.last_at is null then return 0; end if;
+  n := least((fx_drone_cfg(d.lvl) ->> 'cap')::int, floor(extract(epoch from now() - d.last_at) / fx_drone_sec(u, d.lvl))::int);
+  select * into b from fish_baits where id = d.bait;
+  if b.consumable then select least(n, coalesce((baits ->> d.bait)::int, 0)) into n from fishers where user_id = u; end if;
+  return greatest(0, n);
+end $$;
+create or replace function public.drone_state() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; sec numeric; rdy int; b fish_baits; left_b int; cap int; el numeric;
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u;
+  if d.user_id is null then
+    return jsonb_build_object('have', false, 'next', fx_drone_cfg(1), 'level', f.level, 'gold', f.gold);
+  end if;
+  cfg := fx_drone_cfg(d.lvl); sec := fx_drone_sec(u, d.lvl); rdy := fx_drone_ready(u); cap := (cfg ->> 'cap')::int;
+  select * into b from fish_baits where id = d.bait;
+  left_b := case when b.consumable then coalesce((f.baits ->> d.bait)::int, 0) end;
+  el := case when d.last_at is not null then extract(epoch from now() - d.last_at) end;
+  return jsonb_build_object('have', true, 'lvl', d.lvl, 'cfg', cfg, 'next', fx_drone_cfg(d.lvl + 1), 'spot', d.spot, 'bait', d.bait,
+    'ready', rdy, 'sec', round(sec), 'total', d.total, 'level', f.level, 'gold', f.gold, 'baits_left', left_b,
+    'stuck', d.spot is not null and left_b is not null and rdy >= left_b and rdy < cap,
+    'next_at', case when d.spot is not null and rdy < cap and (left_b is null or rdy < left_b)
+      then d.last_at + make_interval(secs => sec * (floor(el / sec) + 1)) end,
+    'since', d.last_at);
+end $$;
+create or replace function public.drone_buy() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; nx jsonb;
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u for update;
+  nx := fx_drone_cfg(coalesce(d.lvl, 0) + 1);
+  if nx is null then raise exception 'Droon on juba kõige parem'; end if;
+  if f.level < (nx ->> 'need')::int then raise exception 'Selleks on vaja kalapüügi % taset', nx ->> 'need'; end if;
+  if f.gold < (nx ->> 'cost')::int then raise exception 'Kulda ei jätku (vaja %)', nx ->> 'cost'; end if;
+  if d.user_id is not null and fx_drone_ready(u) > 0 then perform drone_collect(); end if; -- senine saak korjatakse enne kokku
+  update fishers set gold = gold - (nx ->> 'cost')::int where user_id = u;
+  if d.user_id is null then insert into fisher_drone(user_id) values (u);
+  else update fisher_drone set lvl = lvl + 1, last_at = case when spot is not null then now() end where user_id = u; end if;
+  return drone_state() || jsonb_build_object('bought', nx);
+end $$;
+create or replace function public.drone_send(p_spot text, p_bait text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; sp fish_spots; b fish_baits;
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u for update;
+  if d.user_id is null then raise exception 'Sul pole veel drooni'; end if;
+  select * into sp from fish_spots where id = p_spot;
+  if sp.id is null then raise exception 'Tundmatu püügikoht'; end if;
+  if f.level < sp.min_level then raise exception 'See püügikoht avaneb kalapüügi % tasemel', sp.min_level; end if;
+  if sp.boat is not null and not (sp.boat = any(f.boats)) then raise exception 'Sinna pääsemiseks on vaja paati'; end if;
+  if p_spot = 'udulaht' and not fx_room(u, 'sild') then raise exception 'Udulahte pääseb, kui Kalurimaja paadisild on korras'; end if;
+  perform fx_lic_check(u, p_spot);
+  select * into b from fish_baits where id = p_bait;
+  if b.id is null then raise exception 'Tundmatu sööt'; end if;
+  if b.consumable and coalesce((f.baits ->> b.id)::int, 0) < 1 then raise exception 'Sul pole seda sööta'; end if;
+  if not b.consumable and b.price > 0 and not (f.baits ? b.id) then raise exception 'Sul pole seda lanti'; end if;
+  if fx_drone_ready(u) > 0 then perform drone_collect(); end if;
+  update fisher_drone set spot = p_spot, bait = p_bait, last_at = now() where user_id = u;
+  return drone_state() || jsonb_build_object('sent', p_spot);
+end $$;
+create or replace function public.drone_recall() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); r jsonb := '{}';
+begin
+  if fx_drone_ready(u) > 0 then r := drone_collect(); end if;
+  update fisher_drone set spot = null, last_at = null where user_id = u;
+  return drone_state() || jsonb_build_object('recalled', true, 'collected', r -> 'collected');
+end $$;
+create or replace function public.drone_collect() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := fx_uid(); f fishers; d fisher_drone; cfg jsonb; n int; i int; j int; w numeric[]; tot numeric; roll numeric; rar int; s fish_species;
+  wt numeric; strength numeric; got jsonb := '[]'; cid bigint; xp int := 0; levels int[]; wthr text := fx_weather(); winter boolean := fx_is_winter();
+  night boolean := fx_is_night(); b fish_baits; maxr int; sec numeric;
+begin
+  f := fx_fisher(u);
+  select * into d from fisher_drone where user_id = u for update;
+  if d.user_id is null or d.spot is null then raise exception 'Droon ei ole praegu püügil'; end if;
+  n := fx_drone_ready(u);
+  if n < 1 then raise exception 'Droon pole veel ühtegi kala toonud'; end if;
+  cfg := fx_drone_cfg(d.lvl); maxr := (cfg ->> 'maxr')::int; sec := fx_drone_sec(u, d.lvl);
+  select * into b from fish_baits where id = d.bait;
+  w := fx_rarity_weights(u, d.spot, d.bait);
+  strength := (fx_gear(u) ->> 'strength')::numeric;
+  tot := 0; for j in 1..maxr loop tot := tot + coalesce(w[j], 0); end loop;
+  for i in 1..n loop
+    roll := random() * tot; rar := 1;
+    for j in 1..maxr loop rar := j; roll := roll - coalesce(w[j], 0); exit when roll <= 0; end loop;
+    s := null;
+    while s.id is null and rar >= 1 loop
+      select fs.* into s from fish_species fs where fs.rarity = rar and d.spot = any(fs.spots) and fs.min_level <= f.level and fs.event is null
+        and fs.weather is null and (not fs.night_only or night) and (not fs.winter_only or winter or d.spot = 'jaa')
+        order by -ln(greatest(random(), 1e-9)) / (case when d.bait = any(fs.baits) then 4 else 1 end) limit 1;
+      rar := rar - 1;
+    end loop;
+    continue when s.id is null;
+    wt := (s.min_w + (s.max_w - s.min_w) * power(random(), 2.2)) * (1 + 0.02 * fx_sk(u, 'raskesaak'));
+    wt := least(wt, greatest(s.min_w, strength * 0.95)); -- droon ei too õnge jaoks liiga rasket kala
+    wt := round(wt, case when wt < 1 then 3 else 2 end);
+    insert into fish_catches(user_id, species, rarity, weight, spot, night, weather, trap) values (u, s.id, s.rarity, wt, d.spot, night, wthr, 'droon') returning id into cid;
+    got := got || jsonb_build_array(jsonb_build_object('id', cid, 'species', s.id, 'name', s.name, 'rarity', s.rarity, 'weight', wt));
+    xp := xp + round(s.xp * 0.4);
+  end loop;
+  if b.consumable then update fishers set baits = jsonb_set(baits, array[b.id], to_jsonb(greatest(0, coalesce((baits ->> b.id)::int, 0) - n))) where user_id = u; end if;
+  update fishers set total = total + jsonb_array_length(got) where user_id = u;
+  update fisher_drone set total = total + jsonb_array_length(got),
+    last_at = case when n >= (cfg ->> 'cap')::int then now() else last_at + make_interval(secs => sec * n) end where user_id = u;
+  xp := xp * fx_xp_mult();
+  levels := fx_add_xp(u, xp);
+  return drone_state() || jsonb_build_object('collected', jsonb_build_object('fish', got, 'xp', xp, 'spot', d.spot), 'lvlup', to_jsonb(levels), 'ach', fx_check_ach(u));
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 7. Õigused: abifunktsioone ei saa otse kutsuda, mängu funktsioone ainult sisseloginud mängija
 -- ---------------------------------------------------------------------
 do $$ declare r record; begin
@@ -7841,7 +8055,7 @@ do $$ declare r record; begin
               'gear_state','gear_buy','license_buy','trap_set','trap_lift','trap_collect',
               'wear_state','clothes_buy','clothes_wear','clothes_auto','clothes_autoset','clothes_color',
               'event_state','event_quest_claim','event_prize_claim','journey_advance','duel_ping','duel_invite','duel_answer',
-              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
+              'weather_state', 'duel_invite_bot', 'presence_ping', 'journey_swap', 'cabin_state', 'cabin_build', 'cabin_rush', 'cabin_upgrade', 'cabin_saun', 'proc_daily_claim', 'skills_state', 'skill_up', 'skills_reset', 'drone_state', 'drone_buy', 'drone_send', 'drone_recall', 'drone_collect', 'fish_diary', 'fish_stats', 'kingdom_news_older', 'license_state', 'license_buy2', 'away_digest', 'cabin_repair', 'proc_state', 'proc_start', 'proc_finish', 'proc_cancel', 'proc_upgrade', 'proc_sell', 'proc_order', 'proc_quest', 'proc_feed', 'biz_state', 'biz_accept', 'biz_decline', 'biz_deliver', 'biz_offer', 'smoke_state', 'smoke_start', 'smoke_take', 'smoke_upgrade', 'smoke_buy', 'smoke_sell', 'fleet_state', 'fleet_buy', 'fleet_upgrade', 'fleet_repair', 'fleet_crew', 'fleet_send', 'fleet_collect', 'bots_world', 'bot_gift_send', 'bot_aquarium_like')) loop
     execute format('revoke all on function %s from public, anon', r.sig);
     if r.proname like 'fx\_%' then
       execute format('revoke all on function %s from authenticated', r.sig);

@@ -61,7 +61,7 @@ function mnSum(o, skip) { let n = 0; for (const k in o) if (!skip.includes(k)) n
 function mnBadges() {
   const b = {};
   try { const kb = S ? badges() : {}; b.kodu = mnSum(kb, ['sobrad']); b.sobrad = +kb.sobrad || 0 } catch (e) { }
-  try { if (FS) { const fb = fvBadges(); b.saak = +fb.saak || 0; b.sundmused = +fb.sundmused || 0; b.puuk = mnSum(fb, ['saak', 'sundmused', 'uudised']) } } catch (e) { }
+  try { if (FS) { const fb = fvBadges(); b.saak = +fb.saak || 0; b.sundmused = +fb.sundmused || 0; b.puuk = mnSum(fb, ['saak', 'sundmused', 'uudised', 'oskused']) } } catch (e) { }
   return b;
 }
 function mnRender() {

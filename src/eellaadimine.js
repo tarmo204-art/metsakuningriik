@@ -25,7 +25,9 @@ function eelTabs() {
     () => typeof SD !== 'undefined' && !SD.d && typeof sdLoad === 'function' && sdLoad(true),
     () => typeof EV !== 'undefined' && !EV.d && typeof evLoad === 'function' && evLoad(),
     () => typeof KV !== 'undefined' && !KV.d && typeof kvLoad === 'function' && kvLoad(),
-    () => typeof KA !== 'undefined' && !KA.d && typeof kaLoad === 'function' && kaLoad()
+    () => typeof KA !== 'undefined' && !KA.d && typeof kaLoad === 'function' && kaLoad(),
+    () => typeof OSK !== 'undefined' && !OSK.d && typeof oskLoad === 'function' && oskLoad(),
+    () => typeof DR !== 'undefined' && !DR.d && typeof drLoad === 'function' && drLoad()
   ];
   let i = 0;
   const next = () => { if (i >= list.length || !FV.open) { if (i < list.length) EEL.tabs = false; return } const f = list[i++]; try { const p = f(); if (p && p.then) p.catch(() => { }) } catch (e) { } eelIdle(next, 900) };
