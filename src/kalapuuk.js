@@ -571,7 +571,7 @@ function drawRodBody(c, x0, y0, x1, y1, S, id, t, upg = 0, ench = '', elvl = 0, 
   // rull (vänt keerleb, kui kala on otsas)
   if (st.reel && st.spin) {
     // spinningrull: jalg, korpus, pool nööriga, kaar ja vänt (vänt keerleb, kui kala on otsas)
-    const rx = hl * .6, ry = w0 * 2.6, rr = S * .06, spin = bend > 0 ? t * 9 : .9;
+    const rx = hl * .6, ry = w0 * 2.6, rr = S * .06, spin = ROD_SCENE ? ROD.crank : bend > 0 ? t * 9 : .9;
     c.beginPath(); c.moveTo(rx - S * .03, w0 * .5); c.lineTo(rx + S * .03, w0 * .5); c.lineTo(rx + S * .008, ry - rr * .7); c.lineTo(rx - S * .008, ry - rr * .7); c.closePath(); c.fillStyle = fShade(st.reel, -.25); c.fill();
     c.beginPath(); c.ellipse(rx, ry, rr * 1.05, rr * .9, 0, 0, 6.283); c.fillStyle = metalGrad(c, rx - rr, ry - rr, rx + rr, ry + rr, st.reel); c.fill(); c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = Math.max(.6, S * .005); c.stroke();
     // pool (rotor) rulli ees, nöör peal
@@ -588,7 +588,7 @@ function drawRodBody(c, x0, y0, x1, y1, S, id, t, upg = 0, ench = '', elvl = 0, 
     // nöör poolilt läbi esimese rõnga
     c.strokeStyle = 'rgba(240,240,240,.55)'; c.lineWidth = Math.max(.5, S * .003); c.beginPath(); c.moveTo(px + rr * .5, ry - rr * .5); c.quadraticCurveTo(len * .3, yo(len * .34) + w0 * .9, len * .34, yo(len * .34) + w0 * .35); c.stroke();
   } else if (st.reel) {
-    const rx = hl * .62, ry = w0 * 2.2, rr = S * .075, spin = bend > 0 ? t * 9 : .6;
+    const rx = hl * .62, ry = w0 * 2.2, rr = S * .075, spin = ROD_SCENE ? ROD.crank : bend > 0 ? t * 9 : .6;
     rect(c, rx - S * .01, w0 * .4, S * .02, ry - rr * .8, fShade(st.reel, -.3));
     c.beginPath(); c.arc(rx, ry, rr, 0, 6.283); c.fillStyle = metalGrad(c, rx - rr, ry - rr, rx + rr, ry + rr, st.reel); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = Math.max(.6, S * .005); c.stroke();
     c.beginPath(); c.arc(rx, ry, rr * .55, 0, 6.283); c.fillStyle = fShade(st.reel, -.25); c.fill();
@@ -1068,7 +1068,8 @@ function sceneLoop(ts) {
   if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
   const bend = FV.phase === 'reel' ? RS * (FV.hook && FV.hook.ten != null ? .04 + .24 * FV.hook.ten + .012 * Math.sin(t * 20) * FV.hook.ten : .12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
-  const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
+  const RP = rodPose(w, h, dt, t); FX.rod = { ...RP, S: RS }; ROD_SCENE = true;
+  const tipP = drawRodBody(c, RP.x0, RP.y0, RP.x1, RP.y1, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend); ROD_SCENE = false;
   if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
