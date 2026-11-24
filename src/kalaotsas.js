@@ -6,7 +6,7 @@
    ===================================================================== */
 const HANG = { at: 0, id: 0, lens: [] };
 function lensSplash(w, h, n) {
-  for (let i = 0; i < n; i++) HANG.lens.push({ x: rnd(.05, .95) * w, y: rnd(.05, .8) * h, r: rnd(5, 22) * Math.max(.8, Math.min(1.4, w / 500)), vy: rnd(4, 22), life: rnd(1.8, 3.2), max: 0 });
+  for (let i = 0; i < n; i++) HANG.lens.push({ x: rnd(.05, .95) * w, y: rnd(.05, .8) * h, r: rnd(6, 26) * Math.max(.8, Math.min(1.4, w / 500)), vy: rnd(4, 22), life: rnd(1.8, 3.2), max: 0 });
   HANG.lens.forEach(d => d.max = d.max || d.life);
 }
 function drawLens(c, dt) {
@@ -14,7 +14,7 @@ function drawLens(c, dt) {
     d.life -= dt; d.y += d.vy * dt; d.vy += dt * 6;
     const a = Math.max(0, Math.min(1, d.life / d.max * 1.6));
     const g = c.createRadialGradient(d.x - d.r * .25, d.y - d.r * .3, d.r * .1, d.x, d.y, d.r);
-    g.addColorStop(0, `rgba(255,255,255,${.05 * a})`); g.addColorStop(.7, `rgba(200,235,255,${.12 * a})`); g.addColorStop(.92, `rgba(255,255,255,${.45 * a})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    g.addColorStop(0, `rgba(255,255,255,${.1 * a})`); g.addColorStop(.7, `rgba(200,235,255,${.2 * a})`); g.addColorStop(.92, `rgba(255,255,255,${.7 * a})`); g.addColorStop(1, 'rgba(255,255,255,0)');
     c.fillStyle = g; c.beginPath(); c.ellipse(d.x, d.y, d.r, d.r * 1.08, 0, 0, 7); c.fill();
     c.fillStyle = `rgba(255,255,255,${.7 * a})`; c.beginPath(); c.ellipse(d.x - d.r * .35, d.y - d.r * .4, d.r * .18, d.r * .11, -.6, 0, 7); c.fill(); // läige
     c.strokeStyle = `rgba(20,40,60,${.18 * a})`; c.lineWidth = 1; c.beginPath(); c.arc(d.x, d.y + d.r * .05, d.r * .95, .3, Math.PI - .3); c.stroke();
@@ -36,11 +36,15 @@ function drawHanging(c, w, h, t) {
   // nöör
   c.strokeStyle = 'rgba(240,240,240,.9)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(tip[0], tip[1]); c.quadraticCurveTo((tip[0] + ax) / 2, Math.min(tip[1], ay) - 6, ax, ay); c.lineTo(mx, my); c.stroke();
   // kala: suu konksus üleval, keha ripub alla, siputab
-  const wig = Math.sin(t * 17) * .22 * calm + Math.sin(t * 5) * .05;
+  // siputamine: pidev värin + iga natukese aja tagant tugev rabelemine
+  const act = Math.max(.55, 1 - e / 10), ph = e % 2.2, burst = ph < .6 ? Math.sin(ph / .6 * Math.PI) : 0;
+  const wig = Math.sin(t * 19) * (.2 + .35 * burst) * act + Math.sin(t * 6) * .08;
+  if (burst > .8 && Math.random() < .5) { FX.drops.push({ x: mx + rnd(-L * .2, L * .2), y: my + L * .6, vx: rnd(-60, 60), vy: rnd(-40, 10), life: .6, r: rnd(1.2, 2.4) }) }
+  if (burst > .95 && !HANG.bz) { HANG.bz = true; if (typeof lensSplash === 'function' && Math.random() < .6) lensSplash(w, h, 3) } else if (burst < .5) HANG.bz = false;
   c.save(); c.translate(mx, my); c.rotate(-sw * .8 + wig);
   c.rotate(Math.PI / 2); // pea üles, suu konksus
   c.translate(L * .45, 0);
-  drawLook(c, 0, 0, L, FD.sp[r.species].look, t * (1 + calm * 2), 1);
+  c.scale(1, 1 + burst * .06 * Math.sin(t * 30)); drawLook(c, 0, 0, L, FD.sp[r.species].look, t * (2 + burst * 4), 1);
   c.restore();
   // konks suus
   c.strokeStyle = '#c8ccd0'; c.lineWidth = 1.5; c.beginPath(); c.arc(mx, my + 2, 3, 0, Math.PI); c.stroke();

@@ -2550,7 +2550,8 @@ begin
   update fish_casts set state = 'hooked', hooked_at = now(), need_hits = need where id = c.id;
   return jsonb_build_object('ok', true, 'need', need, 'zone', round(zone, 3), 'speed', round(speed, 2), 'est', est,
     'strength', r.strength, 'difficulty', diff, 'kahv', fx_kit_v(u, 'kahv', true),
-    'kind', c.kind, 'rarity', case when c.kind = 'fish' then s.rarity else 1 end); -- haruldus: kala jõud võitluses
+    'kind', c.kind, 'rarity', case when c.kind = 'fish' then s.rarity else 1 end, -- haruldus: kala jõud võitluses
+    'sid', case when c.kind = 'fish' then c.species end, 'reel', round(r.reel_bonus, 3)); -- kala vari võitluses ja rulli boonus (varustus, täiendused, loitsud, oskused)
 end $$;
 
 -- 3a) Kala pääses (mängija eksis liiga palju)

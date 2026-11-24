@@ -26,7 +26,8 @@ function rodPose(w, h, dt, t) {
   // vänt keerleb, kui keritakse (võitluses KERI all, lanti kerides, välja tuues)
   ROD.cranking = (ph === 'reel' && hk && (hk.hold || now < (hk.pulseUntil || 0))) || ph === 'landing' || (ph === 'waiting' && isLure());
   if (ROD.cranking) ROD.crank += dt * (ph === 'waiting' ? 4 : 11);
-  const nar = w < 600, x0 = nar ? w * .075 : w * .035, y0 = nar ? h * .94 : h * .97, vx = (nar ? w * .37 : w * .34) - x0, vy = h * .07 - y0, ca = Math.cos(ROD.a), sa = Math.sin(ROD.a);
+  // käepide algab ekraani alt (nagu ise õnge hoides)
+  const nar = w < 600, x0 = nar ? w * .02 : w * .02, y0 = h * 1.1, vx = (nar ? w * .37 : w * .34) - x0, vy = h * .07 - y0, ca = Math.cos(ROD.a), sa = Math.sin(ROD.a);
   return { x0, y0, x1: x0 + vx * ca - vy * sa, y1: y0 + vx * sa + vy * ca };
 }
 /* ---------- käed ---------- */
@@ -89,4 +90,4 @@ function drawHands(c, w, h, t) {
 }
 
 var ROD_SCENE = false;
-rdDrawHand = function (c, w, h, t) { drawHands(c, w, h, t) };
+rdDrawHand = function () { }; // käsi ei joonistata (õnge käepide tuleb ekraani alt)

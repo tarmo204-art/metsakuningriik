@@ -10,17 +10,24 @@
 function fightHp(h, heavy) {
   if (h.kind && h.kind !== 'fish') return 60;
   const kg = Math.max(.01, +h.est || .5), rar = +h.rarity || Math.max(1, h.need - 1), dif = +h.difficulty || 3;
-  const hp = (35 + 62 * Math.sqrt(kg)) * (1 + .32 * (rar - 1)) * (1 + dif * .035) * (1 + Math.min(1, heavy) * .3);
-  return Math.round(Math.max(55, Math.min(1900, hp)));
+  const hp = (30 + 40 * Math.sqrt(kg)) * (1 + .22 * (rar - 1)) * (1 + dif * .02) * (1 + Math.min(1, heavy) * .25);
+  return Math.round(Math.max(50, Math.min(1200, hp)));
+}
+// sinu jõud võitluses: tugevam õng kerge kala vastu, rulli boonus (varustus, täiendused, loitsud, Haardemeister) ja oskus Kindel käsi
+function fightPower(h) {
+  const st = Math.max(.1, +h.strength || 1), kg = Math.max(.01, +h.est || .5);
+  const rodK = Math.pow(Math.max(.5, Math.min(4, st / kg)), .3), reelK = 1 + Math.max(0, +h.reel || 0) * 1.5;
+  const sk = typeof OSK !== 'undefined' && OSK.d && OSK.d.ranks ? 1 + .03 * (+OSK.d.ranks.kindelkasi || 0) : 1;
+  return rodK * reelK * sk;
 }
 function fightInit(h) {
   const heavy = Math.max(0, Math.min(1.5, (+h.est || 1) / Math.max(.1, +h.strength || 1)));
   Object.assign(h, {
     hpMax: fightHp(h, heavy), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
     surgeT: rnd(1.3, 2.4), surgeLeft: 0, surgePow: 0, fx: .5, fv: rnd(-.2, .2), tick: 0, floats: [], comboAt: 0, done: false,
-    heavy, gzW: Math.max(.17, Math.min(.42, h.zw * 1.15)), gz: .5, ft: 0
+    heavy, gzW: Math.max(.17, Math.min(.42, h.zw * 1.15)), gz: .5, ft: 0, pow: 1
   });
-  h.hp = h.hpMax;
+  h.hp = h.hpMax; h.pow = fightPower(h);
 }
 function fightHold(on) { const h = FV.hook; if (FV.phase !== 'reel' || !h) return; h.hold = on }
 function fightTick(h, dt) {
@@ -55,7 +62,7 @@ function fightTick(h, dt) {
   if (h.tick >= .22) {
     h.tick = 0;
     if (hold && !red) {
-      const crit = inG && Math.random() < .12, amt = Math.max(1, Math.round((inG ? 30 : 9) * .22 * h.combo * (crit ? 2 : 1) * rnd(.85, 1.15)));
+      const crit = inG && Math.random() < .12, amt = Math.max(1, Math.round((inG ? 30 : 13) * .22 * h.combo * h.pow * (crit ? 2 : 1) * rnd(.85, 1.15)));
       h.hp -= amt; h.floats.push({ v: amt, x: h.fx + rnd(-.03, .03), life: 1, crit });
       if (h.floats.length > 8) h.floats.shift();
     }
@@ -70,7 +77,8 @@ function fightTick(h, dt) {
 }
 function fightDraw(c, w, h, t, tip) {
   const hk = FV.hook; if (!hk || hk.hpMax == null) return;
-  const fxp = w * (.22 + .56 * hk.fx), fy = h * .64, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
+  const fxp = w * (.22 + .56 * hk.fx), fy = h * .64, L = Math.max(38, Math.min(w * .4, 36 + Math.cbrt(Math.max(.005, +hk.est)) * 44)), surging = hk.surgeLeft > 0;
+  const sp = hk.sid && FD.sp[hk.sid], LK = sp ? sp.look : {}; // vari on täpselt selle kala kujuga, keda püüad
   // pingul nöör kalani (punaseks, kui pinge suur)
   const tc = hk.ten > .8 ? `rgba(255,${Math.round(200 - (hk.ten - .8) * 800)},${Math.round(180 - (hk.ten - .8) * 800)},.9)` : 'rgba(240,240,240,.75)';
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
@@ -80,12 +88,12 @@ function fightDraw(c, w, h, t, tip) {
   const lk = hk.leap ? (performance.now() - hk.leap) / 900 : 2, wig = Math.sin(t * (surging ? 26 : 15)) * (surging ? .28 : .16), dir = hk.fv > 0 ? 1 : -1;
   if (lk < 1) {
     const ly = fy - Math.sin(lk * Math.PI) * h * .2, rot = (lk - .5) * 1.4 * dir + wig;
-    if (!hk.leapOut) { hk.leapOut = true; fxDrops(fxp, fy - 8, 14, 1); fxRing(fxp, fy, 50) }
-    c.save(); c.translate(fxp, ly); c.rotate(-rot); c.filter = 'brightness(.55) saturate(.6)'; drawLook(c, 0, 0, L, {}, t * 3, dir); c.filter = 'none'; c.restore();
+    if (!hk.leapOut) { hk.leapOut = true; fxDrops(fxp, fy - 8, 14, 1); fxRing(fxp, fy, 50); if (typeof lensSplash === 'function') lensSplash(w, h, 6) }
+    c.save(); c.translate(fxp, ly); c.rotate(-rot); c.filter = 'brightness(.8) saturate(.85)'; drawLook(c, 0, 0, L, LK, t * 3, dir); c.filter = 'none'; c.restore();
     if (Math.random() < .6) FX.drops.push({ x: fxp + rnd(-L * .3, L * .3), y: ly + rnd(-5, 5), vx: rnd(-40, 40), vy: rnd(-20, 30), life: .7, r: rnd(1, 2.4) });
   } else {
-    if (hk.leapOut) { hk.leapOut = false; fxDrops(fxp, fy - 8, 22, 1.3); fxRing(fxp, fy, 70); fxRing(fxp, fy, 44); if (typeof sfx === 'function') sfx('splash') }
-    c.save(); c.translate(fxp, fy); c.rotate(wig * .6); c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, {}, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
+    if (hk.leapOut) { hk.leapOut = false; fxDrops(fxp, fy - 8, 22, 1.3); fxRing(fxp, fy, 70); fxRing(fxp, fy, 44); if (typeof sfx === 'function') sfx('splash'); if (typeof lensSplash === 'function') lensSplash(w, h, 8) }
+    c.save(); c.translate(fxp, fy); c.rotate(wig * .6); c.globalAlpha = .6; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, LK, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
   }
   if (Math.random() < (surging ? .7 : .3)) fxDrops(fxp + rnd(-L * .45, L * .45), fy - h * .08 + rnd(-6, 6), surging ? 6 : 3, surging ? .9 : .6);
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fxp, fy - 4, L * .45 + Math.sin(t * 6) * 4, 5, 0, 0, 7); c.stroke();
