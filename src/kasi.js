@@ -21,7 +21,7 @@ function rodPose(w, h, dt, t) {
   else if (ph === 'hooking') snap = e < 140 ? -.36 * (e / 140) : -.3;   // haakimise jõnks
   else if (ph === 'reel' && hk && hk.ten != null) target = -.1 - .22 * hk.ten + (hk.surgeLeft > 0 ? .1 + Math.sin(t * 24) * .03 : 0);
   else if (ph === 'landing') target = -.34;
-  else if (ph === 'result') target = -.08;
+  else if (ph === 'result') target = FV.result && FV.result.kind === 'fish' ? -.2 + Math.sin(t * 2.5) * .02 : -.08; // kala ripub õnge otsas
   if (snap != null) ROD.a = snap; else ROD.a += (target - ROD.a) * Math.min(1, dt * 9);
   // vänt keerleb, kui keritakse (võitluses KERI all, lanti kerides, välja tuues)
   ROD.cranking = (ph === 'reel' && hk && (hk.hold || now < (hk.pulseUntil || 0))) || ph === 'landing' || (ph === 'waiting' && isLure());

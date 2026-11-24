@@ -2549,7 +2549,8 @@ begin
   end if;
   update fish_casts set state = 'hooked', hooked_at = now(), need_hits = need where id = c.id;
   return jsonb_build_object('ok', true, 'need', need, 'zone', round(zone, 3), 'speed', round(speed, 2), 'est', est,
-    'strength', r.strength, 'difficulty', diff, 'kahv', fx_kit_v(u, 'kahv', true));
+    'strength', r.strength, 'difficulty', diff, 'kahv', fx_kit_v(u, 'kahv', true),
+    'kind', c.kind, 'rarity', case when c.kind = 'fish' then s.rarity else 1 end); -- haruldus: kala jõud võitluses
 end $$;
 
 -- 3a) Kala pääses (mängija eksis liiga palju)

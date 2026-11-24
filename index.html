@@ -5510,7 +5510,7 @@ async function doLand() {
       else { FV.loss = { k: 'gone' }; setPhase('lost', 'Kala pääses minema.') }
       await refreshFS(); afterAch(r.ach); renderFV(true);
     } else {
-      FV.result = r; fxLand(r);
+      FV.result = r; FV.resAt = performance.now(); fxLand(r);
       await refreshFS();
       if (!FV.mktAt || Date.now() - FV.mktAt > 60000) { FV.mktAt = Date.now(); FV.market = await rpc('fish_market').catch(() => FV.market) }
       if (!FV.oddsAt || Date.now() - FV.oddsAt > 60000) { FV.oddsAt = Date.now(); FV.oddsKey = '' }
@@ -5589,7 +5589,7 @@ function sceneLoop(ts) {
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
   const bend = FV.phase === 'reel' ? RS * (FV.hook && FV.hook.ten != null ? .04 + .24 * FV.hook.ten + .012 * Math.sin(t * 20) * FV.hook.ten : .12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const RP = rodPose(w, h, dt, t); FX.rod = { ...RP, S: RS }; ROD_SCENE = true;
-  const tipP = drawRodBody(c, RP.x0, RP.y0, RP.x1, RP.y1, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend); ROD_SCENE = false;
+  const tipP = drawRodBody(c, RP.x0, RP.y0, RP.x1, RP.y1, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend); ROD_SCENE = false; FX.tip = tipP;
   if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
@@ -16982,10 +16982,17 @@ setInterval(() => {
    - Liiga lõdvalt (vasakus servas) liiga kaua → kala ujub minema.
    Server jääb samaks: kui kala jõud on otsas, kutsutakse fish_land nagu enne.
    ===================================================================== */
+// kala jõud: suurem ja haruldasem kala võitleb kauem (ahven ~2 s, haug ~5 s, hiiglased kuni ~30 s)
+function fightHp(h, heavy) {
+  if (h.kind && h.kind !== 'fish') return 60;
+  const kg = Math.max(.01, +h.est || .5), rar = +h.rarity || Math.max(1, h.need - 1), dif = +h.difficulty || 3;
+  const hp = (35 + 62 * Math.sqrt(kg)) * (1 + .32 * (rar - 1)) * (1 + dif * .035) * (1 + Math.min(1, heavy) * .3);
+  return Math.round(Math.max(55, Math.min(1900, hp)));
+}
 function fightInit(h) {
   const heavy = Math.max(0, Math.min(1.5, (+h.est || 1) / Math.max(.1, +h.strength || 1)));
   Object.assign(h, {
-    hpMax: Math.round(h.need * 28 * (1 + heavy * .35)), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
+    hpMax: fightHp(h, heavy), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
     surgeT: rnd(1.3, 2.4), surgeLeft: 0, surgePow: 0, fx: .5, fv: rnd(-.2, .2), tick: 0, floats: [], comboAt: 0, done: false,
     heavy, gzW: Math.max(.17, Math.min(.42, h.zw * 1.15)), gz: .5, ft: 0
   });
@@ -17006,6 +17013,7 @@ function fightTick(h, dt) {
     h.surgeT = rnd(1.5, 3.2) / (.85 + h.sp * .1); h.fv = (Math.random() < .5 ? -1 : 1) * rnd(.35, .6);
     if (typeof sfx === 'function') sfx('splash');
     try { if (navigator.vibrate) navigator.vibrate(35) } catch (e) { } // telefon väriseb, kui kala sööstab
+    if (Math.random() < .45 + h.heavy * .15) h.leap = performance.now(); // kala hüppab veest välja ja siputab
   }
   const pull = h.surgeLeft > 0 ? h.surgePow : .06;
   h.ten += ((hold ? .6 : -.58) + pull * (hold ? 1 : .4)) * dt;
@@ -17044,8 +17052,18 @@ function fightDraw(c, w, h, t, tip) {
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
   const sag = (1 - hk.ten) * h * .18; c.quadraticCurveTo((tip[0] + fxp) / 2, (tip[1] + fy) / 2 + sag, fxp, fy - 6); c.stroke();
   // kala (tume vari) ja vahtu
-  c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, fxp, fy, L, {}, t * (surging ? 2.2 : 1), hk.fv > 0 ? 1 : -1); c.filter = 'none'; c.globalAlpha = 1;
-  if (Math.random() < (surging ? .5 : .15)) fxDrops(fxp + rnd(-L * .4, L * .4), fy - h * .1 + rnd(-6, 6), surging ? 5 : 2, .6);
+  // kala siputab: keha väriseb ja pöördub, sööstu ajal hüppab vahel veest välja
+  const lk = hk.leap ? (performance.now() - hk.leap) / 900 : 2, wig = Math.sin(t * (surging ? 26 : 15)) * (surging ? .28 : .16), dir = hk.fv > 0 ? 1 : -1;
+  if (lk < 1) {
+    const ly = fy - Math.sin(lk * Math.PI) * h * .2, rot = (lk - .5) * 1.4 * dir + wig;
+    if (!hk.leapOut) { hk.leapOut = true; fxDrops(fxp, fy - 8, 14, 1); fxRing(fxp, fy, 50) }
+    c.save(); c.translate(fxp, ly); c.rotate(-rot); c.filter = 'brightness(.55) saturate(.6)'; drawLook(c, 0, 0, L, {}, t * 3, dir); c.filter = 'none'; c.restore();
+    if (Math.random() < .6) FX.drops.push({ x: fxp + rnd(-L * .3, L * .3), y: ly + rnd(-5, 5), vx: rnd(-40, 40), vy: rnd(-20, 30), life: .7, r: rnd(1, 2.4) });
+  } else {
+    if (hk.leapOut) { hk.leapOut = false; fxDrops(fxp, fy - 8, 22, 1.3); fxRing(fxp, fy, 70); fxRing(fxp, fy, 44); if (typeof sfx === 'function') sfx('splash') }
+    c.save(); c.translate(fxp, fy); c.rotate(wig * .6); c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, {}, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
+  }
+  if (Math.random() < (surging ? .7 : .3)) fxDrops(fxp + rnd(-L * .45, L * .45), fy - h * .08 + rnd(-6, 6), surging ? 6 : 3, surging ? .9 : .6);
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fxp, fy - 4, L * .45 + Math.sin(t * 6) * 4, 5, 0, 0, 7); c.stroke();
   // kala eluriba (nagu ikoon + riba)
   const hb = Math.min(110, w * .2), hx = fxp - hb / 2 + 12, hy = fy - L * .55 - 26;
@@ -17147,7 +17165,7 @@ function rodPose(w, h, dt, t) {
   else if (ph === 'hooking') snap = e < 140 ? -.36 * (e / 140) : -.3;   // haakimise jõnks
   else if (ph === 'reel' && hk && hk.ten != null) target = -.1 - .22 * hk.ten + (hk.surgeLeft > 0 ? .1 + Math.sin(t * 24) * .03 : 0);
   else if (ph === 'landing') target = -.34;
-  else if (ph === 'result') target = -.08;
+  else if (ph === 'result') target = FV.result && FV.result.kind === 'fish' ? -.2 + Math.sin(t * 2.5) * .02 : -.08; // kala ripub õnge otsas
   if (snap != null) ROD.a = snap; else ROD.a += (target - ROD.a) * Math.min(1, dt * 9);
   // vänt keerleb, kui keritakse (võitluses KERI all, lanti kerides, välja tuues)
   ROD.cranking = (ph === 'reel' && hk && (hk.hold || now < (hk.pulseUntil || 0))) || ph === 'landing' || (ph === 'waiting' && isLure());
@@ -17216,6 +17234,64 @@ function drawHands(c, w, h, t) {
 
 var ROD_SCENE = false;
 rdDrawHand = function (c, w, h, t) { drawHands(c, w, h, t) };
+
+/* =====================================================================
+   Kala õnge otsas + pritsmed ekraanil
+   Kui kala on kätte saadud (pärast väljahüpet), ripub ta õnge otsas: kõigub nööri otsas,
+   siputab (alguses tugevalt, siis vaiksemalt) ja temalt tilgub vett.
+   Samal hetkel lendavad pritsmed vastu ekraani – suured veetilgad, mis aeglaselt alla nõrguvad.
+   ===================================================================== */
+const HANG = { at: 0, id: 0, lens: [] };
+function lensSplash(w, h, n) {
+  for (let i = 0; i < n; i++) HANG.lens.push({ x: rnd(.05, .95) * w, y: rnd(.05, .8) * h, r: rnd(5, 22) * Math.max(.8, Math.min(1.4, w / 500)), vy: rnd(4, 22), life: rnd(1.8, 3.2), max: 0 });
+  HANG.lens.forEach(d => d.max = d.max || d.life);
+}
+function drawLens(c, dt) {
+  for (const d of HANG.lens) {
+    d.life -= dt; d.y += d.vy * dt; d.vy += dt * 6;
+    const a = Math.max(0, Math.min(1, d.life / d.max * 1.6));
+    const g = c.createRadialGradient(d.x - d.r * .25, d.y - d.r * .3, d.r * .1, d.x, d.y, d.r);
+    g.addColorStop(0, `rgba(255,255,255,${.05 * a})`); g.addColorStop(.7, `rgba(200,235,255,${.12 * a})`); g.addColorStop(.92, `rgba(255,255,255,${.45 * a})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.beginPath(); c.ellipse(d.x, d.y, d.r, d.r * 1.08, 0, 0, 7); c.fill();
+    c.fillStyle = `rgba(255,255,255,${.7 * a})`; c.beginPath(); c.ellipse(d.x - d.r * .35, d.y - d.r * .4, d.r * .18, d.r * .11, -.6, 0, 7); c.fill(); // läige
+    c.strokeStyle = `rgba(20,40,60,${.18 * a})`; c.lineWidth = 1; c.beginPath(); c.arc(d.x, d.y + d.r * .05, d.r * .95, .3, Math.PI - .3); c.stroke();
+    // nõrguv jälg
+    if (d.vy > 12) { c.strokeStyle = `rgba(220,240,255,${.18 * a})`; c.lineWidth = d.r * .35; c.lineCap = 'round'; c.beginPath(); c.moveTo(d.x, d.y - d.r); c.lineTo(d.x, d.y - d.r - d.vy * .8); c.stroke() }
+  }
+  HANG.lens = HANG.lens.filter(d => d.life > 0);
+}
+function drawHanging(c, w, h, t) {
+  const r = FV.result, tip = FX.tip; if (!r || r.kind !== 'fish' || !tip || !FD.sp[r.species]) return;
+  const now = performance.now();
+  if (FX.leap) return; // ootame, kuni väljahüpe on läbi
+  if (HANG.id !== FV.resAt) { HANG.id = FV.resAt; HANG.at = now; lensSplash(w, h, 14 + Math.min(10, (+r.rarity || 1) * 2)); fxDrops(tip[0], tip[1] + h * .25, 18, 1) }
+  const e = (now - HANG.at) / 1000, calm = Math.max(.2, 1 - e / 4);
+  // kala tõstetakse kaamerale lähemale: nöör ritva otsast alla, kala kõigub vaate vasakul pool
+  const sw = Math.sin(e * 2.6) * .3 * Math.max(.25, 1 - e / 6) + Math.sin(e * 1.1) * .05;
+  const ax = Math.max(tip[0] + 10, w * .34), ay = h * .1, Ll = h * .1, mx = ax + Math.sin(sw) * Ll, my = ay + Math.cos(sw) * Ll;
+  const L = Math.max(70, Math.min(h * .52, 62 + Math.cbrt(Math.max(.005, +r.weight)) * 52));
+  // nöör
+  c.strokeStyle = 'rgba(240,240,240,.9)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(tip[0], tip[1]); c.quadraticCurveTo((tip[0] + ax) / 2, Math.min(tip[1], ay) - 6, ax, ay); c.lineTo(mx, my); c.stroke();
+  // kala: suu konksus üleval, keha ripub alla, siputab
+  const wig = Math.sin(t * 17) * .22 * calm + Math.sin(t * 5) * .05;
+  c.save(); c.translate(mx, my); c.rotate(-sw * .8 + wig);
+  c.rotate(Math.PI / 2); // pea üles, suu konksus
+  c.translate(L * .45, 0);
+  drawLook(c, 0, 0, L, FD.sp[r.species].look, t * (1 + calm * 2), 1);
+  c.restore();
+  // konks suus
+  c.strokeStyle = '#c8ccd0'; c.lineWidth = 1.5; c.beginPath(); c.arc(mx, my + 2, 3, 0, Math.PI); c.stroke();
+  // tilgad
+  if (Math.random() < .35 * (calm + .3)) { const a = -sw * .8 + wig, tx = mx - Math.sin(a) * L * .9, ty = my + Math.cos(a) * L * .9; FX.drops.push({ x: tx + rnd(-3, 3), y: ty, vx: rnd(-8, 8), vy: rnd(20, 60), life: .9, r: rnd(1, 2) }) }
+}
+{
+  const _fx = drawFx;
+  drawFx = function (c, w, h, dt, t) {
+    if (FV.phase === 'result') drawHanging(c, w, h, t);
+    _fx(c, w, h, dt, t);
+    if (HANG.lens.length) drawLens(c, dt);
+  };
+}
 
 /* =====================================================================
    Kalurikassa summa üleval paremal uueneb kohe pärast iga ostu.

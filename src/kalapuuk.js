@@ -990,7 +990,7 @@ async function doLand() {
       else { FV.loss = { k: 'gone' }; setPhase('lost', 'Kala pääses minema.') }
       await refreshFS(); afterAch(r.ach); renderFV(true);
     } else {
-      FV.result = r; fxLand(r);
+      FV.result = r; FV.resAt = performance.now(); fxLand(r);
       await refreshFS();
       if (!FV.mktAt || Date.now() - FV.mktAt > 60000) { FV.mktAt = Date.now(); FV.market = await rpc('fish_market').catch(() => FV.market) }
       if (!FV.oddsAt || Date.now() - FV.oddsAt > 60000) { FV.oddsAt = Date.now(); FV.oddsKey = '' }
@@ -1069,7 +1069,7 @@ function sceneLoop(ts) {
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
   const bend = FV.phase === 'reel' ? RS * (FV.hook && FV.hook.ten != null ? .04 + .24 * FV.hook.ten + .012 * Math.sin(t * 20) * FV.hook.ten : .12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const RP = rodPose(w, h, dt, t); FX.rod = { ...RP, S: RS }; ROD_SCENE = true;
-  const tipP = drawRodBody(c, RP.x0, RP.y0, RP.x1, RP.y1, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend); ROD_SCENE = false;
+  const tipP = drawRodBody(c, RP.x0, RP.y0, RP.x1, RP.y1, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend); ROD_SCENE = false; FX.tip = tipP;
   if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';

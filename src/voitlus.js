@@ -6,10 +6,17 @@
    - Liiga lõdvalt (vasakus servas) liiga kaua → kala ujub minema.
    Server jääb samaks: kui kala jõud on otsas, kutsutakse fish_land nagu enne.
    ===================================================================== */
+// kala jõud: suurem ja haruldasem kala võitleb kauem (ahven ~2 s, haug ~5 s, hiiglased kuni ~30 s)
+function fightHp(h, heavy) {
+  if (h.kind && h.kind !== 'fish') return 60;
+  const kg = Math.max(.01, +h.est || .5), rar = +h.rarity || Math.max(1, h.need - 1), dif = +h.difficulty || 3;
+  const hp = (35 + 62 * Math.sqrt(kg)) * (1 + .32 * (rar - 1)) * (1 + dif * .035) * (1 + Math.min(1, heavy) * .3);
+  return Math.round(Math.max(55, Math.min(1900, hp)));
+}
 function fightInit(h) {
   const heavy = Math.max(0, Math.min(1.5, (+h.est || 1) / Math.max(.1, +h.strength || 1)));
   Object.assign(h, {
-    hpMax: Math.round(h.need * 28 * (1 + heavy * .35)), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
+    hpMax: fightHp(h, heavy), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
     surgeT: rnd(1.3, 2.4), surgeLeft: 0, surgePow: 0, fx: .5, fv: rnd(-.2, .2), tick: 0, floats: [], comboAt: 0, done: false,
     heavy, gzW: Math.max(.17, Math.min(.42, h.zw * 1.15)), gz: .5, ft: 0
   });
@@ -30,6 +37,7 @@ function fightTick(h, dt) {
     h.surgeT = rnd(1.5, 3.2) / (.85 + h.sp * .1); h.fv = (Math.random() < .5 ? -1 : 1) * rnd(.35, .6);
     if (typeof sfx === 'function') sfx('splash');
     try { if (navigator.vibrate) navigator.vibrate(35) } catch (e) { } // telefon väriseb, kui kala sööstab
+    if (Math.random() < .45 + h.heavy * .15) h.leap = performance.now(); // kala hüppab veest välja ja siputab
   }
   const pull = h.surgeLeft > 0 ? h.surgePow : .06;
   h.ten += ((hold ? .6 : -.58) + pull * (hold ? 1 : .4)) * dt;
@@ -68,8 +76,18 @@ function fightDraw(c, w, h, t, tip) {
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
   const sag = (1 - hk.ten) * h * .18; c.quadraticCurveTo((tip[0] + fxp) / 2, (tip[1] + fy) / 2 + sag, fxp, fy - 6); c.stroke();
   // kala (tume vari) ja vahtu
-  c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, fxp, fy, L, {}, t * (surging ? 2.2 : 1), hk.fv > 0 ? 1 : -1); c.filter = 'none'; c.globalAlpha = 1;
-  if (Math.random() < (surging ? .5 : .15)) fxDrops(fxp + rnd(-L * .4, L * .4), fy - h * .1 + rnd(-6, 6), surging ? 5 : 2, .6);
+  // kala siputab: keha väriseb ja pöördub, sööstu ajal hüppab vahel veest välja
+  const lk = hk.leap ? (performance.now() - hk.leap) / 900 : 2, wig = Math.sin(t * (surging ? 26 : 15)) * (surging ? .28 : .16), dir = hk.fv > 0 ? 1 : -1;
+  if (lk < 1) {
+    const ly = fy - Math.sin(lk * Math.PI) * h * .2, rot = (lk - .5) * 1.4 * dir + wig;
+    if (!hk.leapOut) { hk.leapOut = true; fxDrops(fxp, fy - 8, 14, 1); fxRing(fxp, fy, 50) }
+    c.save(); c.translate(fxp, ly); c.rotate(-rot); c.filter = 'brightness(.55) saturate(.6)'; drawLook(c, 0, 0, L, {}, t * 3, dir); c.filter = 'none'; c.restore();
+    if (Math.random() < .6) FX.drops.push({ x: fxp + rnd(-L * .3, L * .3), y: ly + rnd(-5, 5), vx: rnd(-40, 40), vy: rnd(-20, 30), life: .7, r: rnd(1, 2.4) });
+  } else {
+    if (hk.leapOut) { hk.leapOut = false; fxDrops(fxp, fy - 8, 22, 1.3); fxRing(fxp, fy, 70); fxRing(fxp, fy, 44); if (typeof sfx === 'function') sfx('splash') }
+    c.save(); c.translate(fxp, fy); c.rotate(wig * .6); c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, {}, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
+  }
+  if (Math.random() < (surging ? .7 : .3)) fxDrops(fxp + rnd(-L * .45, L * .45), fy - h * .08 + rnd(-6, 6), surging ? 6 : 3, surging ? .9 : .6);
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fxp, fy - 4, L * .45 + Math.sin(t * 6) * 4, 5, 0, 0, 7); c.stroke();
   // kala eluriba (nagu ikoon + riba)
   const hb = Math.min(110, w * .2), hx = fxp - hb / 2 + 12, hy = fy - L * .55 - 26;
