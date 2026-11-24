@@ -74,6 +74,13 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .oddleg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#a8c4ce}
 .oddleg span{display:inline-flex;align-items:center;gap:5px}.oddleg em{width:9px;height:9px;border-radius:3px;display:inline-block}
 #fvScene{display:block;width:100%;border-radius:14px;cursor:pointer;touch-action:manipulation;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.fv-stage{position:relative;border-radius:14px;overflow:hidden}
+.fv-stage #fvScene{display:block;width:100%}
+.fvmsg.ov{position:absolute;left:8px;right:8px;top:8px;min-height:0;margin:0;font-size:14px;padding:7px 10px;background:rgba(6,18,24,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);text-align:center;pointer-events:none}
+.fv-ov-btn{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(340px,82%);pointer-events:none}
+.fv-ov-btn > *{pointer-events:auto}
+.fv-ov-btn .bigbtn{padding:13px;font-size:18px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.fv-ov-btn.reel{width:100%;left:0;transform:none;bottom:10px;display:flex;justify-content:center}
 .fvmsg{min-height:44px;font-size:15px;font-weight:700;color:#eaf6fa;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:12px}
 .bigbtn{width:100%;padding:16px;font-size:19px;border-radius:14px}
 .bigbtn.pull{background:#ff7a4a;color:#2a0e05;box-shadow:0 3px 0 #b84a22,0 0 30px rgba(255,140,80,.5);animation:pulse .5s infinite alternate}
@@ -867,9 +874,14 @@ function tabPuuk() {
   const active = !['idle', 'result', 'lost'].includes(FV.phase);
   let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), noPier = s.id === 'udulaht' && !(FS.cabin || []).includes('sild'), noLic = typeof licMiss === 'function' ? licMiss(s.id) : null, lock = FS.level < s.min_level || noBoat || noPier || !!noLic; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : noPier ? 'Vaja: Kalurimaja paadisild' : noLic ? `🎫 Vaja: ${LIC_N[noLic]}` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
     <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
-  h += `<div class="fv-card"><div id="fvSceneSlot"></div>
-    <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
-    ${mainButton()}
+  // püügilava: vaade, teade ja nupud ühes kaadris (midagi ei hüppa püügi ajal paigast)
+  const inProg = ['casting', 'waiting', 'bite', 'hooking', 'reel', 'landing'].includes(FV.phase), ovBtn = !(FS.rod_broken && !inProg);
+  h += `<div class="fv-card"><div class="fv-stage" id="fvStage"><div id="fvSceneSlot"></div>
+    ${inProg && FV.phase !== 'reel' ? `<p class="fvmsg ov" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>` : ''}
+    ${ovBtn ? `<div class="fv-ov-btn ${FV.phase === 'reel' ? 'reel' : ''}">${mainButton()}</div>` : ''}</div>
+    ${!inProg || FV.phase === 'reel' ? `<p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>` : ''}
+    ${FV.phase === 'reel' ? fightHelp() : ''}
+    ${ovBtn ? '' : mainButton()}
     ${FV.phase === 'result' && FV.result ? resultCard() : ''}
     <div class="ctrl"><div class="field"><label for="fvBait">Sööt või peibutis</label><select id="fvBait" data-fa="bait" ${active ? 'disabled' : ''}>${owned.map(b => `<option value="${b.id}" ${b.id === FS.bait ? 'selected' : ''}>${b.name}${b.consumable ? ` (${(FS.baits || {})[b.id] || 0} tk)` : b.price ? ' (peibutis)' : ''}</option>`).join('')}</select></div>
       <button class="btn ghost sm" type="button" data-fa="tab" data-arg="pood">Osta sööta</button></div>
@@ -904,8 +916,14 @@ function setMsg(m) { FV.msg = m; const el = $('#fvMsg'); if (el) el.textContent 
 function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; if (p !== 'lost') FV.loss = null; else if (FV.loss) FV.loss.at = performance.now(); renderFV(true) }
 
 /* põhitegevused */
+function stageView() {
+  requestAnimationFrame(() => { const st = document.getElementById('fvStage'), fv = document.getElementById('fishView'); if (!st || !fv) return;
+    const r = st.getBoundingClientRect(), bot = innerHeight - (innerWidth < 900 ? 84 : 10);
+    if (r.top < 50 || r.bottom > bot) fv.scrollTop += r.top - Math.max(56, (bot - r.height) / 2) });
+}
 async function doCast() {
   if (FV.busy || !['idle', 'result', 'lost'].includes(FV.phase)) return;
+  stageView(); // kogu püügilava nähtavale
   if (FS.level < FD.spot[FV.spot].min_level) { toast('See koht on veel lukus.', 'bad'); return }
   if (typeof licMiss === 'function' && licMiss(FV.spot)) { const lm = licMiss(FV.spot); toast(`Siin püüdmiseks on vaja kehtivat kaarti „${LIC_N[lm]}“. Metsajärves saab püüda ka ilma kaardita.`, 'bad'); KA.focus = lm; FV.tab = 'kaardid'; renderFV(true); return }
   FV.busy = true; FV.result = null; setPhase('casting');
@@ -1021,13 +1039,13 @@ function sceneLoop(ts) {
   requestAnimationFrame(sceneLoop);
   const dt = Math.min(.05, (ts - lastSc) / 1000 || 0); lastSc = ts; const t = ts / 1000;
   // ajastused
-  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
+  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true); stageView() }
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) (FV.loss = { k: 'bait' }, doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.'));
   if (FV.phase === 'reel' && FV.hook) fightTick(FV.hook, dt);
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
   if (!sceneCv.isConnected) return;
-  const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
+  const w = sceneCv.clientWidth || 600, hgt = w < 600 ? Math.round(Math.min(470, Math.max(300, w * 1.02))) : Math.round(Math.min(400, Math.max(280, w * .44))), d = Math.min(2, devicePixelRatio || 1);
   if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
   const c = sceneCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
   if (FX.shake > 0) { FX.shake -= dt; const k = FX.shake * 14; c.translate(rnd(-k, k), rnd(-k, k)) }

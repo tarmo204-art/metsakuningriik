@@ -4594,6 +4594,13 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .oddleg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#a8c4ce}
 .oddleg span{display:inline-flex;align-items:center;gap:5px}.oddleg em{width:9px;height:9px;border-radius:3px;display:inline-block}
 #fvScene{display:block;width:100%;border-radius:14px;cursor:pointer;touch-action:manipulation;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.fv-stage{position:relative;border-radius:14px;overflow:hidden}
+.fv-stage #fvScene{display:block;width:100%}
+.fvmsg.ov{position:absolute;left:8px;right:8px;top:8px;min-height:0;margin:0;font-size:14px;padding:7px 10px;background:rgba(6,18,24,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);text-align:center;pointer-events:none}
+.fv-ov-btn{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(340px,82%);pointer-events:none}
+.fv-ov-btn > *{pointer-events:auto}
+.fv-ov-btn .bigbtn{padding:13px;font-size:18px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.fv-ov-btn.reel{width:100%;left:0;transform:none;bottom:10px;display:flex;justify-content:center}
 .fvmsg{min-height:44px;font-size:15px;font-weight:700;color:#eaf6fa;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:12px}
 .bigbtn{width:100%;padding:16px;font-size:19px;border-radius:14px}
 .bigbtn.pull{background:#ff7a4a;color:#2a0e05;box-shadow:0 3px 0 #b84a22,0 0 30px rgba(255,140,80,.5);animation:pulse .5s infinite alternate}
@@ -5387,9 +5394,14 @@ function tabPuuk() {
   const active = !['idle', 'result', 'lost'].includes(FV.phase);
   let h = `<div class="fv-card"><h2>Püügikohad</h2><div class="spots">${FD.spots.map(s => { const noBoat = s.boat && !(FS.boats || []).includes(s.boat), noPier = s.id === 'udulaht' && !(FS.cabin || []).includes('sild'), noLic = typeof licMiss === 'function' ? licMiss(s.id) : null, lock = FS.level < s.min_level || noBoat || noPier || !!noLic; return `<button type="button" class="spot ${s.id === FV.spot ? 'on' : ''} ${lock ? 'locked' : ''}" data-fa="spot" data-arg="${s.id}" ${active ? 'disabled' : ''}><b>${lock ? '🔒 ' : s.boat ? '⛵ ' : ''}${s.name}</b><small>${FS.level < s.min_level ? `Avaneb ${s.min_level}. tasemel` : noBoat ? `Vaja: ${FD.boats.find(b => b.id === s.boat) ? FD.boats.find(b => b.id === s.boat).name : 'paat'}` : noPier ? 'Vaja: Kalurimaja paadisild' : noLic ? `🎫 Vaja: ${LIC_N[noLic]}` : `Raskus ${'●'.repeat(s.difficulty)}${'○'.repeat(5 - s.difficulty)}`}</small></button>` }).join('')}</div>
     <p class="lead">${spot ? esc(spot.descr) : ''}</p></div>`;
-  h += `<div class="fv-card"><div id="fvSceneSlot"></div>
-    <p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>
-    ${mainButton()}
+  // püügilava: vaade, teade ja nupud ühes kaadris (midagi ei hüppa püügi ajal paigast)
+  const inProg = ['casting', 'waiting', 'bite', 'hooking', 'reel', 'landing'].includes(FV.phase), ovBtn = !(FS.rod_broken && !inProg);
+  h += `<div class="fv-card"><div class="fv-stage" id="fvStage"><div id="fvSceneSlot"></div>
+    ${inProg && FV.phase !== 'reel' ? `<p class="fvmsg ov" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>` : ''}
+    ${ovBtn ? `<div class="fv-ov-btn ${FV.phase === 'reel' ? 'reel' : ''}">${mainButton()}</div>` : ''}</div>
+    ${!inProg || FV.phase === 'reel' ? `<p class="fvmsg" id="fvMsg" aria-live="polite">${esc(FV.msg || phaseMsg())}</p>` : ''}
+    ${FV.phase === 'reel' ? fightHelp() : ''}
+    ${ovBtn ? '' : mainButton()}
     ${FV.phase === 'result' && FV.result ? resultCard() : ''}
     <div class="ctrl"><div class="field"><label for="fvBait">Sööt või peibutis</label><select id="fvBait" data-fa="bait" ${active ? 'disabled' : ''}>${owned.map(b => `<option value="${b.id}" ${b.id === FS.bait ? 'selected' : ''}>${b.name}${b.consumable ? ` (${(FS.baits || {})[b.id] || 0} tk)` : b.price ? ' (peibutis)' : ''}</option>`).join('')}</select></div>
       <button class="btn ghost sm" type="button" data-fa="tab" data-arg="pood">Osta sööta</button></div>
@@ -5424,8 +5436,14 @@ function setMsg(m) { FV.msg = m; const el = $('#fvMsg'); if (el) el.textContent 
 function setPhase(p, msg) { FV.phase = p; FV.msg = msg || ''; if (p !== 'lost') FV.loss = null; else if (FV.loss) FV.loss.at = performance.now(); renderFV(true) }
 
 /* põhitegevused */
+function stageView() {
+  requestAnimationFrame(() => { const st = document.getElementById('fvStage'), fv = document.getElementById('fishView'); if (!st || !fv) return;
+    const r = st.getBoundingClientRect(), bot = innerHeight - (innerWidth < 900 ? 84 : 10);
+    if (r.top < 50 || r.bottom > bot) fv.scrollTop += r.top - Math.max(56, (bot - r.height) / 2) });
+}
 async function doCast() {
   if (FV.busy || !['idle', 'result', 'lost'].includes(FV.phase)) return;
+  stageView(); // kogu püügilava nähtavale
   if (FS.level < FD.spot[FV.spot].min_level) { toast('See koht on veel lukus.', 'bad'); return }
   if (typeof licMiss === 'function' && licMiss(FV.spot)) { const lm = licMiss(FV.spot); toast(`Siin püüdmiseks on vaja kehtivat kaarti „${LIC_N[lm]}“. Metsajärves saab püüda ka ilma kaardita.`, 'bad'); KA.focus = lm; FV.tab = 'kaardid'; renderFV(true); return }
   FV.busy = true; FV.result = null; setPhase('casting');
@@ -5541,13 +5559,13 @@ function sceneLoop(ts) {
   requestAnimationFrame(sceneLoop);
   const dt = Math.min(.05, (ts - lastSc) / 1000 || 0); lastSc = ts; const t = ts / 1000;
   // ajastused
-  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
+  if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true); stageView() }
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) (FV.loss = { k: 'bait' }, doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.'));
   if (FV.phase === 'reel' && FV.hook) fightTick(FV.hook, dt);
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
   if (!sceneCv.isConnected) return;
-  const w = sceneCv.clientWidth || 600, hgt = Math.round(Math.min(340, Math.max(200, w * .42))), d = Math.min(2, devicePixelRatio || 1);
+  const w = sceneCv.clientWidth || 600, hgt = w < 600 ? Math.round(Math.min(470, Math.max(300, w * 1.02))) : Math.round(Math.min(400, Math.max(280, w * .44))), d = Math.min(2, devicePixelRatio || 1);
   if (sceneCv.width !== Math.round(w * d) || sceneCv.height !== Math.round(hgt * d)) { sceneCv.width = Math.round(w * d); sceneCv.height = Math.round(hgt * d); sceneCv.style.height = hgt + 'px' }
   const c = sceneCv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
   if (FX.shake > 0) { FX.shake -= dt; const k = FX.shake * 14; c.translate(rnd(-k, k), rnd(-k, k)) }
@@ -16992,7 +17010,7 @@ function fightTick(h, dt) {
 }
 function fightDraw(c, w, h, t, tip) {
   const hk = FV.hook; if (!hk || hk.hpMax == null) return;
-  const fxp = w * (.22 + .56 * hk.fx), fy = h * .74, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
+  const fxp = w * (.22 + .56 * hk.fx), fy = h * .64, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
   // pingul nöör kalani (punaseks, kui pinge suur)
   const tc = hk.ten > .8 ? `rgba(255,${Math.round(200 - (hk.ten - .8) * 800)},${Math.round(180 - (hk.ten - .8) * 800)},.9)` : 'rgba(240,240,240,.75)';
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
@@ -17040,12 +17058,12 @@ function fightDraw(c, w, h, t, tip) {
   const red = hk.ten >= .93, slack = hk.ten <= .07;
   if ((red || slack) && Math.sin(t * 14) > -.3) {
     const txt = red ? 'LASE LAHTI!' : 'KERI!'; c.font = `900 ${Math.max(20, w * .045)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
-    c.lineWidth = 6; c.strokeStyle = 'rgba(30,0,0,.8)'; c.strokeText(txt, w / 2, yb + bh + 34); c.fillStyle = red ? '#ff7a6a' : '#9ad8ff'; c.fillText(txt, w / 2, yb + bh + 34);
+    c.lineWidth = 6; c.strokeStyle = 'rgba(30,0,0,.8)'; c.strokeText(txt, w / 2, h * .42); c.fillStyle = red ? '#ff7a6a' : '#9ad8ff'; c.fillText(txt, w / 2, h * .42);
   }
   // kaal / õng
   const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
   c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
-  rect(c, w / 2 - tw / 2, h - 26, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, h - 11);
+  c.textAlign = 'left'; rect(c, x0, yb + bh + 8, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, x0 + 9, yb + bh + 23);
 }
 /* ---------- nupp ja juhtimine ---------- */
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -17053,17 +17071,19 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fight-btn{justify-self:center;width:112px;height:112px;border-radius:50%;border:0;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
   font:900 22px/1 var(--f-body);letter-spacing:.04em;color:#0e2a10;background:radial-gradient(circle at 50% 30%,#a8ff8a,#3fbf4a 60%,#1f7a2a);
   box-shadow:0 0 0 7px rgba(210,225,230,.85),0 0 0 9px rgba(60,80,90,.9),0 8px 24px rgba(0,0,0,.45);transition:transform .08s}
+.fight-cut{position:absolute;right:10px;bottom:6px;background:rgba(6,18,24,.6)}
+.fight-cut.warn{border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)}
 .fight-btn small{display:block;font-size:11px;font-weight:700;letter-spacing:0;opacity:.75;margin-top:3px}
 .fight-btn.on{transform:scale(.94);background:radial-gradient(circle at 50% 30%,#d4ffb8,#5fe06a 60%,#2a9a35)}
-.fight-help{font-size:12.5px;color:var(--muted);line-height:1.35}
-@media (max-width:600px){.fight-btn{width:96px;height:96px;font-size:20px}.fight-help{font-size:11.5px}}
+.fight-help{font-size:13px;color:var(--muted);line-height:1.4;padding:2px 2px}
+@media (max-width:600px){.fight-btn{width:92px;height:92px;font-size:20px}.fight-cut{font-size:12px;padding:6px 9px}}
 </style>`);
 function fightButtons() {
   const warn = FV.hook && +FV.hook.est > +FV.hook.strength;
-  return `<div class="fight-row"><div class="fight-help">Hoia all – pinge tõuseb.<br>Lase lahti – pinge langeb.<br>Hoia osuti <b style="color:#8af07a">rohelisel</b>!</div>
-    <button class="fight-btn ${FV.hook && FV.hook.hold ? 'on' : ''}" type="button" id="fvPull" aria-label="Keri – hoia all">KERI<small>hoia all</small></button>
-    <button class="btn ghost" type="button" data-fa="cut" style="justify-self:end${warn ? ';border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)' : ''}">✋ Lase lahti</button></div>`;
+  return `<button class="fight-btn ${FV.hook && FV.hook.hold ? 'on' : ''}" type="button" id="fvPull" aria-label="Keri – hoia all">KERI<small>hoia all</small></button>
+    <button class="btn ghost sm fight-cut ${warn ? 'warn' : ''}" type="button" data-fa="cut">✋ Lase lahti</button>`;
 }
+function fightHelp() { return '<div class="fight-help">🎣 Hoia <b>KERI</b> all – pinge tõuseb, lase lahti – pinge langeb. Hoia valge osuti <b style="color:#8af07a">rohelisel</b> alal. Kui kala kohal on <b style="color:#ffd25a">!</b>, sööstab ta – lase hetkeks lahti.</div>' }
 document.addEventListener('pointerdown', e => {
   if (FV.phase !== 'reel') return;
   const b = e.target.closest('#fvPull'), sc = e.target === sceneCv;

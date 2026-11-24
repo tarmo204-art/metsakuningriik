@@ -62,7 +62,7 @@ function fightTick(h, dt) {
 }
 function fightDraw(c, w, h, t, tip) {
   const hk = FV.hook; if (!hk || hk.hpMax == null) return;
-  const fxp = w * (.22 + .56 * hk.fx), fy = h * .74, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
+  const fxp = w * (.22 + .56 * hk.fx), fy = h * .64, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
   // pingul nöör kalani (punaseks, kui pinge suur)
   const tc = hk.ten > .8 ? `rgba(255,${Math.round(200 - (hk.ten - .8) * 800)},${Math.round(180 - (hk.ten - .8) * 800)},.9)` : 'rgba(240,240,240,.75)';
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
@@ -110,12 +110,12 @@ function fightDraw(c, w, h, t, tip) {
   const red = hk.ten >= .93, slack = hk.ten <= .07;
   if ((red || slack) && Math.sin(t * 14) > -.3) {
     const txt = red ? 'LASE LAHTI!' : 'KERI!'; c.font = `900 ${Math.max(20, w * .045)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
-    c.lineWidth = 6; c.strokeStyle = 'rgba(30,0,0,.8)'; c.strokeText(txt, w / 2, yb + bh + 34); c.fillStyle = red ? '#ff7a6a' : '#9ad8ff'; c.fillText(txt, w / 2, yb + bh + 34);
+    c.lineWidth = 6; c.strokeStyle = 'rgba(30,0,0,.8)'; c.strokeText(txt, w / 2, h * .42); c.fillStyle = red ? '#ff7a6a' : '#9ad8ff'; c.fillText(txt, w / 2, h * .42);
   }
   // kaal / õng
   const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
   c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
-  rect(c, w / 2 - tw / 2, h - 26, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, h - 11);
+  c.textAlign = 'left'; rect(c, x0, yb + bh + 8, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, x0 + 9, yb + bh + 23);
 }
 /* ---------- nupp ja juhtimine ---------- */
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -123,17 +123,19 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .fight-btn{justify-self:center;width:112px;height:112px;border-radius:50%;border:0;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
   font:900 22px/1 var(--f-body);letter-spacing:.04em;color:#0e2a10;background:radial-gradient(circle at 50% 30%,#a8ff8a,#3fbf4a 60%,#1f7a2a);
   box-shadow:0 0 0 7px rgba(210,225,230,.85),0 0 0 9px rgba(60,80,90,.9),0 8px 24px rgba(0,0,0,.45);transition:transform .08s}
+.fight-cut{position:absolute;right:10px;bottom:6px;background:rgba(6,18,24,.6)}
+.fight-cut.warn{border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)}
 .fight-btn small{display:block;font-size:11px;font-weight:700;letter-spacing:0;opacity:.75;margin-top:3px}
 .fight-btn.on{transform:scale(.94);background:radial-gradient(circle at 50% 30%,#d4ffb8,#5fe06a 60%,#2a9a35)}
-.fight-help{font-size:12.5px;color:var(--muted);line-height:1.35}
-@media (max-width:600px){.fight-btn{width:96px;height:96px;font-size:20px}.fight-help{font-size:11.5px}}
+.fight-help{font-size:13px;color:var(--muted);line-height:1.4;padding:2px 2px}
+@media (max-width:600px){.fight-btn{width:92px;height:92px;font-size:20px}.fight-cut{font-size:12px;padding:6px 9px}}
 </style>`);
 function fightButtons() {
   const warn = FV.hook && +FV.hook.est > +FV.hook.strength;
-  return `<div class="fight-row"><div class="fight-help">Hoia all – pinge tõuseb.<br>Lase lahti – pinge langeb.<br>Hoia osuti <b style="color:#8af07a">rohelisel</b>!</div>
-    <button class="fight-btn ${FV.hook && FV.hook.hold ? 'on' : ''}" type="button" id="fvPull" aria-label="Keri – hoia all">KERI<small>hoia all</small></button>
-    <button class="btn ghost" type="button" data-fa="cut" style="justify-self:end${warn ? ';border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)' : ''}">✋ Lase lahti</button></div>`;
+  return `<button class="fight-btn ${FV.hook && FV.hook.hold ? 'on' : ''}" type="button" id="fvPull" aria-label="Keri – hoia all">KERI<small>hoia all</small></button>
+    <button class="btn ghost sm fight-cut ${warn ? 'warn' : ''}" type="button" data-fa="cut">✋ Lase lahti</button>`;
 }
+function fightHelp() { return '<div class="fight-help">🎣 Hoia <b>KERI</b> all – pinge tõuseb, lase lahti – pinge langeb. Hoia valge osuti <b style="color:#8af07a">rohelisel</b> alal. Kui kala kohal on <b style="color:#ffd25a">!</b>, sööstab ta – lase hetkeks lahti.</div>' }
 document.addEventListener('pointerdown', e => {
   if (FV.phase !== 'reel') return;
   const b = e.target.closest('#fvPull'), sc = e.target === sceneCv;
