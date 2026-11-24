@@ -895,8 +895,8 @@ function phaseMsg() {
   switch (FV.phase) {
     case 'idle': return FS.rod_broken ? 'Sinu õng on katki. Paranda see poes.' : 'Vali püügikoht ja sööt ning vajuta „Viska õng“.';
     case 'casting': return 'Viskad õnge…';
-    case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
-    case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
+    case 'waiting': return isLure() ? 'Kerid lanti aeglaselt läbi vee. Oota, kuni röövkala haarab…' : 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
+    case 'bite': return isLure() ? 'Röövkala haaras lanti! Vajuta kohe „Tõmba!“' : 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
     case 'hooking': return 'Haagid…';
     case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Hoia „KERI“ all ja valge osuti rohelisel alal. Kui kala sööstab (!), lase hetkeks lahti.' }
     case 'landing': return 'Tood kala välja…';
@@ -1072,7 +1072,7 @@ function sceneLoop(ts) {
   if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
-    const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
+    const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .34); c.scale(s, s);
     c.lineWidth = 6; c.strokeStyle = 'rgba(40,10,0,.8)'; c.strokeText('KALA NÄKKAS!', 0, 0); c.fillStyle = '#ffd286'; c.fillText('KALA NÄKKAS!', 0, 0); c.restore();
   }
   if (FV.phase === 'reel' && FV.hook) fightDraw(c, w, h, t, tipP);

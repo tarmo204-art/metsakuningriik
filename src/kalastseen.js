@@ -324,6 +324,32 @@ function drawBobber(c, x, wy, sink, t, s, night) {
     c.fillStyle = 'rgba(255,80,50,.18)'; c.beginPath(); c.ellipse(x + Math.sin(t * 2) * s, wy + H * .25, R * .7, H * .18, 0, 0, 6.283); c.fill();
   }
 }
+const LURE_IDS = ['hobelant', 'kuldvobler', 'draakonilant', 'soomuslant', 'virmalislant'];
+function isLure() { return typeof FS !== 'undefined' && FS && LURE_IDS.includes(FS.bait) }
+// lant ei vaja korki: lant lendab vette ja seda keritakse aeglaselt kalda poole, näkkamist näeb nööri tõmblusest
+function drawLureLine(c, w, h, t, tip, bx, by, s, flying, fx, fy, flyK) {
+  const ph = FV.phase, now = performance.now();
+  if (flying) { c.strokeStyle = 'rgba(240,240,240,.8)'; c.lineWidth = 1; c.beginPath(); c.moveTo(tip[0], tip[1]); c.quadraticCurveTo((tip[0] + fx) / 2, (tip[1] + fy) / 2 - h * .05, fx, fy); c.stroke();
+    c.save(); c.translate(fx, fy); c.rotate(flyK * 9); drawBait(c, 30 * s, FS.bait, t); c.restore(); return }
+  const span = Math.max(1, (FV.biteAt || now) - (FV.castAt || now)), prog = ph === 'waiting' ? Math.max(0, Math.min(1, (now - FV.castAt) / span)) : 1;
+  const lx = bx - prog * w * .16 + Math.sin(t * 1.3) * 3, ly = by + 12 * s; // lant vee all
+  let jerk = 0;
+  if (ph === 'waiting' && FV.biteAt) { const left = FV.biteAt - now; if (left < 1500 && left > 0 && Math.sin(now / 80) > .7) jerk = 3 * s } // röövkala katsub lanti
+  if (ph === 'bite') jerk = (8 + Math.sin(t * 34) * 6) * s;
+  // nöör: õngest veepinnani, sealt kahvatult lantini
+  const ex = lx + 14 * s, ey = by - 1, tight = ph === 'bite' || ph === 'hooking' || ph === 'landing';
+  c.strokeStyle = tight ? 'rgba(255,255,255,.95)' : 'rgba(240,240,240,.85)'; c.lineWidth = tight ? 1.4 : 1;
+  c.beginPath(); c.moveTo(tip[0], tip[1]); c.quadraticCurveTo((tip[0] + ex) / 2, (tip[1] + ey) / 2 + (tight ? -h * .02 : h * .03) + jerk, ex + (jerk ? Math.sin(t * 50) * 2 : 0), ey + jerk * .3); c.stroke();
+  c.strokeStyle = 'rgba(220,240,255,.35)'; c.beginPath(); c.moveTo(ex, ey); c.lineTo(lx, ly); c.stroke();
+  // kiiluvesi veepinnal (V-laine)
+  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1;
+  for (let i = 0; i < 3; i++) { const k = (t * 1.2 + i / 3) % 1; c.globalAlpha = 1 - k; c.beginPath(); c.moveTo(ex + k * 26 * s, ey + k * 7 * s); c.lineTo(ex, ey); c.lineTo(ex + k * 26 * s, ey - k * 3 * s); c.stroke() } c.globalAlpha = 1;
+  // lant vee all: sädelev välgatus
+  c.save(); c.globalAlpha = .55 + .3 * Math.sin(t * 9); c.translate(lx, ly); c.scale(1, .7); drawBait(c, 22 * s, FS.bait, t); c.restore();
+  const gl = c.createRadialGradient(lx, ly, 0, lx, ly, 14 * s); gl.addColorStop(0, `rgba(255,255,220,${.35 + .25 * Math.sin(t * 9)})`); gl.addColorStop(1, 'rgba(255,255,220,0)'); c.fillStyle = gl; c.beginPath(); c.arc(lx, ly, 14 * s, 0, 7); c.fill();
+  // näkkamine: pritsmed ja mullid lantide juures
+  if (ph === 'bite') { if (Math.random() < .5) fxDrops(lx + rnd(-8, 8) * s, by, 3, .7); for (let i = 0; i < 3; i++) { const k = ((t * 1.8 + i / 3) % 1); c.strokeStyle = `rgba(255,255,255,${.6 * (1 - k)})`; c.lineWidth = 1.4; c.beginPath(); c.ellipse(lx, by, 8 + k * 40 * s, (3 + k * 12) * s, 0, 0, 6.283); c.stroke() } }
+}
 function drawLineBobber(c, w, h, t, tip, bx, by, bob, casting) {
   const ph = FV.phase, s = Math.max(.85, Math.min(1.5, h / 220)), now = performance.now();
   if (ph !== FX.lastPh) {
@@ -342,6 +368,7 @@ function drawLineBobber(c, w, h, t, tip, bx, by, bob, casting) {
     for (let i = 1; i <= 12; i++) { const q = i / 12; c.lineTo(tip[0] + (bx - tip[0]) * q * (1 - k * .7), tip[1] + (by - tip[1]) * q * (1 - k * .5) + Math.sin(q * 9 + k * 14) * 14 * k + q * q * 60 * k) } c.stroke();
   }
   if (casting && ph !== 'casting' && !flying) return;
+  if (isLure()) { drawLureLine(c, w, h, t, tip, bx, by, s, flying, fx, fy, flyK); return }
   // väike näksimine enne näkkamist
   let sink = 0;
   if (ph === 'waiting' && FV.biteAt) { const left = FV.biteAt - now; if (left < 1600 && left > 0 && Math.sin(now / 90) > .6) { sink = 2.5 * s; if (Math.random() < .05) fxRing(bx, by + 2, 18) } }
