@@ -5406,7 +5406,7 @@ function phaseMsg() {
     case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
     case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
     case 'hooking': return 'Haagid…';
-    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.' }
+    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Hoia „KERI“ all ja valge osuti rohelisel alal. Kui kala sööstab (!), lase hetkeks lahti.' }
     case 'landing': return 'Tood kala välja…';
     default: return '';
   }
@@ -5415,7 +5415,8 @@ function mainButton() {
   if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return repairButtons(true);
   if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast">Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
   if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
-  if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut"${FV.hook && +FV.hook.est > +FV.hook.strength ? ' style="border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)"' : ''}>✋ Lase lahti</button></div>`;
+  if (FV.phase === 'reel') return fightButtons();
+  if (false) return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut"${FV.hook && +FV.hook.est > +FV.hook.strength ? ' style="border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)"' : ''}>✋ Lase lahti</button></div>`;
   return `<button class="btn bigbtn" type="button" disabled>…</button>`;
 }
 function repairCost2() { const r = FD.rod[FS.rod]; return Math.max(10, Math.round((r ? r.price : 0) * 0.2)) }
@@ -5450,15 +5451,16 @@ async function doPull() {
       FV.loss = { k: r.reason === 'early' || early ? 'early' : 'late' };
       setPhase('lost', r.reason === 'early' || early ? 'Liiga vara! Kala ehmus ära. Oota, kuni ujuk vee alla tõmbub.' : 'Liiga hilja! Kala jõudis minema ujuda.');
     } else {
-      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 };
+      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 }; fightInit(FV.hook);
       const over = +r.est > +r.strength;
-      setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: tõmba või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Vajuta ${r.need} korda, kui valge joon on rohelisel alal.`);
+      setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: võitle või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Hoia „KERI“ all ja osuti rohelisel alal, kuni kala jõud saab otsa.`);
     }
   } catch (e) { toast(e.message, 'bad'); setPhase('idle') }
   FV.busy = false;
 }
 function reelHit() {
   const h = FV.hook; if (!h || FV.busy) return;
+  if (h.hpMax != null) { h.pulseUntil = performance.now() + 350; return } // uus võitlus: puudutus = lühike kerimine
   const lo = h.zc - h.zw / 2, hi = h.zc + h.zw / 2, nd = h.needle || 0;
   if (nd >= lo - .03 && nd <= hi + .03) {
     h.hits++; h.flash = .25; fxHit(Math.abs(nd - h.zc) < h.zw * .22);
@@ -5541,7 +5543,7 @@ function sceneLoop(ts) {
   // ajastused
   if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) (FV.loss = { k: 'bait' }, doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.'));
-  if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
+  if (FV.phase === 'reel' && FV.hook) fightTick(FV.hook, dt);
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
   if (!sceneCv.isConnected) return;
@@ -5562,33 +5564,20 @@ function sceneLoop(ts) {
     rect(c, -20, h * .8, w * .32, 6, bid === 'paat' ? '#6a3e1e' : '#c83a2a'); c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1.5; c.stroke(); c.restore();
   }
   // õng, nöör, ujuk
-  const bx = w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
+  const bx = FV.phase === 'reel' && FV.hook && FV.hook.fx != null ? w * (.22 + .56 * FV.hook.fx) : w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
   const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
   if (FV.phase === 'bite') bob = 9 + Math.sin(t * 32) * 5;
   if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
-  const bend = FV.phase === 'reel' ? RS * (.12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
+  const bend = FV.phase === 'reel' ? RS * (FV.hook && FV.hook.ten != null ? .04 + .24 * FV.hook.ten + .012 * Math.sin(t * 20) * FV.hook.ten : .12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
-  drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
+  if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
     const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
     c.lineWidth = 6; c.strokeStyle = 'rgba(40,10,0,.8)'; c.strokeText('KALA NÄKKAS!', 0, 0); c.fillStyle = '#ffd286'; c.fillText('KALA NÄKKAS!', 0, 0); c.restore();
   }
-  if (FV.phase === 'reel' && FV.hook) {
-    const hk = FV.hook, fx = bx + Math.sin(t * 2.4) * w * .12, L = Math.min(w * .3, 50 + (+hk.est) * 3);
-    c.globalAlpha = .35; c.filter = 'brightness(0)'; drawLook(c, fx, h * .8, L, {}, t, Math.cos(t * 2.4) > 0 ? -1 : 1); c.filter = 'none'; c.globalAlpha = 1;
-    if (Math.random() < .18) fxDrops(fx + rnd(-L * .4, L * .4), h * .62 + rnd(-6, 6), 3, .6);
-    const x0 = w * .06, bw = w * .88, yb = h * .9, bh = 16;
-    rect(c, x0 - 2, yb - 2, bw + 4, bh + 4, 'rgba(0,0,0,.6)'); rect(c, x0, yb, bw, bh, '#24343a');
-    rect(c, x0 + (hk.zc - hk.zw / 2) * bw, yb, hk.zw * bw, bh, hk.flash > 0 ? '#d8ff9a' : '#7fd16a');
-    rect(c, x0 + (hk.needle || 0) * bw - 2, yb - 6, 4, bh + 12, '#fff4d8');
-    for (let i = 0; i < hk.need; i++) circ(c, w - 18 - i * 18, 18, 7, i < hk.hits ? '#ffd286' : 'rgba(255,255,255,.25)');
-    for (let i = 0; i < hk.maxMiss; i++) circ(c, 18 + i * 16, 18, 5, i < hk.misses ? '#ff8a78' : 'rgba(255,255,255,.2)');
-    const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
-    c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
-    rect(c, w / 2 - tw / 2, yb - 30, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, yb - 15);
-  }
+  if (FV.phase === 'reel' && FV.hook) fightDraw(c, w, h, t, tipP);
   FX.w = w; FX.h = h; FX.bx = bx; FX.by = by; drawFx(c, w, h, dt, t);
   for (const p of sparks) { p.life -= dt; p.vy += dt * .5; p.x += p.vx * dt; p.y += p.vy * dt; c.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5)); circ(c, p.x * w, p.y * h, 3, p.col); c.globalAlpha = 1 }
   sparks = sparks.filter(p => p.life > 0);
@@ -6075,8 +6064,8 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
   if (['idle', 'result', 'lost'].includes(FV.phase)) { if (!FS.rod_broken) doCast() } else doPull();
 });
-sceneCv.addEventListener('pointerdown', e => { if (['waiting', 'bite', 'reel'].includes(FV.phase)) { e.preventDefault(); doPull() } });
-document.addEventListener('pointerdown', e => { const b = e.target.closest('#fvPull'); if (b && FV.phase === 'reel') { e.preventDefault(); FV.pdAt = Date.now(); reelHit() } }, true);
+sceneCv.addEventListener('pointerdown', e => { if (['waiting', 'bite'].includes(FV.phase)) { e.preventDefault(); doPull() } });
+
 setInterval(() => { if (FV.open && !['waiting', 'bite', 'reel', 'landing', 'hooking', 'casting'].includes(FV.phase)) { const nowNight = (() => { const h = +new Date().toLocaleString('en-GB', { timeZone: 'Europe/Tallinn', hour: '2-digit', hour12: false }); return h >= 21 || h < 5 })(); if (FS && nowNight !== FS.is_night) refreshFS().then(() => { FV.oddsKey = ''; return loadOdds() }).then(() => renderFV()) } }, 60000);
 
 /* ---------- ühendus kuningriigiga ---------- */
@@ -16938,6 +16927,154 @@ setInterval(() => {
   document.querySelectorAll('[data-dr-next]').forEach(el => { const ms = +el.dataset.drNext - Date.now(); el.textContent = ms <= 0 ? 'Kohe!' : drLeft(ms); if (ms <= -1500) due = true });
   if (due && !DR.loading && Date.now() - DR.d._at > 5000) drLoad(true);
 }, 1000);
+
+/* =====================================================================
+   Kalaga võitlus (uus kerimine)
+   - Hoia „KERI“ nuppu all (või tühikut / puuduta veepilti) – nööri pinge tõuseb, lase lahti – pinge langeb.
+   - Hoia valge osuti rohelisel alal: kala kaotab jõudu (lendavad numbrid), järjest rohelisel = kombo x2…x5.
+   - Kala sööstab aeg-ajalt (hüüumärk tema kohal) – siis tõuseb pinge kiiresti. Punasel liiga kaua → nöör katkeb.
+   - Liiga lõdvalt (vasakus servas) liiga kaua → kala ujub minema.
+   Server jääb samaks: kui kala jõud on otsas, kutsutakse fish_land nagu enne.
+   ===================================================================== */
+function fightInit(h) {
+  const heavy = Math.max(0, Math.min(1.5, (+h.est || 1) / Math.max(.1, +h.strength || 1)));
+  Object.assign(h, {
+    hpMax: Math.round(h.need * 28 * (1 + heavy * .35)), ten: .35, hold: false, pulseUntil: 0, combo: 1, cT: 0, redT: 0, slackT: 0,
+    surgeT: rnd(1.3, 2.4), surgeLeft: 0, surgePow: 0, fx: .5, fv: rnd(-.2, .2), tick: 0, floats: [], comboAt: 0, done: false,
+    heavy, gzW: Math.max(.17, Math.min(.42, h.zw * 1.15)), gz: .5, ft: 0
+  });
+  h.hp = h.hpMax;
+}
+function fightHold(on) { const h = FV.hook; if (FV.phase !== 'reel' || !h) return; h.hold = on }
+function fightTick(h, dt) {
+  if (h.done || FV.busy) return;
+  h.ft += dt;
+  const hold = h.hold || performance.now() < h.pulseUntil;
+  // roheline ala triivib aeglaselt
+  h.gz = .52 + Math.sin(h.ft * .55 * (.8 + h.sp * .15)) * .12;
+  // kala sööstud
+  h.surgeT -= dt;
+  if (h.surgeLeft > 0) h.surgeLeft -= dt;
+  else if (h.surgeT <= 0) {
+    h.surgeLeft = rnd(.6, 1.2) * (1 + h.heavy * .4); h.surgePow = rnd(.35, .7) * (.85 + h.sp * .12) * (1 + h.heavy * .5);
+    h.surgeT = rnd(1.5, 3.2) / (.85 + h.sp * .1); h.fv = (Math.random() < .5 ? -1 : 1) * rnd(.35, .6);
+    if (typeof sfx === 'function') sfx('splash');
+    try { if (navigator.vibrate) navigator.vibrate(35) } catch (e) { } // telefon väriseb, kui kala sööstab
+  }
+  const pull = h.surgeLeft > 0 ? h.surgePow : .06;
+  h.ten += ((hold ? .6 : -.58) + pull * (hold ? 1 : .4)) * dt;
+  h.ten = Math.max(0, Math.min(1, h.ten));
+  // kala ujub vees
+  h.fx += h.fv * dt * (h.surgeLeft > 0 ? 1 : .35);
+  if (h.fx < .12 || h.fx > .88) { h.fv = -h.fv; h.fx = Math.max(.12, Math.min(.88, h.fx)) }
+  if (Math.random() < dt * .6) h.fv += rnd(-.15, .15);
+  // alad
+  const lo = h.gz - h.gzW / 2, hi = h.gz + h.gzW / 2, inG = h.ten >= lo && h.ten <= hi, red = h.ten >= .93, slack = h.ten <= .07;
+  if (inG && hold) { h.cT += dt; const c2 = Math.min(5, 1 + Math.floor(h.cT / 1.1)); if (c2 > h.combo) { h.combo = c2; h.comboAt = performance.now(); if (typeof sfx === 'function') sfx('chime') } }
+  else if (!inG) { h.cT = 0; h.combo = 1 }
+  // kahju
+  h.tick += dt;
+  if (h.tick >= .22) {
+    h.tick = 0;
+    if (hold && !red) {
+      const crit = inG && Math.random() < .12, amt = Math.max(1, Math.round((inG ? 30 : 9) * .22 * h.combo * (crit ? 2 : 1) * rnd(.85, 1.15)));
+      h.hp -= amt; h.floats.push({ v: amt, x: h.fx + rnd(-.03, .03), life: 1, crit });
+      if (h.floats.length > 8) h.floats.shift();
+    }
+  }
+  // punane: nöör katkeb / lõtv: kala pääseb
+  if (red) { h.redT += dt; if (h.redT > .9) { h.done = true; FV.loss = { k: 'slack' }; doLose('Nöör läks liiga pingule ja katkes! Kui osuti jõuab punasesse, lase nupp hetkeks lahti.'); return } }
+  else h.redT = Math.max(0, h.redT - dt * 2);
+  if (slack && !hold) { h.slackT += dt; if (h.slackT > 2.2) { h.done = true; FV.loss = { k: 'slack' }; doLose('Nöör jäi liiga lõdvaks ja kala ujus minema. Hoia „KERI“ all, et pinge püsiks.'); return } }
+  else h.slackT = Math.max(0, h.slackT - dt * 2);
+  h.needle = h.ten;
+  if (h.hp <= 0) { h.hp = 0; h.done = true; h.hits = h.need; doLand() }
+}
+function fightDraw(c, w, h, t, tip) {
+  const hk = FV.hook; if (!hk || hk.hpMax == null) return;
+  const fxp = w * (.22 + .56 * hk.fx), fy = h * .74, L = Math.min(w * .3, 50 + (+hk.est) * 3), surging = hk.surgeLeft > 0;
+  // pingul nöör kalani (punaseks, kui pinge suur)
+  const tc = hk.ten > .8 ? `rgba(255,${Math.round(200 - (hk.ten - .8) * 800)},${Math.round(180 - (hk.ten - .8) * 800)},.9)` : 'rgba(240,240,240,.75)';
+  c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
+  const sag = (1 - hk.ten) * h * .18; c.quadraticCurveTo((tip[0] + fxp) / 2, (tip[1] + fy) / 2 + sag, fxp, fy - 6); c.stroke();
+  // kala (tume vari) ja vahtu
+  c.globalAlpha = .55; c.filter = 'brightness(0)'; drawLook(c, fxp, fy, L, {}, t * (surging ? 2.2 : 1), hk.fv > 0 ? 1 : -1); c.filter = 'none'; c.globalAlpha = 1;
+  if (Math.random() < (surging ? .5 : .15)) fxDrops(fxp + rnd(-L * .4, L * .4), fy - h * .1 + rnd(-6, 6), surging ? 5 : 2, .6);
+  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fxp, fy - 4, L * .45 + Math.sin(t * 6) * 4, 5, 0, 0, 7); c.stroke();
+  // kala eluriba (nagu ikoon + riba)
+  const hb = Math.min(110, w * .2), hx = fxp - hb / 2 + 12, hy = fy - L * .55 - 26;
+  c.fillStyle = 'rgba(0,0,0,.55)'; c.beginPath(); c.roundRect(hx - 2, hy - 2, hb + 4, 12, 6); c.fill();
+  const hpK = Math.max(0, hk.hp / hk.hpMax); c.fillStyle = hpK > .5 ? '#6ee06a' : hpK > .25 ? '#ffd25a' : '#ff6a5a'; c.beginPath(); c.roundRect(hx, hy, hb * hpK, 8, 4); c.fill();
+  circ(c, hx - 10, hy + 4, 13, 'rgba(10,30,40,.9)'); c.strokeStyle = '#9ad8e8'; c.lineWidth = 2; c.beginPath(); c.arc(hx - 10, hy + 4, 13, 0, 7); c.stroke();
+  c.font = '15px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🐟', hx - 10, hy + 5); c.textBaseline = 'alphabetic';
+  // sööstu hoiatus
+  if (hk.surgeT < .4 || surging) { c.font = '900 22px "Alegreya Sans", system-ui, sans-serif'; c.fillStyle = surging ? '#ff8a6a' : '#ffd25a'; c.strokeStyle = 'rgba(30,10,0,.8)'; c.lineWidth = 4; c.strokeText('!', fxp, hy - 10); c.fillText('!', fxp, hy - 10) }
+  // lendavad numbrid
+  for (const f of hk.floats) {
+    f.life -= .016; if (f.life <= 0) continue;
+    const yy = hy - 18 - (1 - f.life) * 40, xx = w * (.22 + .56 * f.x);
+    c.globalAlpha = Math.min(1, f.life * 2); c.font = `900 ${f.crit ? 26 : 20}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
+    c.lineWidth = 4; c.strokeStyle = 'rgba(40,0,0,.75)'; c.strokeText('-' + f.v, xx, yy); c.fillStyle = f.crit ? '#ffd25a' : '#ff6a5a'; c.fillText('-' + f.v, xx, yy); c.globalAlpha = 1;
+  }
+  hk.floats = hk.floats.filter(f => f.life > 0);
+  // pingeriba üleval
+  const x0 = w * .12, bw = w * .76, yb = Math.max(10, h * .05), bh = 16, lo = hk.gz - hk.gzW / 2;
+  c.fillStyle = 'rgba(0,0,0,.6)'; c.beginPath(); c.roundRect(x0 - 3, yb - 3, bw + 6, bh + 6, 6); c.fill();
+  c.fillStyle = '#1c2c44'; c.fillRect(x0, yb, bw, bh);
+  c.fillStyle = 'rgba(120,150,190,.35)'; c.fillRect(x0, yb, bw * .07, bh);
+  let g = c.createLinearGradient(0, yb, 0, yb + bh); g.addColorStop(0, '#8af07a'); g.addColorStop(1, '#3fae4a'); c.fillStyle = g; c.fillRect(x0 + lo * bw, yb, hk.gzW * bw, bh);
+  g = c.createLinearGradient(x0 + bw * .93, 0, x0 + bw, 0); g.addColorStop(0, '#b82a2a'); g.addColorStop(1, '#ff4a3a'); c.fillStyle = g; c.fillRect(x0 + bw * .93, yb, bw * .07, bh);
+  c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1; for (let i = 1; i < 10; i++) { c.beginPath(); c.moveTo(x0 + bw * i / 10, yb + bh * .6); c.lineTo(x0 + bw * i / 10, yb + bh); c.stroke() }
+  const mx = x0 + hk.ten * bw; c.strokeStyle = '#ffffff'; c.lineWidth = 2.5; c.strokeRect(mx - 7, yb - 4, 14, bh + 8);
+  // rulli ikoon vasakul, keerleb hoides
+  const rx = x0 - 22, ry = yb + bh / 2, spin = (hk.hold ? t * 14 : t * 2);
+  circ(c, rx, ry, 13, 'rgba(10,30,40,.9)'); c.strokeStyle = '#c8d4da'; c.lineWidth = 2; c.beginPath(); c.arc(rx, ry, 9, 0, 7); c.stroke();
+  c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + Math.cos(spin) * 9, ry + Math.sin(spin) * 9); c.stroke();
+  // kombo
+  if (hk.combo > 1) {
+    const k = Math.min(1, (performance.now() - hk.comboAt) / 250), s = 1 + (1 - k) * .6;
+    c.save(); c.translate(w * .8, h * .3); c.scale(s, s); c.font = '900 38px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center';
+    c.lineWidth = 6; c.strokeStyle = 'rgba(60,30,0,.8)'; c.strokeText('x' + hk.combo, 0, 0); g = c.createLinearGradient(0, -30, 0, 4); g.addColorStop(0, '#fff2a0'); g.addColorStop(1, '#ffb030'); c.fillStyle = g; c.fillText('x' + hk.combo, 0, 0); c.restore();
+  }
+  // hoiatused keskel
+  const red = hk.ten >= .93, slack = hk.ten <= .07;
+  if ((red || slack) && Math.sin(t * 14) > -.3) {
+    const txt = red ? 'LASE LAHTI!' : 'KERI!'; c.font = `900 ${Math.max(20, w * .045)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
+    c.lineWidth = 6; c.strokeStyle = 'rgba(30,0,0,.8)'; c.strokeText(txt, w / 2, yb + bh + 34); c.fillStyle = red ? '#ff7a6a' : '#9ad8ff'; c.fillText(txt, w / 2, yb + bh + 34);
+  }
+  // kaal / õng
+  const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
+  c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
+  rect(c, w / 2 - tw / 2, h - 26, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, h - 11);
+}
+/* ---------- nupp ja juhtimine ---------- */
+document.head.insertAdjacentHTML('beforeend', `<style>
+.fight-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.fight-btn{justify-self:center;width:112px;height:112px;border-radius:50%;border:0;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
+  font:900 22px/1 var(--f-body);letter-spacing:.04em;color:#0e2a10;background:radial-gradient(circle at 50% 30%,#a8ff8a,#3fbf4a 60%,#1f7a2a);
+  box-shadow:0 0 0 7px rgba(210,225,230,.85),0 0 0 9px rgba(60,80,90,.9),0 8px 24px rgba(0,0,0,.45);transition:transform .08s}
+.fight-btn small{display:block;font-size:11px;font-weight:700;letter-spacing:0;opacity:.75;margin-top:3px}
+.fight-btn.on{transform:scale(.94);background:radial-gradient(circle at 50% 30%,#d4ffb8,#5fe06a 60%,#2a9a35)}
+.fight-help{font-size:12.5px;color:var(--muted);line-height:1.35}
+@media (max-width:600px){.fight-btn{width:96px;height:96px;font-size:20px}.fight-help{font-size:11.5px}}
+</style>`);
+function fightButtons() {
+  const warn = FV.hook && +FV.hook.est > +FV.hook.strength;
+  return `<div class="fight-row"><div class="fight-help">Hoia all – pinge tõuseb.<br>Lase lahti – pinge langeb.<br>Hoia osuti <b style="color:#8af07a">rohelisel</b>!</div>
+    <button class="fight-btn ${FV.hook && FV.hook.hold ? 'on' : ''}" type="button" id="fvPull" aria-label="Keri – hoia all">KERI<small>hoia all</small></button>
+    <button class="btn ghost" type="button" data-fa="cut" style="justify-self:end${warn ? ';border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)' : ''}">✋ Lase lahti</button></div>`;
+}
+document.addEventListener('pointerdown', e => {
+  if (FV.phase !== 'reel') return;
+  const b = e.target.closest('#fvPull'), sc = e.target === sceneCv;
+  if (!b && !sc) return;
+  e.preventDefault(); e.stopPropagation(); FV.pdAt = Date.now(); fightHold(true); if (b) b.classList.add('on');
+}, true);
+const fightUp = () => { if (FV.hook && FV.hook.hold) { fightHold(false); const b = document.getElementById('fvPull'); if (b) b.classList.remove('on') } };
+['pointerup', 'pointercancel', 'blur'].forEach(ev => window.addEventListener(ev, fightUp, true));
+document.addEventListener('keydown', e => { if (e.key === ' ' && FV.open && FV.phase === 'reel' && !e.repeat) { e.preventDefault(); e.stopImmediatePropagation(); fightHold(true) } else if (e.key === ' ' && FV.phase === 'reel') { e.preventDefault(); e.stopImmediatePropagation() } }, true);
+document.addEventListener('keyup', e => { if (e.key === ' ') fightUp() }, true);
+document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('#fvPull')) e.preventDefault() });
 
 /* =====================================================================
    Kalurikassa summa üleval paremal uueneb kohe pärast iga ostu.

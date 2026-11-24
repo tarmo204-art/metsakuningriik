@@ -886,7 +886,7 @@ function phaseMsg() {
     case 'waiting': return 'Ujuk hõljub vees. Oota, kuni kala näkkab…';
     case 'bite': return 'KALA NÄKKAS! Vajuta kohe „Tõmba!“';
     case 'hooking': return 'Haagid…';
-    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Vajuta, kui valge joon on rohelisel alal.' }
+    case 'reel': { const hk = FV.hook; if (hk && +hk.est > +hk.strength) { const kv = +hk.kahv || 0, risk = Math.round(Math.min(1, (+hk.est / +hk.strength - 1) * 1.3) * (1 - kv) * 100); return `⚠️ Kala (~${fKg(+hk.est)}) on raskem, kui su õng kannab (${fKg(+hk.strength)})! Õng võib murduda – oht umbes ${risk}%${kv ? ` (kahv vähendab seda ${Math.round(kv * 100)}%)` : ', kahv vähendaks seda'}. Kui ei taha riskida, vajuta „Lase lahti“.` } return 'Kala on konksus! Hoia „KERI“ all ja valge osuti rohelisel alal. Kui kala sööstab (!), lase hetkeks lahti.' }
     case 'landing': return 'Tood kala välja…';
     default: return '';
   }
@@ -895,7 +895,8 @@ function mainButton() {
   if (FS.rod_broken && ['idle', 'result', 'lost'].includes(FV.phase)) return repairButtons(true);
   if (['idle', 'result', 'lost'].includes(FV.phase)) return `<button class="btn bigbtn" type="button" data-fa="cast">Viska õng <small style="font-weight:500;opacity:.7;font-size:12px">(tühik)</small></button>`;
   if (FV.phase === 'waiting' || FV.phase === 'bite') return `<button class="btn bigbtn ${FV.phase === 'bite' ? 'pull' : ''}" type="button" data-fa="pull" id="fvPull">${FV.phase === 'bite' ? 'TÕMBA!' : 'Tõmba!'}</button>`;
-  if (FV.phase === 'reel') return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut"${FV.hook && +FV.hook.est > +FV.hook.strength ? ' style="border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)"' : ''}>✋ Lase lahti</button></div>`;
+  if (FV.phase === 'reel') return fightButtons();
+  if (false) return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><button class="btn bigbtn pull" type="button" data-fa="pull" id="fvPull">Tõmba!</button><button class="btn ghost" type="button" data-fa="cut"${FV.hook && +FV.hook.est > +FV.hook.strength ? ' style="border-color:#ff8a78;color:#ffd8d0;box-shadow:0 0 12px rgba(255,90,60,.45)"' : ''}>✋ Lase lahti</button></div>`;
   return `<button class="btn bigbtn" type="button" disabled>…</button>`;
 }
 function repairCost2() { const r = FD.rod[FS.rod]; return Math.max(10, Math.round((r ? r.price : 0) * 0.2)) }
@@ -930,15 +931,16 @@ async function doPull() {
       FV.loss = { k: r.reason === 'early' || early ? 'early' : 'late' };
       setPhase('lost', r.reason === 'early' || early ? 'Liiga vara! Kala ehmus ära. Oota, kuni ujuk vee alla tõmbub.' : 'Liiga hilja! Kala jõudis minema ujuda.');
     } else {
-      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 };
+      FV.hook = { ...r, at: performance.now(), hits: 0, misses: 0, maxMiss: 3 + Math.floor(FD.rods.findIndex(x => x.id === FS.rod) / 3), zc: rnd(.3, .7), zw: Math.min(.42, +r.zone * 1.45), sp: +r.speed * .78, t0: performance.now(), flash: 0 }; fightInit(FV.hook);
       const over = +r.est > +r.strength;
-      setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: tõmba või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Vajuta ${r.need} korda, kui valge joon on rohelisel alal.`);
+      setPhase('reel', over ? `Raske kala, umbes ${fmt1(+r.est)} kg! Sinu õng kannab ${fmt1(+r.strength)} kg. See võib murduda: võitle või lase lahti.` : `Kala on konksus (umbes ${fmt1(+r.est)} kg)! Hoia „KERI“ all ja osuti rohelisel alal, kuni kala jõud saab otsa.`);
     }
   } catch (e) { toast(e.message, 'bad'); setPhase('idle') }
   FV.busy = false;
 }
 function reelHit() {
   const h = FV.hook; if (!h || FV.busy) return;
+  if (h.hpMax != null) { h.pulseUntil = performance.now() + 350; return } // uus võitlus: puudutus = lühike kerimine
   const lo = h.zc - h.zw / 2, hi = h.zc + h.zw / 2, nd = h.needle || 0;
   if (nd >= lo - .03 && nd <= hi + .03) {
     h.hits++; h.flash = .25; fxHit(Math.abs(nd - h.zc) < h.zw * .22);
@@ -1021,7 +1023,7 @@ function sceneLoop(ts) {
   // ajastused
   if (FV.phase === 'waiting' && performance.now() >= FV.biteAt) { FV.phase = 'bite'; FV.biteShown = performance.now(); fxBite(); renderFV(true) }
   if (FV.phase === 'bite' && performance.now() - FV.biteShown > 1900 && !FV.busy) (FV.loss = { k: 'bait' }, doLose('Liiga hilja! Kala sõi sööda ära ja ujus minema.'));
-  if (FV.phase === 'reel' && FV.hook) { const h = FV.hook; h.needle = (Math.sin((performance.now() - h.t0) / 1000 * h.sp * Math.PI) + 1) / 2; if (h.flash > 0) h.flash -= dt }
+  if (FV.phase === 'reel' && FV.hook) fightTick(FV.hook, dt);
   if (aqCv.isConnected) drawAquarium(t);
   if (animGear.size) animGearTick(t);
   if (!sceneCv.isConnected) return;
@@ -1042,33 +1044,20 @@ function sceneLoop(ts) {
     rect(c, -20, h * .8, w * .32, 6, bid === 'paat' ? '#6a3e1e' : '#c83a2a'); c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1.5; c.stroke(); c.restore();
   }
   // õng, nöör, ujuk
-  const bx = w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
+  const bx = FV.phase === 'reel' && FV.hook && FV.hook.fx != null ? w * (.22 + .56 * FV.hook.fx) : w * .6, by = h * .55; let bob = Math.sin(t * 2.2) * 2;
   const casting = ['idle', 'casting', 'result', 'lost'].includes(FV.phase);
   if (FV.phase === 'bite') bob = 9 + Math.sin(t * 32) * 5;
   if (FV.phase === 'reel') bob = 4 + Math.sin(t * 14) * 3;
   const gr = FS.gear || {}, rlen = Math.hypot(w * .34, h * .95), RS = Math.min(rlen / 1.5, 300);
-  const bend = FV.phase === 'reel' ? RS * (.12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
+  const bend = FV.phase === 'reel' ? RS * (FV.hook && FV.hook.ten != null ? .04 + .24 * FV.hook.ten + .012 * Math.sin(t * 20) * FV.hook.ten : .12 + .05 * Math.sin(t * 7)) : FV.phase === 'hooking' || FV.phase === 'landing' ? RS * .14 : FV.phase === 'bite' ? RS * .06 * Math.abs(Math.sin(t * 28)) : RS * .006 * Math.sin(t * 1.3);
   const tipP = drawRodBody(c, w * .035, h * .97, w * .34, h * .07, RS, FS.rod, t, gr.upg || 0, gr.ench || '', gr.ench_lvl || 0, bend);
-  drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
+  if (!(FV.phase === 'reel' && FV.hook && FV.hook.hpMax != null)) drawLineBobber(c, w, h, t, tipP, bx, by, bob, casting);
   if (FV.phase === 'bite') {
     c.save(); c.font = `900 ${Math.max(22, w * .055)}px "Alegreya Sans", system-ui, sans-serif`; c.textAlign = 'center';
     const s = 1 + Math.sin(t * 18) * .05; c.translate(w / 2, h * .2); c.scale(s, s);
     c.lineWidth = 6; c.strokeStyle = 'rgba(40,10,0,.8)'; c.strokeText('KALA NÄKKAS!', 0, 0); c.fillStyle = '#ffd286'; c.fillText('KALA NÄKKAS!', 0, 0); c.restore();
   }
-  if (FV.phase === 'reel' && FV.hook) {
-    const hk = FV.hook, fx = bx + Math.sin(t * 2.4) * w * .12, L = Math.min(w * .3, 50 + (+hk.est) * 3);
-    c.globalAlpha = .35; c.filter = 'brightness(0)'; drawLook(c, fx, h * .8, L, {}, t, Math.cos(t * 2.4) > 0 ? -1 : 1); c.filter = 'none'; c.globalAlpha = 1;
-    if (Math.random() < .18) fxDrops(fx + rnd(-L * .4, L * .4), h * .62 + rnd(-6, 6), 3, .6);
-    const x0 = w * .06, bw = w * .88, yb = h * .9, bh = 16;
-    rect(c, x0 - 2, yb - 2, bw + 4, bh + 4, 'rgba(0,0,0,.6)'); rect(c, x0, yb, bw, bh, '#24343a');
-    rect(c, x0 + (hk.zc - hk.zw / 2) * bw, yb, hk.zw * bw, bh, hk.flash > 0 ? '#d8ff9a' : '#7fd16a');
-    rect(c, x0 + (hk.needle || 0) * bw - 2, yb - 6, 4, bh + 12, '#fff4d8');
-    for (let i = 0; i < hk.need; i++) circ(c, w - 18 - i * 18, 18, 7, i < hk.hits ? '#ffd286' : 'rgba(255,255,255,.25)');
-    for (let i = 0; i < hk.maxMiss; i++) circ(c, 18 + i * 16, 18, 5, i < hk.misses ? '#ff8a78' : 'rgba(255,255,255,.2)');
-    const over = +hk.est > +hk.strength, txt = `~${fmt1(+hk.est)} kg / õng ${fmt1(+hk.strength)} kg`;
-    c.font = '800 13px "Alegreya Sans", system-ui, sans-serif'; c.textAlign = 'center'; const tw = c.measureText(txt).width + 18;
-    rect(c, w / 2 - tw / 2, yb - 30, tw, 20, over ? 'rgba(170,30,20,.9)' : 'rgba(0,0,0,.55)'); c.fillStyle = over ? '#ffd8d0' : '#eaf6fa'; c.fillText(txt, w / 2, yb - 15);
-  }
+  if (FV.phase === 'reel' && FV.hook) fightDraw(c, w, h, t, tipP);
   FX.w = w; FX.h = h; FX.bx = bx; FX.by = by; drawFx(c, w, h, dt, t);
   for (const p of sparks) { p.life -= dt; p.vy += dt * .5; p.x += p.vx * dt; p.y += p.vy * dt; c.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5)); circ(c, p.x * w, p.y * h, 3, p.col); c.globalAlpha = 1 }
   sparks = sparks.filter(p => p.life > 0);
@@ -1555,8 +1544,8 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
   if (['idle', 'result', 'lost'].includes(FV.phase)) { if (!FS.rod_broken) doCast() } else doPull();
 });
-sceneCv.addEventListener('pointerdown', e => { if (['waiting', 'bite', 'reel'].includes(FV.phase)) { e.preventDefault(); doPull() } });
-document.addEventListener('pointerdown', e => { const b = e.target.closest('#fvPull'); if (b && FV.phase === 'reel') { e.preventDefault(); FV.pdAt = Date.now(); reelHit() } }, true);
+sceneCv.addEventListener('pointerdown', e => { if (['waiting', 'bite'].includes(FV.phase)) { e.preventDefault(); doPull() } });
+
 setInterval(() => { if (FV.open && !['waiting', 'bite', 'reel', 'landing', 'hooking', 'casting'].includes(FV.phase)) { const nowNight = (() => { const h = +new Date().toLocaleString('en-GB', { timeZone: 'Europe/Tallinn', hour: '2-digit', hour12: false }); return h >= 21 || h < 5 })(); if (FS && nowNight !== FS.is_night) refreshFS().then(() => { FV.oddsKey = ''; return loadOdds() }).then(() => renderFV()) } }, 60000);
 
 /* ---------- ühendus kuningriigiga ---------- */
