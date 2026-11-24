@@ -79,21 +79,22 @@ function fightDraw(c, w, h, t, tip) {
   const hk = FV.hook; if (!hk || hk.hpMax == null) return;
   const fxp = w * (.22 + .56 * hk.fx), fy = h * .64, L = Math.max(38, Math.min(w * .4, 36 + Math.cbrt(Math.max(.005, +hk.est)) * 44)), surging = hk.surgeLeft > 0;
   const sp = hk.sid && FD.sp[hk.sid], LK = sp ? sp.look : {}; // vari on täpselt selle kala kujuga, keda püüad
-  // pingul nöör kalani (punaseks, kui pinge suur)
+  // kala pea on õnge poole (nöör tõmbab suust), siputab; sööstu ajal hüppab vahel veest välja
+  const lk = hk.leap ? (performance.now() - hk.leap) / 900 : 2, wig = Math.sin(t * (surging ? 26 : 15)) * (surging ? .28 : .16), dir = fxp >= tip[0] ? 1 : -1;
+  const leaping = lk < 1, ly = leaping ? fy - Math.sin(lk * Math.PI) * h * .2 : fy, rot = leaping ? -((lk - .5) * 1.4 * dir + wig) : wig * .6;
+  // suu asukoht: drawLook joonistab dir=1 korral pea vasakule (-x)
+  const mo = L * .46, mxp = fxp - Math.cos(rot) * mo * dir, myp = ly - Math.sin(rot) * mo * dir;
+  // pingul nöör kala suuni (punaseks, kui pinge suur)
   const tc = hk.ten > .8 ? `rgba(255,${Math.round(200 - (hk.ten - .8) * 800)},${Math.round(180 - (hk.ten - .8) * 800)},.9)` : 'rgba(240,240,240,.75)';
   c.strokeStyle = tc; c.lineWidth = hk.ten > .8 ? 1.8 : 1.1; c.beginPath(); c.moveTo(tip[0], tip[1]);
-  const sag = (1 - hk.ten) * h * .18; c.quadraticCurveTo((tip[0] + fxp) / 2, (tip[1] + fy) / 2 + sag, fxp, fy - 6); c.stroke();
-  // kala (tume vari) ja vahtu
-  // kala siputab: keha väriseb ja pöördub, sööstu ajal hüppab vahel veest välja
-  const lk = hk.leap ? (performance.now() - hk.leap) / 900 : 2, wig = Math.sin(t * (surging ? 26 : 15)) * (surging ? .28 : .16), dir = hk.fv > 0 ? 1 : -1;
-  if (lk < 1) {
-    const ly = fy - Math.sin(lk * Math.PI) * h * .2, rot = (lk - .5) * 1.4 * dir + wig;
+  const sag = (1 - hk.ten) * h * .18; c.quadraticCurveTo((tip[0] + mxp) / 2, (tip[1] + myp) / 2 + sag, mxp, myp); c.stroke();
+  if (leaping) {
     if (!hk.leapOut) { hk.leapOut = true; fxDrops(fxp, fy - 8, 14, 1); fxRing(fxp, fy, 50); if (typeof lensSplash === 'function') lensSplash(w, h, 6) }
-    c.save(); c.translate(fxp, ly); c.rotate(-rot); c.filter = 'brightness(.8) saturate(.85)'; drawLook(c, 0, 0, L, LK, t * 3, dir); c.filter = 'none'; c.restore();
+    c.save(); c.translate(fxp, ly); c.rotate(rot); c.filter = 'brightness(.8) saturate(.85)'; drawLook(c, 0, 0, L, LK, t * 3, dir); c.filter = 'none'; c.restore();
     if (Math.random() < .6) FX.drops.push({ x: fxp + rnd(-L * .3, L * .3), y: ly + rnd(-5, 5), vx: rnd(-40, 40), vy: rnd(-20, 30), life: .7, r: rnd(1, 2.4) });
   } else {
     if (hk.leapOut) { hk.leapOut = false; fxDrops(fxp, fy - 8, 22, 1.3); fxRing(fxp, fy, 70); fxRing(fxp, fy, 44); if (typeof sfx === 'function') sfx('splash'); if (typeof lensSplash === 'function') lensSplash(w, h, 8) }
-    c.save(); c.translate(fxp, fy); c.rotate(wig * .6); c.globalAlpha = .6; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, LK, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
+    c.save(); c.translate(fxp, fy); c.rotate(rot); c.globalAlpha = .6; c.filter = 'brightness(0)'; drawLook(c, 0, 0, L, LK, t * (surging ? 3 : 1.6), dir); c.filter = 'none'; c.globalAlpha = 1; c.restore();
   }
   if (Math.random() < (surging ? .7 : .3)) fxDrops(fxp + rnd(-L * .45, L * .45), fy - h * .08 + rnd(-6, 6), surging ? 6 : 3, surging ? .9 : .6);
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(fxp, fy - 4, L * .45 + Math.sin(t * 6) * 4, 5, 0, 0, 7); c.stroke();
